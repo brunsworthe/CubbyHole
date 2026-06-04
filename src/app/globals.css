@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Switch dark: utilities to class-based strategy.
+   next-themes adds class="dark" to <html>; this makes every dark: utility
+   activate on that signal rather than on prefers-color-scheme. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Custom animation tokens ── */
+@theme {
+  --animate-fade-in: fade-in 0.18s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

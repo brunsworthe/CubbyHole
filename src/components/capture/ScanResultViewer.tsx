@@ -1,0 +1,125 @@
+'use client'
+
+import dynamic from 'next/dynamic'
+import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+
+const TimeCapsuleViewer = dynamic(
+  () => import('@/components/3d/TimeCapsuleViewer'),
+  { ssr: false }
+)
+
+const MODEL_URL =
+  'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb'
+
+const STATS = [
+  { label: 'Polygons',  value: '18,432' },
+  { label: 'Texture',   value: '2K UV'  },
+  { label: 'File Size', value: '4.2 MB' },
+]
+
+interface Props {
+  onAddToCapsule: () => void
+  onSetPrivacy: () => void
+  onRescan: () => void
+}
+
+export default function ScanResultViewer({ onAddToCapsule, onSetPrivacy, onRescan }: Props) {
+  const [added, setAdded] = useState(false)
+
+  const handleAdd = () => {
+    setAdded(true)
+    setTimeout(onAddToCapsule, 800)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
+      {/* Top overlay */}
+      <div className="absolute top-0 inset-x-0 z-10 pointer-events-none"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.70) 0%, transparent 100%)' }}
+      >
+        <div className="flex items-start justify-between px-5 pt-12 pb-8 pointer-events-auto">
+          <div>
+            <h2 className="text-white font-semibold text-lg leading-tight">
+              Scan Complete
+            </h2>
+            <p className="text-white/48 text-xs mt-1">
+              Drag to rotate · Pinch to zoom
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/25 rounded-full px-3 py-1.5 mt-0.5">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-medium">High Quality</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3D Viewer */}
+      <div className="flex-1 relative min-h-0">
+        <TimeCapsuleViewer modelUrl={MODEL_URL} />
+
+        {/* Pedestal warm glow */}
+        <div
+          className="absolute bottom-0 inset-x-0 h-40 pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,191,36,0.07) 0%, transparent 70%)',
+          }}
+        />
+
+        {/* Scan stats */}
+        <div className="absolute bottom-4 inset-x-0 flex justify-center gap-2.5 pointer-events-none px-4">
+          {STATS.map(({ label, value }) => (
+            <div
+              key={label}
+              className="bg-black/55 backdrop-blur-sm border border-white/10 rounded-xl px-3.5 py-2 text-center"
+            >
+              <div className="text-white/38 text-[10px] leading-none mb-1">{label}</div>
+              <div className="text-white font-mono text-sm font-medium leading-none">{value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div
+        className="flex-shrink-0 px-4 pt-4 pb-8 space-y-2.5"
+        style={{ background: 'linear-gradient(to top, #09090b 60%, transparent 100%)' }}
+      >
+        {/* Primary CTA */}
+        <button
+          onClick={handleAdd}
+          disabled={added}
+          className={`w-full flex items-center justify-center gap-2.5 font-semibold py-3.5 rounded-2xl transition-all duration-200 active:scale-[0.98] ${
+            added
+              ? 'bg-emerald-600 text-white cursor-default'
+              : 'bg-amber-500 hover:bg-amber-400 text-white'
+          }`}
+        >
+          {added
+            ? <><CheckCircle2 className="w-5 h-5" /> Added to Capsule</>
+            : <><PackagePlus className="w-5 h-5" /> Add to Time Capsule</>
+          }
+        </button>
+
+        {/* Secondary actions */}
+        <div className="flex gap-2.5">
+          <button
+            onClick={onSetPrivacy}
+            className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-3 rounded-2xl border border-zinc-700/80 transition-colors active:scale-[0.98]"
+          >
+            <ShieldCheck className="w-4 h-4 text-zinc-400" />
+            Set Privacy
+          </button>
+          <button
+            onClick={onRescan}
+            className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-300 font-medium py-3 rounded-2xl border border-zinc-700/80 transition-colors active:scale-[0.98]"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Re-scan
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
