@@ -5,7 +5,7 @@ import CaptureScreen from './CaptureScreen'
 import ProcessingState from './ProcessingState'
 import ScanResultViewer from './ScanResultViewer'
 
-export type CaptureMode = 'scan3d' | 'artwork2d'
+export type CaptureMode = 'scan3d' | 'artwork2d' | 'document'
 
 type Step = 'capture' | 'processing' | 'result'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Scan, Cpu, Layers, Sparkles, CheckCircle2, Eye, Brush, Wand2, Sun } from 'lucide-react'
+import { Scan, Cpu, Layers, Sparkles, CheckCircle2, Eye, Brush, Wand2, Sun, Crop, FileText, Copy, SunMedium } from 'lucide-react'
 import type { CaptureMode } from './CaptureFlow'
 
 interface Props {
@@ -106,9 +106,53 @@ const STAGES_2D: Stage[] = [
   },
 ]
 
+const STAGES_DOCUMENT: Stage[] = [
+  {
+    id: 'edges',
+    label: 'Detecting Document Edges',
+    sublabel: 'Finding the page boundary and correcting perspective',
+    icon: Crop,
+    duration: 1800,
+    activeColor: 'text-sky-500 dark:text-sky-400',
+    barColor: 'bg-sky-500',
+    iconBg: 'bg-sky-50 dark:bg-sky-950/50',
+  },
+  {
+    id: 'page1',
+    label: 'Scanning Page 1',
+    sublabel: 'Capturing crisp detail at full resolution',
+    icon: FileText,
+    duration: 2000,
+    activeColor: 'text-blue-500 dark:text-blue-400',
+    barColor: 'bg-blue-500',
+    iconBg: 'bg-blue-50 dark:bg-blue-950/50',
+  },
+  {
+    id: 'page2',
+    label: 'Scanning Page 2',
+    sublabel: 'Capturing crisp detail at full resolution',
+    icon: Copy,
+    duration: 2000,
+    activeColor: 'text-indigo-500 dark:text-indigo-400',
+    barColor: 'bg-indigo-500',
+    iconBg: 'bg-indigo-50 dark:bg-indigo-950/50',
+  },
+  {
+    id: 'contrast',
+    label: 'Enhancing Text Contrast',
+    sublabel: 'Sharpening characters and balancing exposure',
+    icon: SunMedium,
+    duration: 1800,
+    activeColor: 'text-emerald-500 dark:text-emerald-400',
+    barColor: 'bg-emerald-500',
+    iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+  },
+]
+
 export default function ProcessingState({ mode, onComplete }: Props) {
   const is2D = mode === 'artwork2d'
-  const STAGES = is2D ? STAGES_2D : STAGES_3D
+  const isDocument = mode === 'document'
+  const STAGES = is2D ? STAGES_2D : isDocument ? STAGES_DOCUMENT : STAGES_3D
 
   const [activeStage, setActiveStage] = useState(0)
   const [stageProgress, setStageProgress] = useState(0)
@@ -155,10 +199,14 @@ export default function ProcessingState({ mode, onComplete }: Props) {
   const isDone = activeStage >= STAGES.length
 
   const titleText = isDone
-    ? (is2D ? 'Artwork Transformed' : 'Model Ready')
-    : (is2D ? 'Bringing Your Artwork to Life' : 'Building Your Model')
+    ? (is2D ? 'Artwork Transformed' : isDocument ? 'Document Ready' : 'Model Ready')
+    : (is2D ? 'Bringing Your Artwork to Life' : isDocument ? 'Digitizing Your Document' : 'Building Your Model')
   const subtitleText = isDone
-    ? (is2D ? 'Your drawing now has depth, light and texture.' : 'Your 3D object has been captured successfully.')
+    ? (is2D
+        ? 'Your drawing now has depth, light and texture.'
+        : isDocument
+          ? 'Your pages have been cleaned, cropped and enhanced.'
+          : 'Your 3D object has been captured successfully.')
     : 'This takes about 10 seconds…'
 
   return (
@@ -168,12 +216,12 @@ export default function ProcessingState({ mode, onComplete }: Props) {
         <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-colors duration-500 ${
           isDone
             ? 'bg-emerald-50 dark:bg-emerald-950/50'
-            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : 'bg-amber-50 dark:bg-amber-950/40'
+            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : isDocument ? 'bg-sky-50 dark:bg-sky-950/40' : 'bg-amber-50 dark:bg-amber-950/40'
         }`}>
           {isDone
             ? <CheckCircle2 className="w-7 h-7 text-emerald-500" />
             : <div className={`w-6 h-6 border-[3px] border-slate-200 dark:border-zinc-700 rounded-full animate-spin ${
-                is2D ? 'border-t-violet-500' : 'border-t-amber-500'
+                is2D ? 'border-t-violet-500' : isDocument ? 'border-t-sky-500' : 'border-t-amber-500'
               }`} />
           }
         </div>

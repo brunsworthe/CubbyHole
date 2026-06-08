@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
+import DocumentViewer from './DocumentViewer'
 import type { CaptureMode } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
@@ -26,6 +27,12 @@ const STATS_2D = [
   { label: 'File Size',    value: '1.8 MB' },
 ]
 
+const STATS_DOCUMENT = [
+  { label: 'Pages',      value: '3'       },
+  { label: 'Resolution', value: '300 DPI' },
+  { label: 'File Size',  value: '2.4 MB'  },
+]
+
 interface Props {
   mode: CaptureMode
   onAddToCapsule: () => void
@@ -36,7 +43,8 @@ interface Props {
 export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, onRescan }: Props) {
   const [added, setAdded] = useState(false)
   const is2D = mode === 'artwork2d'
-  const stats = is2D ? STATS_2D : STATS_3D
+  const isDocument = mode === 'document'
+  const stats = is2D ? STATS_2D : isDocument ? STATS_DOCUMENT : STATS_3D
 
   const handleAdd = () => {
     setAdded(true)
@@ -52,20 +60,26 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
         <div className="flex items-start justify-between px-5 pt-12 pb-8 pointer-events-auto">
           <div>
             <h2 className="text-white font-semibold text-lg leading-tight">
-              {is2D ? 'Masterpiece Captured' : 'Scan Complete'}
+              {is2D ? 'Masterpiece Captured' : isDocument ? 'Document Digitized' : 'Scan Complete'}
             </h2>
             <p className="text-white/48 text-xs mt-1">
-              {is2D ? 'Move your phone or drag to feel the depth' : 'Drag to rotate · Pinch to zoom'}
+              {is2D
+                ? 'Move your phone or drag to feel the depth'
+                : isDocument
+                  ? 'Drag to inspect · Use the arrows to flip pages'
+                  : 'Drag to rotate · Pinch to zoom'}
             </p>
           </div>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 mt-0.5 border ${
             is2D
               ? 'bg-violet-500/15 border-violet-500/25'
-              : 'bg-emerald-500/15 border-emerald-500/25'
+              : isDocument
+                ? 'bg-sky-500/15 border-sky-500/25'
+                : 'bg-emerald-500/15 border-emerald-500/25'
           }`}>
-            <Sparkles className={`w-3.5 h-3.5 ${is2D ? 'text-violet-400' : 'text-emerald-400'}`} />
-            <span className={`text-xs font-medium ${is2D ? 'text-violet-400' : 'text-emerald-400'}`}>
-              {is2D ? 'Magic Mode' : 'High Quality'}
+            <Sparkles className={`w-3.5 h-3.5 ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : 'text-emerald-400'}`} />
+            <span className={`text-xs font-medium ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : 'text-emerald-400'}`}>
+              {is2D ? 'Magic Mode' : isDocument ? 'Text Enhanced' : 'High Quality'}
             </span>
           </div>
         </div>
@@ -73,7 +87,7 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
 
       {/* Showcase viewport */}
       <div className="flex-1 relative min-h-0">
-        {is2D ? <FloatingCanvas2D /> : <TimeCapsuleViewer modelUrl={MODEL_URL} />}
+        {is2D ? <FloatingCanvas2D /> : isDocument ? <DocumentViewer /> : <TimeCapsuleViewer modelUrl={MODEL_URL} />}
 
         {/* Pedestal warm glow */}
         <div
@@ -81,7 +95,9 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
           style={{
             background: is2D
               ? 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(167,139,250,0.09) 0%, transparent 70%)'
-              : 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,191,36,0.07) 0%, transparent 70%)',
+              : isDocument
+                ? 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(56,189,248,0.08) 0%, transparent 70%)'
+                : 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,191,36,0.07) 0%, transparent 70%)',
           }}
         />
 

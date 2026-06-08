@@ -1,91 +1,18 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
 import { Plus, Minus } from 'lucide-react'
+import { useTiltZoom, MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from './useTiltZoom'
 
 const FLOWER_COLORS = ['#ff6b9d', '#ffd23f', '#ff8c42', '#a685e2', '#ff6b9d']
 const FLOWER_POSITIONS: [number, number][] = [[40, 220], [90, 230], [150, 222], [175, 235], [60, 238]]
 const SUN_RAYS = [0, 45, 90, 135, 180, 225, 270, 315]
 
-const MIN_ZOOM = 0.25
-const MAX_ZOOM = 3
-const ZOOM_STEP = 0.25
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
-
-type Point = { x: number; y: number }
-const pointDistance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y)
-
 export default function FloatingCanvas2D() {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 })
-  const [active, setActive] = useState(false)
-  const [zoomScale, setZoomScale] = useState(1)
-  const ref = useRef<HTMLDivElement>(null)
-
-  // Tracks every pointer currently touching the canvas, keyed by pointerId — lets us
-  // detect a second simultaneous pointer and treat the pair as a pinch gesture.
-  const activePointers = useRef(new Map<number, Point>())
-  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null)
-
-  const updateTilt = useCallback((clientX: number, clientY: number) => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const px = (clientX - rect.left) / rect.width - 0.5
-    const py = (clientY - rect.top) / rect.height - 0.5
-    setTilt({ x: py * -16, y: px * 18 })
-  }, [])
-
-  const adjustZoom = useCallback((delta: number) => {
-    setZoomScale((z) => clamp(Math.round((z + delta) * 100) / 100, MIN_ZOOM, MAX_ZOOM))
-  }, [])
-
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setZoomScale((z) => clamp(z - e.deltaY * 0.0016, MIN_ZOOM, MAX_ZOOM))
-  }, [])
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-
-    if (activePointers.current.size === 2) {
-      const [a, b] = Array.from(activePointers.current.values())
-      pinchRef.current = { distance: pointDistance(a, b), zoom: zoomScale }
-      setActive(false)
-    } else if (activePointers.current.size === 1) {
-      setActive(true)
-      updateTilt(e.clientX, e.clientY)
-    }
-  }
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!activePointers.current.has(e.pointerId)) return
-    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-
-    if (activePointers.current.size === 2 && pinchRef.current) {
-      const [a, b] = Array.from(activePointers.current.values())
-      const ratio = pointDistance(a, b) / pinchRef.current.distance
-      setZoomScale(clamp(pinchRef.current.zoom * ratio, MIN_ZOOM, MAX_ZOOM))
-    } else if (activePointers.current.size === 1) {
-      setActive(true)
-      updateTilt(e.clientX, e.clientY)
-    }
-  }
-
-  const releasePointer = (e: React.PointerEvent<HTMLDivElement>) => {
-    activePointers.current.delete(e.pointerId)
-    if (activePointers.current.size < 2) pinchRef.current = null
-    if (activePointers.current.size === 0) {
-      setActive(false)
-      setTilt({ x: 0, y: 0 })
-    }
-  }
-
-  // Derived stage scales — the pedestal shadow grows/shrinks with the artwork to stay
-  // grounded, while the ambient glow expands as the canvas shrinks so the surrounding
-  // "empty space" still reads as a lit, three-dimensional stage rather than a void.
-  const pedestalScale = 1 + (zoomScale - 1) * 0.28
-  const ambientScale = 1 + Math.max(0, 1 - zoomScale) * 0.6
+  const {
+    ref, tilt, active, zoomScale,
+    pedestalScale, ambientScale, transitionClass,
+    adjustZoom, handlers,
+  } = useTiltZoom()
 
   return (
     <div className="relative w-full h-full flex items-center justify-center px-8" style={{ perspective: '1500px' }}>
@@ -103,15 +30,8 @@ export default function FloatingCanvas2D() {
 
       <div
         ref={ref}
-        onPointerMove={handlePointerMove}
-        onPointerDown={handlePointerDown}
-        onPointerLeave={releasePointer}
-        onPointerUp={releasePointer}
-        onPointerCancel={releasePointer}
-        onWheel={handleWheel}
-        className={`relative w-full max-w-xs aspect-[4/5] cursor-grab active:cursor-grabbing touch-none transition-transform ${
-          active ? 'duration-100 ease-out' : 'duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]'
-        }`}
+        {...handlers}
+        className={`relative w-full max-w-xs aspect-[4/5] cursor-grab active:cursor-grabbing touch-none transition-transform ${transitionClass}`}
         style={{
           transformStyle: 'preserve-3d',
           transformOrigin: 'center center',
@@ -206,9 +126,7 @@ export default function FloatingCanvas2D() {
 
         {/* Floating drop shadow / pedestal — scales up slightly with zoom for a sense of physical depth */}
         <div
-          className={`absolute -bottom-7 inset-x-10 h-7 rounded-full blur-xl -z-10 transition-transform ${
-            active ? 'duration-100 ease-out' : 'duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]'
-          }`}
+          className={`absolute -bottom-7 inset-x-10 h-7 rounded-full blur-xl -z-10 transition-transform ${transitionClass}`}
           style={{
             background: 'rgba(0,0,0,0.32)',
             transform: `translateX(${tilt.y * -1.6}px) scale(${pedestalScale}) scaleX(${1 - Math.min(Math.abs(tilt.y) * 0.012, 0.25)})`,

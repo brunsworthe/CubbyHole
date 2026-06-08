@@ -1,8 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Lightbulb, RotateCcw, Info, Box, Palette } from 'lucide-react'
+import { X, Lightbulb, RotateCcw, Info, Box, Palette, FileText } from 'lucide-react'
 import type { CaptureMode } from './CaptureFlow'
+
+const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'scan3d', label: '3D Object', icon: Box },
+  { id: 'artwork2d', label: '2D Masterpiece', icon: Palette },
+  { id: 'document', label: 'Document Scanner', icon: FileText },
+]
 
 interface Props {
   mode: CaptureMode
@@ -27,7 +33,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [isCapturing, setIsCapturing] = useState(false)
 
   const is2D = mode === 'artwork2d'
-  const accent = is2D ? 'rgb(196 181 253)' : 'rgb(251 191 36)'
+  const isDocument = mode === 'document'
+  const isFlat = mode !== 'scan3d'
+  const accent = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : 'rgb(251 191 36)'
+  const pointColor = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : 'rgb(110 231 183)'
 
   // Smooth orbit dot animation via rAF
   useEffect(() => {
@@ -76,14 +85,18 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // Flat-scan circular progress ring (2D mode)
   const ringOffset = RING_CIRC * (1 - scanProgress / 100)
 
-  const hudLabel = is2D ? 'ALIGN ARTWORK' : 'ALIGN OBJECT'
+  const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : 'ALIGN OBJECT'
   const tipText = isCapturing
     ? is2D
       ? 'Hold steady — capturing every brushstroke and texture'
-      : 'Keep moving — slowly orbit all the way around the object'
+      : isDocument
+        ? 'Hold steady — scanning each page in sequence'
+        : 'Keep moving — slowly orbit all the way around the object'
     : is2D
       ? 'Lay the artwork flat and hold your phone steady above it'
-      : 'Center the object inside the guide, then press Scan'
+      : isDocument
+        ? 'Place each page flat within the frame, one at a time'
+        : 'Center the object inside the guide, then press Scan'
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
@@ -97,9 +110,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <X className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full animate-pulse ${is2D ? 'bg-violet-400' : 'bg-amber-400'}`} />
+          <div className={`w-2 h-2 rounded-full animate-pulse ${is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : 'bg-amber-400'}`} />
           <span className="text-white/75 text-xs font-mono tracking-[0.15em] uppercase">
-            {is2D ? 'Vision AI Active' : 'LiDAR Active'}
+            {is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : 'LiDAR Active'}
           </span>
         </div>
         <button
@@ -113,26 +126,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       {/* Mode switcher */}
       <div className="flex justify-center px-5 pb-3 flex-shrink-0">
         <div className="inline-flex p-1 rounded-full bg-white/8 backdrop-blur-md border border-white/10">
-          <button
-            onClick={() => onModeChange('scan3d')}
-            disabled={isCapturing}
-            className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
-              mode === 'scan3d' ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
-            }`}
-          >
-            <Box className="w-3.5 h-3.5" />
-            3D Object Scan
-          </button>
-          <button
-            onClick={() => onModeChange('artwork2d')}
-            disabled={isCapturing}
-            className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
-              mode === 'artwork2d' ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
-            }`}
-          >
-            <Palette className="w-3.5 h-3.5" />
-            2D Masterpiece Mode
-          </button>
+          {MODES.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onModeChange(id)}
+              disabled={isCapturing}
+              className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+                mode === id ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -173,7 +179,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             [118, 170, 0.30], [238, 162, 0.35], [70, 218, 0.40],
             [144, 130, 0.28], [220, 240, 0.38], [92, 155, 0.42],
           ] as [number, number, number][]).map(([x, y, o], i) => (
-            <circle key={i} cx={x} cy={y} r="1.8" fill={is2D ? 'rgb(196 181 253)' : 'rgb(110 231 183)'} opacity={o} />
+            <circle key={i} cx={x} cy={y} r="1.8" fill={pointColor} opacity={o} />
           ))}
 
           {/* Alignment frame — dashed border */}
@@ -214,10 +220,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {/* HUD labels */}
           <text x="60" y="65" fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">{hudLabel}</text>
           <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">
-            {is2D ? 'FLAT · 0°' : '~0.4 m'}
+            {isFlat ? 'FLAT · 0°' : '~0.4 m'}
           </text>
 
-          {is2D ? (
+          {isFlat ? (
             <>
               {/* Flat-scan circular progress ring */}
               <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.16" />
@@ -282,7 +288,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <>
               <rect x="94" y="172" width="112" height="40" rx="5" fill="black" fillOpacity="0.65" />
               <text x="150" y="187" fill={accent} fontSize="7.5" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
-                {is2D ? 'CAPTURING' : 'SCANNING'}
+                {isFlat ? 'CAPTURING' : 'SCANNING'}
               </text>
               <text x="150" y="203" fill="white" fontSize="13" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
                 {`${Math.round(scanProgress)}%`}
@@ -314,11 +320,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             className={`w-14 h-14 rounded-full transition-colors duration-150 ${
               is2D
                 ? isCapturing ? 'bg-violet-500' : 'bg-violet-400 hover:bg-violet-300'
-                : isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+                : isDocument
+                  ? isCapturing ? 'bg-sky-500' : 'bg-sky-400 hover:bg-sky-300'
+                  : isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
             }`}
           />
           {isCapturing && (
-            <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${is2D ? 'border-violet-400' : 'border-amber-400'}`} />
+            <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
+              is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
+            }`} />
           )}
         </button>
 
