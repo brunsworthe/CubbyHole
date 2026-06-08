@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Lightbulb, RotateCcw, Info } from 'lucide-react'
+import { X, Lightbulb, RotateCcw, Info, Box, Palette } from 'lucide-react'
+import type { CaptureMode } from './CaptureFlow'
 
 interface Props {
+  mode: CaptureMode
+  onModeChange: (mode: CaptureMode) => void
   onCapture: () => void
   onClose: () => void
 }
@@ -13,10 +16,18 @@ const ORBIT_CY = 312
 const ORBIT_RX = 88
 const ORBIT_RY = 20
 
-export default function CaptureScreen({ onCapture, onClose }: Props) {
+const RING_CX = 150
+const RING_CY = 190
+const RING_R = 52
+const RING_CIRC = 2 * Math.PI * RING_R
+
+export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }: Props) {
   const [orbitAngle, setOrbitAngle] = useState(0)
   const [scanProgress, setScanProgress] = useState(0)
   const [isCapturing, setIsCapturing] = useState(false)
+
+  const is2D = mode === 'artwork2d'
+  const accent = is2D ? 'rgb(196 181 253)' : 'rgb(251 191 36)'
 
   // Smooth orbit dot animation via rAF
   useEffect(() => {
@@ -47,12 +58,12 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
     }, 38)
   }, [isCapturing, onCapture])
 
-  // Orbit dot position
+  // Orbit dot position (3D mode)
   const rad = (orbitAngle * Math.PI) / 180
   const dotX = ORBIT_CX + ORBIT_RX * Math.sin(rad)
   const dotY = ORBIT_CY - ORBIT_RY * Math.cos(rad)
 
-  // Scan coverage arc path
+  // Orbit coverage arc path (3D mode)
   const coverageAngle = (scanProgress / 100) * 2 * Math.PI
   const arcEndX = ORBIT_CX + ORBIT_RX * Math.sin(coverageAngle)
   const arcEndY = ORBIT_CY - ORBIT_RY * Math.cos(coverageAngle)
@@ -62,10 +73,22 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
       ? `M ${ORBIT_CX} ${ORBIT_CY - ORBIT_RY} A ${ORBIT_RX} ${ORBIT_RY} 0 ${largeArc} 1 ${arcEndX} ${arcEndY}`
       : ''
 
+  // Flat-scan circular progress ring (2D mode)
+  const ringOffset = RING_CIRC * (1 - scanProgress / 100)
+
+  const hudLabel = is2D ? 'ALIGN ARTWORK' : 'ALIGN OBJECT'
+  const tipText = isCapturing
+    ? is2D
+      ? 'Hold steady — capturing every brushstroke and texture'
+      : 'Keep moving — slowly orbit all the way around the object'
+    : is2D
+      ? 'Lay the artwork flat and hold your phone steady above it'
+      : 'Center the object inside the guide, then press Scan'
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-12 pb-3 flex-shrink-0">
+      <div className="flex items-center justify-between px-5 pt-12 pb-2 flex-shrink-0">
         <button
           onClick={onClose}
           className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
@@ -74,9 +97,9 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
           <X className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <div className={`w-2 h-2 rounded-full animate-pulse ${is2D ? 'bg-violet-400' : 'bg-amber-400'}`} />
           <span className="text-white/75 text-xs font-mono tracking-[0.15em] uppercase">
-            LiDAR Active
+            {is2D ? 'Vision AI Active' : 'LiDAR Active'}
           </span>
         </div>
         <button
@@ -85,6 +108,32 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
         >
           <Lightbulb className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Mode switcher */}
+      <div className="flex justify-center px-5 pb-3 flex-shrink-0">
+        <div className="inline-flex p-1 rounded-full bg-white/8 backdrop-blur-md border border-white/10">
+          <button
+            onClick={() => onModeChange('scan3d')}
+            disabled={isCapturing}
+            className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+              mode === 'scan3d' ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
+            }`}
+          >
+            <Box className="w-3.5 h-3.5" />
+            3D Object Scan
+          </button>
+          <button
+            onClick={() => onModeChange('artwork2d')}
+            disabled={isCapturing}
+            className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+              mode === 'artwork2d' ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            2D Masterpiece Mode
+          </button>
+        </div>
       </div>
 
       {/* Viewfinder */}
@@ -115,7 +164,7 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
             </filter>
           </defs>
 
-          {/* LiDAR depth point cloud (decorative) */}
+          {/* Depth / feature point cloud (decorative) */}
           {([
             [98, 128, 0.40], [158, 108, 0.50], [208, 136, 0.30],
             [84, 190, 0.35], [186, 168, 0.45], [228, 196, 0.30],
@@ -124,10 +173,10 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
             [118, 170, 0.30], [238, 162, 0.35], [70, 218, 0.40],
             [144, 130, 0.28], [220, 240, 0.38], [92, 155, 0.42],
           ] as [number, number, number][]).map(([x, y, o], i) => (
-            <circle key={i} cx={x} cy={y} r="1.8" fill="rgb(110 231 183)" opacity={o} />
+            <circle key={i} cx={x} cy={y} r="1.8" fill={is2D ? 'rgb(196 181 253)' : 'rgb(110 231 183)'} opacity={o} />
           ))}
 
-          {/* Alignment box — dashed border */}
+          {/* Alignment frame — dashed border */}
           <rect
             x="58" y="72" width="184" height="236"
             fill="none"
@@ -145,19 +194,15 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
           </g>
 
           {/* Corner brackets */}
-          <g filter="url(#glow)" stroke="rgb(251 191 36)" strokeWidth="2.5" strokeLinecap="round" fill="none">
-            {/* Top-left */}
+          <g filter="url(#glow)" stroke={accent} strokeWidth="2.5" strokeLinecap="round" fill="none">
             <path d="M 58 112 L 58 72 L 98 72" />
-            {/* Top-right */}
             <path d="M 202 72 L 242 72 L 242 112" />
-            {/* Bottom-left */}
             <path d="M 58 268 L 58 308 L 98 308" />
-            {/* Bottom-right */}
             <path d="M 202 308 L 242 308 L 242 268" />
           </g>
 
           {/* Animated scan line */}
-          <line x1="60" x2="240" stroke="rgb(251 191 36)" strokeWidth="1" strokeOpacity="0.75">
+          <line x1="60" x2="240" stroke={accent} strokeWidth="1" strokeOpacity="0.75">
             <animate attributeName="y1" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
             <animate attributeName="y2" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
           </line>
@@ -166,48 +211,80 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
             <animate attributeName="y2" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
           </line>
 
-          {/* Center crosshair */}
-          <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
-            <circle cx="150" cy="190" r="3.5" />
-            <line x1="141" y1="190" x2="159" y2="190" />
-            <line x1="150" y1="181" x2="150" y2="199" />
-          </g>
-
           {/* HUD labels */}
-          <text x="60" y="65" fill="rgb(251 191 36)" fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">ALIGN OBJECT</text>
-          <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">~0.4 m</text>
+          <text x="60" y="65" fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">{hudLabel}</text>
+          <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">
+            {is2D ? 'FLAT · 0°' : '~0.4 m'}
+          </text>
 
-          {/* Orbit ellipse guide */}
-          <ellipse
-            cx={ORBIT_CX} cy={ORBIT_CY} rx={ORBIT_RX} ry={ORBIT_RY}
-            fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.18" strokeDasharray="4 3"
-          />
+          {is2D ? (
+            <>
+              {/* Flat-scan circular progress ring */}
+              <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.16" />
+              <circle
+                cx={RING_CX} cy={RING_CY} r={RING_R} fill="none"
+                stroke={accent} strokeWidth="2.5" strokeLinecap="round"
+                strokeDasharray={RING_CIRC}
+                strokeDashoffset={ringOffset}
+                transform={`rotate(-90 ${RING_CX} ${RING_CY})`}
+                opacity={scanProgress > 0 ? 0.9 : 0}
+                style={{ transition: 'opacity 200ms, stroke-dashoffset 60ms linear' }}
+              />
+              {/* Center reticle */}
+              <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
+                <circle cx={RING_CX} cy={RING_CY} r="3.5" />
+                <line x1={RING_CX - 9} y1={RING_CY} x2={RING_CX + 9} y2={RING_CY} />
+                <line x1={RING_CX} y1={RING_CY - 9} x2={RING_CX} y2={RING_CY + 9} />
+              </g>
+              {/* Pulse ring while capturing */}
+              {isCapturing && (
+                <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke={accent} strokeWidth="1" opacity="0.5">
+                  <animate attributeName="r" values={`${RING_R};${RING_R + 22}`} dur="1.6s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="0.5;0" dur="1.6s" repeatCount="indefinite" />
+                </circle>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Center crosshair */}
+              <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
+                <circle cx="150" cy="190" r="3.5" />
+                <line x1="141" y1="190" x2="159" y2="190" />
+                <line x1="150" y1="181" x2="150" y2="199" />
+              </g>
 
-          {/* Scan coverage arc */}
-          {coveragePath && (
-            <path
-              d={coveragePath}
-              fill="none"
-              stroke="rgb(251 191 36)"
-              strokeWidth="2.5"
-              strokeOpacity="0.88"
-              strokeLinecap="round"
-            />
+              {/* Orbit ellipse guide */}
+              <ellipse
+                cx={ORBIT_CX} cy={ORBIT_CY} rx={ORBIT_RX} ry={ORBIT_RY}
+                fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.18" strokeDasharray="4 3"
+              />
+
+              {/* Scan coverage arc */}
+              {coveragePath && (
+                <path
+                  d={coveragePath}
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth="2.5"
+                  strokeOpacity="0.88"
+                  strokeLinecap="round"
+                />
+              )}
+
+              {/* Orbit dot */}
+              <circle cx={dotX} cy={dotY} r="4.5" fill={accent} opacity="0.95" />
+              <circle cx={dotX} cy={dotY} r="8.5" fill="none" stroke={accent} strokeWidth="1" opacity="0.30" />
+            </>
           )}
-
-          {/* Orbit dot */}
-          <circle cx={dotX} cy={dotY} r="4.5" fill="rgb(251 191 36)" opacity="0.95" />
-          <circle cx={dotX} cy={dotY} r="8.5" fill="none" stroke="rgb(251 191 36)" strokeWidth="1" opacity="0.30" />
 
           {/* Scanning progress overlay */}
           {isCapturing && (
             <>
-              <rect x="94" y="172" width="112" height="40" rx="5"
-                fill="black" fillOpacity="0.65" />
-              <text x="150" y="187" fill="rgb(251 191 36)" fontSize="7.5"
-                fontFamily="monospace" textAnchor="middle" letterSpacing="2">SCANNING</text>
-              <text x="150" y="203" fill="white" fontSize="13"
-                fontFamily="monospace" textAnchor="middle" fontWeight="bold">
+              <rect x="94" y="172" width="112" height="40" rx="5" fill="black" fillOpacity="0.65" />
+              <text x="150" y="187" fill={accent} fontSize="7.5" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
+                {is2D ? 'CAPTURING' : 'SCANNING'}
+              </text>
+              <text x="150" y="203" fill="white" fontSize="13" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
                 {`${Math.round(scanProgress)}%`}
               </text>
             </>
@@ -217,11 +294,7 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
 
       {/* Tip text */}
       <div className="flex-shrink-0 px-6 py-2">
-        <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">
-          {isCapturing
-            ? 'Keep moving — slowly orbit all the way around the object'
-            : 'Center the object inside the guide, then press Scan'}
-        </p>
+        <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">{tipText}</p>
       </div>
 
       {/* Bottom controls */}
@@ -239,13 +312,13 @@ export default function CaptureScreen({ onCapture, onClose }: Props) {
         >
           <div
             className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-              isCapturing
-                ? 'bg-amber-500'
-                : 'bg-amber-400 hover:bg-amber-300'
+              is2D
+                ? isCapturing ? 'bg-violet-500' : 'bg-violet-400 hover:bg-violet-300'
+                : isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
             }`}
           />
           {isCapturing && (
-            <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
+            <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${is2D ? 'border-violet-400' : 'border-amber-400'}`} />
           )}
         </button>
 

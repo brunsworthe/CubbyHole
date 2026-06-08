@@ -5,6 +5,8 @@ import CaptureScreen from './CaptureScreen'
 import ProcessingState from './ProcessingState'
 import ScanResultViewer from './ScanResultViewer'
 
+export type CaptureMode = 'scan3d' | 'artwork2d'
+
 type Step = 'capture' | 'processing' | 'result'
 
 interface Props {
@@ -14,21 +16,28 @@ interface Props {
 
 export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   const [step, setStep] = useState<Step>('capture')
+  const [mode, setMode] = useState<CaptureMode>('scan3d')
 
-  const goToProcessing  = useCallback(() => setStep('processing'), [])
-  const goToResult      = useCallback(() => setStep('result'), [])
-  const goToCapture     = useCallback(() => setStep('capture'), [])
+  const goToProcessing = useCallback(() => setStep('processing'), [])
+  const goToResult     = useCallback(() => setStep('result'), [])
+  const goToCapture    = useCallback(() => setStep('capture'), [])
 
   return (
     <>
       {step === 'capture' && (
-        <CaptureScreen onCapture={goToProcessing} onClose={onClose} />
+        <CaptureScreen
+          mode={mode}
+          onModeChange={setMode}
+          onCapture={goToProcessing}
+          onClose={onClose}
+        />
       )}
       {step === 'processing' && (
-        <ProcessingState onComplete={goToResult} />
+        <ProcessingState mode={mode} onComplete={goToResult} />
       )}
       {step === 'result' && (
         <ScanResultViewer
+          mode={mode}
           onAddToCapsule={onAddToCapsule}
           onSetPrivacy={() => {/* wires into ShareSettingsModal in a future session */}}
           onRescan={goToCapture}
