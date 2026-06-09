@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
-import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react'
+import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2, Trash2 } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
@@ -47,9 +47,10 @@ interface Props {
   onAddToCapsule: () => void
   onSetPrivacy: () => void
   onRescan: () => void
+  onClearCache?: () => void
 }
 
-export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onSetPrivacy, onRescan }: Props) {
+export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onSetPrivacy, onRescan, onClearCache }: Props) {
   const [added, setAdded] = useState(false)
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
@@ -187,6 +188,17 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
             Discard & Re-scan
           </button>
         </div>
+
+        {/* Dev utility — wipe IndexedDB and start fresh */}
+        {onClearCache && (
+          <button
+            onClick={onClearCache}
+            className="w-full flex items-center justify-center gap-1.5 text-zinc-600 hover:text-zinc-400 text-xs py-1.5 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Clear Cache · Start Over
+          </button>
+        )}
       </div>
     </div>
   )
