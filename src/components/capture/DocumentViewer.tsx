@@ -78,16 +78,21 @@ function DocumentPage({ page, tilt }: { page: DocPage; tilt: { x: number; y: num
   )
 }
 
-export default function DocumentViewer() {
+interface Props {
+  imageUrl?: string
+}
+
+export default function DocumentViewer({ imageUrl }: Props) {
   const {
     ref, tilt, active, zoomScale,
     pedestalScale, ambientScale, transitionClass,
     adjustZoom, handlers,
   } = useTiltZoom()
 
+  const pageCount = imageUrl ? 1 : PAGES.length
   const [pageIndex, setPageIndex] = useState(0)
-  const goPrev = () => setPageIndex((i) => clamp(i - 1, 0, PAGES.length - 1))
-  const goNext = () => setPageIndex((i) => clamp(i + 1, 0, PAGES.length - 1))
+  const goPrev = () => setPageIndex((i) => clamp(i - 1, 0, pageCount - 1))
+  const goNext = () => setPageIndex((i) => clamp(i + 1, 0, pageCount - 1))
 
   return (
     <div className="relative w-full h-full flex items-center justify-center px-8" style={{ perspective: '1500px' }}>
@@ -116,16 +121,42 @@ export default function DocumentViewer() {
         <div className="absolute inset-0 rounded-sm bg-zinc-300/70" style={{ transform: 'translate(3px, 3px) translateZ(-4px)' }} />
         <div className="absolute inset-0 rounded-sm bg-zinc-200/70" style={{ transform: 'translate(6px, 6px) translateZ(-8px)' }} />
 
-        {/* Page carousel — slides between pages with a smooth, settled easing */}
+        {/* Page carousel — real image or mock pages */}
         <div className="absolute inset-0 rounded-sm shadow-2xl overflow-hidden" style={{ transformStyle: 'preserve-3d' }}>
-          <div
-            className="absolute inset-0 flex transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{ transform: `translateX(-${pageIndex * 100}%)` }}
-          >
-            {PAGES.map((page, i) => (
-              <DocumentPage key={i} page={page} tilt={tilt} />
-            ))}
-          </div>
+          {imageUrl ? (
+            /* Real captured document */
+            <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
+              <div
+                className="absolute inset-0 bg-white"
+                style={{ transform: 'translateZ(6px)' }}
+              >
+                <img
+                  src={imageUrl}
+                  alt="Captured document"
+                  className="w-full h-full object-contain"
+                  draggable={false}
+                />
+              </div>
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  transform: `translateZ(40px) translate(${tilt.y * 1.4}px, ${tilt.x * 1.4}px)`,
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.32) 0%, transparent 40%, transparent 64%, rgba(255,255,255,0.08) 100%)',
+                  mixBlendMode: 'overlay',
+                }}
+              />
+            </div>
+          ) : (
+            /* Mock page carousel */
+            <div
+              className="absolute inset-0 flex transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{ transform: `translateX(-${pageIndex * 100}%)` }}
+            >
+              {PAGES.map((page, i) => (
+                <DocumentPage key={i} page={page} tilt={tilt} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Floating drop shadow / pedestal — scales with zoom for a sense of physical depth */}
@@ -138,8 +169,8 @@ export default function DocumentViewer() {
         />
       </div>
 
-      {/* Pagination controls — opposite corner from zoom, mirroring its glassmorphic style */}
-      <div className="absolute bottom-5 left-5 z-10 flex items-center gap-1 bg-black/55 backdrop-blur-sm border border-white/10 rounded-full px-1.5 py-1.5">
+      {/* Pagination controls — hidden for single-page real captures */}
+      {pageCount > 1 && <div className="absolute bottom-5 left-5 z-10 flex items-center gap-1 bg-black/55 backdrop-blur-sm border border-white/10 rounded-full px-1.5 py-1.5">
         <button
           onClick={goPrev}
           disabled={pageIndex === 0}
@@ -149,17 +180,17 @@ export default function DocumentViewer() {
           <ChevronLeft className="w-4 h-4" />
         </button>
         <span className="text-white/70 text-xs font-medium px-1.5 select-none tabular-nums whitespace-nowrap">
-          Page {pageIndex + 1} of {PAGES.length}
+          Page {pageIndex + 1} of {pageCount}
         </span>
         <button
           onClick={goNext}
-          disabled={pageIndex === PAGES.length - 1}
+          disabled={pageIndex === pageCount - 1}
           className="w-7 h-7 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           aria-label="Next page"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
-      </div>
+      </div>}
 
       {/* Zoom controls */}
       <div className="absolute bottom-5 right-5 z-10 flex flex-col items-stretch gap-0.5 bg-black/55 backdrop-blur-sm border border-white/10 rounded-2xl p-1.5">

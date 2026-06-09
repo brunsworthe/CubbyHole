@@ -7,6 +7,12 @@ import ScanResultViewer from './ScanResultViewer'
 
 export type CaptureMode = 'scan3d' | 'relief180' | 'artwork2d' | 'document'
 
+export type CapturedMedia = {
+  blob: Blob
+  url: string
+  mediaType: 'image' | 'video'
+}
+
 type Step = 'capture' | 'processing' | 'result'
 
 interface Props {
@@ -17,10 +23,23 @@ interface Props {
 export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   const [step, setStep] = useState<Step>('capture')
   const [mode, setMode] = useState<CaptureMode>('scan3d')
+  const [capturedMedia, setCapturedMedia] = useState<CapturedMedia | null>(null)
 
-  const goToProcessing = useCallback(() => setStep('processing'), [])
-  const goToResult     = useCallback(() => setStep('result'), [])
-  const goToCapture    = useCallback(() => setStep('capture'), [])
+  const goToProcessing = useCallback((media: CapturedMedia) => {
+    setCapturedMedia(media)
+    setStep('processing')
+  }, [])
+
+  const goToResult = useCallback(() => setStep('result'), [])
+
+  const goToCapture = useCallback(() => {
+    // Revoke the object URL to free memory before going back to capture
+    setCapturedMedia(prev => {
+      if (prev?.url) URL.revokeObjectURL(prev.url)
+      return null
+    })
+    setStep('capture')
+  }, [])
 
   return (
     <>
@@ -38,6 +57,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       {step === 'result' && (
         <ScanResultViewer
           mode={mode}
+          capturedMedia={capturedMedia}
           onAddToCapsule={onAddToCapsule}
           onSetPrivacy={() => {/* wires into ShareSettingsModal in a future session */}}
           onRescan={goToCapture}

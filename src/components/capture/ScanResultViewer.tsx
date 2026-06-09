@@ -6,7 +6,8 @@ import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2 } from 'luc
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
-import type { CaptureMode } from './CaptureFlow'
+import VideoCaptureViewer from './VideoCaptureViewer'
+import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
   () => import('@/components/3d/TimeCapsuleViewer'),
@@ -42,17 +43,21 @@ const STATS_RELIEF = [
 
 interface Props {
   mode: CaptureMode
+  capturedMedia: CapturedMedia | null
   onAddToCapsule: () => void
   onSetPrivacy: () => void
   onRescan: () => void
 }
 
-export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, onRescan }: Props) {
+export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onSetPrivacy, onRescan }: Props) {
   const [added, setAdded] = useState(false)
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
   const isRelief = mode === 'relief180'
   const stats = is2D ? STATS_2D : isDocument ? STATS_DOCUMENT : isRelief ? STATS_RELIEF : STATS_3D
+
+  const capturedUrl = capturedMedia?.url
+  const isVideoCapture = capturedMedia?.mediaType === 'video'
 
   const handleAdd = () => {
     setAdded(true)
@@ -99,7 +104,16 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
 
       {/* Showcase viewport */}
       <div className="flex-1 relative min-h-0">
-        {is2D ? <FloatingCanvas2D /> : isDocument ? <DocumentViewer /> : isRelief ? <ReliefViewer /> : <TimeCapsuleViewer modelUrl={MODEL_URL} />}
+        {isVideoCapture
+          ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
+          : is2D
+            ? <FloatingCanvas2D imageUrl={capturedUrl} />
+            : isDocument
+              ? <DocumentViewer imageUrl={capturedUrl} />
+              : isRelief
+                ? <ReliefViewer />
+                : <TimeCapsuleViewer modelUrl={MODEL_URL} />
+        }
 
         {/* Pedestal warm glow */}
         <div

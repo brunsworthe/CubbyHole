@@ -7,7 +7,11 @@ const FLOWER_COLORS = ['#ff6b9d', '#ffd23f', '#ff8c42', '#a685e2', '#ff6b9d']
 const FLOWER_POSITIONS: [number, number][] = [[40, 220], [90, 230], [150, 222], [175, 235], [60, 238]]
 const SUN_RAYS = [0, 45, 90, 135, 180, 225, 270, 315]
 
-export default function FloatingCanvas2D() {
+interface Props {
+  imageUrl?: string
+}
+
+export default function FloatingCanvas2D({ imageUrl }: Props) {
   const {
     ref, tilt, active, zoomScale,
     pedestalScale, ambientScale, transitionClass,
@@ -48,8 +52,31 @@ export default function FloatingCanvas2D() {
         >
           {/* Mat board */}
           <div className="w-full h-full rounded-lg p-3 shadow-inner" style={{ background: '#f4efe6' }}>
-            {/* Canvas — layered artwork for parallax depth */}
+            {/* Canvas — real photo or layered mock artwork */}
             <div className="relative w-full h-full rounded overflow-hidden">
+              {imageUrl ? (
+                <>
+                  {/* Real captured image */}
+                  <div className="absolute inset-0" style={{ transform: 'translateZ(8px)' }}>
+                    <img
+                      src={imageUrl}
+                      alt="Captured artwork"
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  </div>
+                  {/* Glare — shifts opposite the tilt */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      transform: `translateZ(62px) translate(${tilt.y * 1.4}px, ${tilt.x * 1.4}px)`,
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.38) 0%, transparent 38%, transparent 62%, rgba(255,255,255,0.10) 100%)',
+                      mixBlendMode: 'overlay',
+                    }}
+                  />
+                </>
+              ) : (
+                <>
               {/* Layer 1 — sky, sun, clouds */}
               <div className="absolute inset-0" style={{ transform: 'translateZ(8px)' }}>
                 <svg viewBox="0 0 200 250" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -120,6 +147,8 @@ export default function FloatingCanvas2D() {
                   mixBlendMode: 'overlay',
                 }}
               />
+                </>
+              )}
             </div>
           </div>
         </div>
