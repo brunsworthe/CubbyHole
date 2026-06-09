@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Lightbulb, RotateCcw, Info, Box, Palette, FileText } from 'lucide-react'
+import { X, Lightbulb, RotateCcw, Info, Box, Palette, FileText, Mountain } from 'lucide-react'
 import type { CaptureMode } from './CaptureFlow'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'scan3d', label: '3D Object', icon: Box },
-  { id: 'artwork2d', label: '2D Masterpiece', icon: Palette },
-  { id: 'document', label: 'Document Scanner', icon: FileText },
+  { id: 'scan3d',    label: '360° Object',    icon: Box      },
+  { id: 'relief180', label: 'Textured Relief', icon: Mountain },
+  { id: 'artwork2d', label: '2D Masterpiece',  icon: Palette  },
+  { id: 'document',  label: 'Document',        icon: FileText },
 ]
 
 interface Props {
@@ -34,9 +35,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
-  const isFlat = mode !== 'scan3d'
-  const accent = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : 'rgb(251 191 36)'
-  const pointColor = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : 'rgb(110 231 183)'
+  const isRelief = mode === 'relief180'
+  const isFlat = is2D || isDocument
+  const accent = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : isRelief ? 'rgb(251 146 60)' : 'rgb(251 191 36)'
+  const pointColor = is2D ? 'rgb(196 181 253)' : isDocument ? 'rgb(125 211 252)' : isRelief ? 'rgb(251 146 60)' : 'rgb(110 231 183)'
 
   // Smooth orbit dot animation via rAF
   useEffect(() => {
@@ -82,21 +84,41 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       ? `M ${ORBIT_CX} ${ORBIT_CY - ORBIT_RY} A ${ORBIT_RX} ${ORBIT_RY} 0 ${largeArc} 1 ${arcEndX} ${arcEndY}`
       : ''
 
-  // Flat-scan circular progress ring (2D mode)
+  // Flat-scan circular progress ring (2D / document mode)
   const ringOffset = RING_CIRC * (1 - scanProgress / 100)
 
-  const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : 'ALIGN OBJECT'
+  // Relief 180° arc — dot oscillates back-and-forth while idle, tracks progress while capturing
+  const reliefNorm = orbitAngle % 360
+  const reliefOsc = reliefNorm <= 180 ? reliefNorm : 360 - reliefNorm
+  const reliefIdleRad = Math.PI * (1 - reliefOsc / 180)
+  const reliefIdleDotX = ORBIT_CX + ORBIT_RX * Math.cos(reliefIdleRad)
+  const reliefIdleDotY = ORBIT_CY - ORBIT_RY * Math.sin(reliefIdleRad)
+  const reliefCovRad = Math.PI - (scanProgress / 100) * Math.PI
+  const reliefCovX = ORBIT_CX + ORBIT_RX * Math.cos(reliefCovRad)
+  const reliefCovY = ORBIT_CY - ORBIT_RY * Math.sin(reliefCovRad)
+  const reliefDotX = isCapturing ? reliefCovX : reliefIdleDotX
+  const reliefDotY = isCapturing ? reliefCovY : reliefIdleDotY
+  const reliefLargeArc = scanProgress > 50 ? 1 : 0
+  const reliefCovPath = isCapturing && scanProgress > 0 && scanProgress < 100
+    ? `M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 ${reliefLargeArc} 1 ${reliefCovX} ${reliefCovY}`
+    : ''
+
+  const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : isRelief ? 'ALIGN RELIEF' : 'ALIGN OBJECT'
   const tipText = isCapturing
     ? is2D
       ? 'Hold steady — capturing every brushstroke and texture'
       : isDocument
         ? 'Hold steady — scanning each page in sequence'
-        : 'Keep moving — slowly orbit all the way around the object'
+        : isRelief
+          ? 'Hold steady — mapping the front face in a 180° sweep'
+          : 'Keep moving — slowly orbit all the way around the object'
     : is2D
       ? 'Lay the artwork flat and hold your phone steady above it'
       : isDocument
         ? 'Place each page flat within the frame, one at a time'
-        : 'Center the object inside the guide, then press Scan'
+        : isRelief
+          ? 'Hold relief artwork at arm\'s length, facing forward'
+          : 'Center the object inside the guide, then press Scan'
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
@@ -112,7 +134,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full animate-pulse ${is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : 'bg-amber-400'}`} />
           <span className="text-white/75 text-xs font-mono tracking-[0.15em] uppercase">
-            {is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : 'LiDAR Active'}
+            {is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : isRelief ? 'Depth Sensor Active' : 'LiDAR Active'}
           </span>
         </div>
         <button
@@ -131,12 +153,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               key={id}
               onClick={() => onModeChange(id)}
               disabled={isCapturing}
-              className={`flex items-center gap-1.5 pl-3 pr-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
-                mode === id ? 'bg-white text-zinc-900 shadow-sm' : 'text-white/55 hover:text-white/85'
+              className={`flex items-center gap-1.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+                mode === id
+                  ? 'bg-white text-zinc-900 shadow-sm pl-2.5 pr-3'
+                  : 'text-white/55 hover:text-white/85 px-2.5'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              {label}
+              {mode === id && label}
             </button>
           ))}
         </div>
@@ -220,7 +244,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {/* HUD labels */}
           <text x="60" y="65" fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">{hudLabel}</text>
           <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">
-            {isFlat ? 'FLAT · 0°' : '~0.4 m'}
+            {isFlat ? 'FLAT · 0°' : isRelief ? 'FRONT 180°' : '~0.4 m'}
           </text>
 
           {isFlat ? (
@@ -249,6 +273,35 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   <animate attributeName="opacity" values="0.5;0" dur="1.6s" repeatCount="indefinite" />
                 </circle>
               )}
+            </>
+          ) : isRelief ? (
+            <>
+              {/* 180° arc guide — front hemisphere only */}
+              <path
+                d={`M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${ORBIT_CX + ORBIT_RX} ${ORBIT_CY}`}
+                fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.18" strokeDasharray="4 3"
+              />
+              {/* End-stop tick marks */}
+              <line x1={ORBIT_CX - ORBIT_RX} y1={ORBIT_CY - 12} x2={ORBIT_CX - ORBIT_RX} y2={ORBIT_CY + 12}
+                stroke={accent} strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round" />
+              <line x1={ORBIT_CX + ORBIT_RX} y1={ORBIT_CY - 12} x2={ORBIT_CX + ORBIT_RX} y2={ORBIT_CY + 12}
+                stroke={accent} strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round" />
+              {/* "180° ARC" label at apex */}
+              <text x={ORBIT_CX} y={ORBIT_CY - ORBIT_RY - 6} fill={accent} fontSize="7" fontFamily="monospace"
+                opacity="0.55" letterSpacing="1" textAnchor="middle">180° ARC</text>
+              {/* Coverage arc */}
+              {reliefCovPath && (
+                <path d={reliefCovPath} fill="none" stroke={accent} strokeWidth="2.5" strokeOpacity="0.88" strokeLinecap="round" />
+              )}
+              {/* Animated dot */}
+              <circle cx={reliefDotX} cy={reliefDotY} r="4.5" fill={accent} opacity="0.95" />
+              <circle cx={reliefDotX} cy={reliefDotY} r="8.5" fill="none" stroke={accent} strokeWidth="1" opacity="0.30" />
+              {/* Center crosshair */}
+              <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
+                <circle cx="150" cy="190" r="3.5" />
+                <line x1="141" y1="190" x2="159" y2="190" />
+                <line x1="150" y1="181" x2="150" y2="199" />
+              </g>
             </>
           ) : (
             <>
@@ -322,12 +375,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 ? isCapturing ? 'bg-violet-500' : 'bg-violet-400 hover:bg-violet-300'
                 : isDocument
                   ? isCapturing ? 'bg-sky-500' : 'bg-sky-400 hover:bg-sky-300'
-                  : isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+                  : isRelief
+                    ? isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
+                    : isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
             }`}
           />
           {isCapturing && (
             <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-              is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
+              is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : isRelief ? 'border-orange-400' : 'border-amber-400'
             }`} />
           )}
         </button>

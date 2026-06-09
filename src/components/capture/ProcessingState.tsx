@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Scan, Cpu, Layers, Sparkles, CheckCircle2, Eye, Brush, Wand2, Sun, Crop, FileText, Copy, SunMedium } from 'lucide-react'
+import { Scan, Cpu, Layers, Sparkles, CheckCircle2, Eye, Brush, Wand2, Sun, Crop, FileText, Copy, SunMedium, Mountain } from 'lucide-react'
 import type { CaptureMode } from './CaptureFlow'
 
 interface Props {
@@ -149,10 +149,44 @@ const STAGES_DOCUMENT: Stage[] = [
   },
 ]
 
+const STAGES_RELIEF: Stage[] = [
+  {
+    id: 'topography',
+    label: 'Mapping Surface Topography',
+    sublabel: 'Reading every ridge, bump, and texture variation',
+    icon: Mountain,
+    duration: 2200,
+    activeColor: 'text-orange-500 dark:text-orange-400',
+    barColor: 'bg-orange-500',
+    iconBg: 'bg-orange-50 dark:bg-orange-950/50',
+  },
+  {
+    id: 'arc',
+    label: 'Capturing 180° Arc',
+    sublabel: 'Sweeping the front hemisphere for full depth coverage',
+    icon: Scan,
+    duration: 2600,
+    activeColor: 'text-amber-500 dark:text-amber-400',
+    barColor: 'bg-amber-500',
+    iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+  },
+  {
+    id: 'extrude',
+    label: 'Extruding Depth Map',
+    sublabel: 'Lifting each layer into a navigable 3D relief',
+    icon: Layers,
+    duration: 2000,
+    activeColor: 'text-rose-500 dark:text-rose-400',
+    barColor: 'bg-rose-500',
+    iconBg: 'bg-rose-50 dark:bg-rose-950/50',
+  },
+]
+
 export default function ProcessingState({ mode, onComplete }: Props) {
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
-  const STAGES = is2D ? STAGES_2D : isDocument ? STAGES_DOCUMENT : STAGES_3D
+  const isRelief = mode === 'relief180'
+  const STAGES = is2D ? STAGES_2D : isDocument ? STAGES_DOCUMENT : isRelief ? STAGES_RELIEF : STAGES_3D
 
   const [activeStage, setActiveStage] = useState(0)
   const [stageProgress, setStageProgress] = useState(0)
@@ -199,14 +233,16 @@ export default function ProcessingState({ mode, onComplete }: Props) {
   const isDone = activeStage >= STAGES.length
 
   const titleText = isDone
-    ? (is2D ? 'Artwork Transformed' : isDocument ? 'Document Ready' : 'Model Ready')
-    : (is2D ? 'Bringing Your Artwork to Life' : isDocument ? 'Digitizing Your Document' : 'Building Your Model')
+    ? (is2D ? 'Artwork Transformed' : isDocument ? 'Document Ready' : isRelief ? 'Relief Captured' : 'Model Ready')
+    : (is2D ? 'Bringing Your Artwork to Life' : isDocument ? 'Digitizing Your Document' : isRelief ? 'Mapping Your Relief' : 'Building Your Model')
   const subtitleText = isDone
     ? (is2D
         ? 'Your drawing now has depth, light and texture.'
         : isDocument
           ? 'Your pages have been cleaned, cropped and enhanced.'
-          : 'Your 3D object has been captured successfully.')
+          : isRelief
+            ? 'Your textured artwork is ready to explore in 3D.'
+            : 'Your 3D object has been captured successfully.')
     : 'This takes about 10 seconds…'
 
   return (
@@ -216,12 +252,12 @@ export default function ProcessingState({ mode, onComplete }: Props) {
         <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-colors duration-500 ${
           isDone
             ? 'bg-emerald-50 dark:bg-emerald-950/50'
-            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : isDocument ? 'bg-sky-50 dark:bg-sky-950/40' : 'bg-amber-50 dark:bg-amber-950/40'
+            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : isDocument ? 'bg-sky-50 dark:bg-sky-950/40' : isRelief ? 'bg-orange-50 dark:bg-orange-950/40' : 'bg-amber-50 dark:bg-amber-950/40'
         }`}>
           {isDone
             ? <CheckCircle2 className="w-7 h-7 text-emerald-500" />
             : <div className={`w-6 h-6 border-[3px] border-slate-200 dark:border-zinc-700 rounded-full animate-spin ${
-                is2D ? 'border-t-violet-500' : isDocument ? 'border-t-sky-500' : 'border-t-amber-500'
+                is2D ? 'border-t-violet-500' : isDocument ? 'border-t-sky-500' : isRelief ? 'border-t-orange-500' : 'border-t-amber-500'
               }`} />
           }
         </div>

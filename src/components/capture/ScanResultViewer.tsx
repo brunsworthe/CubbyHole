@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2 } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
+import ReliefViewer from './ReliefViewer'
 import type { CaptureMode } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
@@ -33,6 +34,12 @@ const STATS_DOCUMENT = [
   { label: 'File Size',  value: '2.4 MB'  },
 ]
 
+const STATS_RELIEF = [
+  { label: 'Depth Layers', value: '6'      },
+  { label: 'Surface Res',  value: '1K'     },
+  { label: 'File Size',    value: '3.1 MB' },
+]
+
 interface Props {
   mode: CaptureMode
   onAddToCapsule: () => void
@@ -44,7 +51,8 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
   const [added, setAdded] = useState(false)
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
-  const stats = is2D ? STATS_2D : isDocument ? STATS_DOCUMENT : STATS_3D
+  const isRelief = mode === 'relief180'
+  const stats = is2D ? STATS_2D : isDocument ? STATS_DOCUMENT : isRelief ? STATS_RELIEF : STATS_3D
 
   const handleAdd = () => {
     setAdded(true)
@@ -60,14 +68,16 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
         <div className="flex items-start justify-between px-5 pt-12 pb-8 pointer-events-auto">
           <div>
             <h2 className="text-white font-semibold text-lg leading-tight">
-              {is2D ? 'Masterpiece Captured' : isDocument ? 'Document Digitized' : 'Scan Complete'}
+              {is2D ? 'Masterpiece Captured' : isDocument ? 'Document Digitized' : isRelief ? 'Relief Mapped' : 'Scan Complete'}
             </h2>
             <p className="text-white/48 text-xs mt-1">
               {is2D
                 ? 'Move your phone or drag to feel the depth'
                 : isDocument
                   ? 'Drag to inspect · Use the arrows to flip pages'
-                  : 'Drag to rotate · Pinch to zoom'}
+                  : isRelief
+                    ? 'Drag to orbit · Zoom to inspect the surface'
+                    : 'Drag to rotate · Pinch to zoom'}
             </p>
           </div>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 mt-0.5 border ${
@@ -75,11 +85,13 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
               ? 'bg-violet-500/15 border-violet-500/25'
               : isDocument
                 ? 'bg-sky-500/15 border-sky-500/25'
-                : 'bg-emerald-500/15 border-emerald-500/25'
+                : isRelief
+                  ? 'bg-orange-500/15 border-orange-500/25'
+                  : 'bg-emerald-500/15 border-emerald-500/25'
           }`}>
-            <Sparkles className={`w-3.5 h-3.5 ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : 'text-emerald-400'}`} />
-            <span className={`text-xs font-medium ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : 'text-emerald-400'}`}>
-              {is2D ? 'Magic Mode' : isDocument ? 'Text Enhanced' : 'High Quality'}
+            <Sparkles className={`w-3.5 h-3.5 ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : isRelief ? 'text-orange-400' : 'text-emerald-400'}`} />
+            <span className={`text-xs font-medium ${is2D ? 'text-violet-400' : isDocument ? 'text-sky-400' : isRelief ? 'text-orange-400' : 'text-emerald-400'}`}>
+              {is2D ? 'Magic Mode' : isDocument ? 'Text Enhanced' : isRelief ? 'Relief Mode' : 'High Quality'}
             </span>
           </div>
         </div>
@@ -87,7 +99,7 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
 
       {/* Showcase viewport */}
       <div className="flex-1 relative min-h-0">
-        {is2D ? <FloatingCanvas2D /> : isDocument ? <DocumentViewer /> : <TimeCapsuleViewer modelUrl={MODEL_URL} />}
+        {is2D ? <FloatingCanvas2D /> : isDocument ? <DocumentViewer /> : isRelief ? <ReliefViewer /> : <TimeCapsuleViewer modelUrl={MODEL_URL} />}
 
         {/* Pedestal warm glow */}
         <div
@@ -97,7 +109,9 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
               ? 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(167,139,250,0.09) 0%, transparent 70%)'
               : isDocument
                 ? 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(56,189,248,0.08) 0%, transparent 70%)'
-                : 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,191,36,0.07) 0%, transparent 70%)',
+                : isRelief
+                  ? 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,146,60,0.09) 0%, transparent 70%)'
+                  : 'radial-gradient(ellipse 65% 45% at 50% 100%, rgba(251,191,36,0.07) 0%, transparent 70%)',
           }}
         />
 
@@ -129,6 +143,10 @@ export default function ScanResultViewer({ mode, onAddToCapsule, onSetPrivacy, o
               ? 'bg-emerald-600 text-white cursor-default'
               : is2D
               ? 'bg-violet-500 hover:bg-violet-400 text-white'
+              : isRelief
+              ? 'bg-orange-500 hover:bg-orange-400 text-white'
+              : isDocument
+              ? 'bg-sky-500 hover:bg-sky-400 text-white'
               : 'bg-amber-500 hover:bg-amber-400 text-white'
           }`}
         >
