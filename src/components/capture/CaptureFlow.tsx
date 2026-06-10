@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import CaptureScreen from './CaptureScreen'
+import NamingScreen from './NamingScreen'
 import ProcessingState from './ProcessingState'
 import ScanResultViewer from './ScanResultViewer'
 import { saveCapture, getLatestCapture, clearCaptures } from '@/lib/captureDB'
@@ -12,6 +13,7 @@ export type CapturedMedia = {
   blob: Blob
   url: string
   mediaType: 'image' | 'video'
+  title?: string
   pages?: Blob[]   // document mode: all captured page blobs
   frames?: Blob[]  // scan3d mode: 8-frame segmented capture array
 }
@@ -23,7 +25,7 @@ const MODE_LABELS: Record<CaptureMode, string> = {
   document:  'Document Scanner',
 }
 
-type Step = 'capture' | 'processing' | 'result'
+type Step = 'capture' | 'naming' | 'processing' | 'result'
 
 interface Props {
   onClose: () => void
@@ -41,25 +43,36 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       if (!record) return
       const url = URL.createObjectURL(record.asset)
       setMode(record.mode as CaptureMode)
-      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, pages: record.pages, frames: record.frames })
+      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, title: record.title, pages: record.pages, frames: record.frames })
       setStep('result')
     }).catch(() => {})
   }, [])
 
-  const goToProcessing = useCallback((media: CapturedMedia) => {
+  // Stage 1: capture done → show naming prompt
+  const goToNaming = useCallback((media: CapturedMedia) => {
     setCapturedMedia(media)
+    setStep('naming')
+  }, [])
+
+  // Stage 2: name confirmed (or skipped) → persist and enter processing animation
+  const goToProcessing = useCallback((title?: string) => {
+    setCapturedMedia(prev => prev ? { ...prev, title } : prev)
     setStep('processing')
-    // Persist to IndexedDB — fire-and-forget, failure is non-critical
-    saveCapture({
-      id: Date.now().toString(),
-      mode,
-      type: MODE_LABELS[mode],
-      asset: media.blob,
-      mediaType: media.mediaType,
-      timestamp: Date.now(),
-      pages: media.pages,
-      frames: media.frames,
-    }).catch(() => {})
+    setCapturedMedia(prev => {
+      if (!prev) return prev
+      saveCapture({
+        id: Date.now().toString(),
+        mode,
+        type: MODE_LABELS[mode],
+        title,
+        asset: prev.blob,
+        mediaType: prev.mediaType,
+        timestamp: Date.now(),
+        pages: prev.pages,
+        frames: prev.frames,
+      }).catch(() => {})
+      return prev
+    })
   }, [mode])
 
   const goToResult = useCallback(() => setStep('result'), [])
@@ -83,8 +96,16 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
         <CaptureScreen
           mode={mode}
           onModeChange={setMode}
-          onCapture={goToProcessing}
+          onCapture={goToNaming}
           onClose={onClose}
+        />
+      )}
+      {step === 'naming' && capturedMedia && (
+        <NamingScreen
+          mode={mode}
+          previewUrl={capturedMedia.url}
+          mediaType={capturedMedia.mediaType}
+          onConfirm={goToProcessing}
         />
       )}
       {step === 'processing' && (

@@ -25,6 +25,7 @@ export type ViewableCapture = {
   mediaType: 'image' | 'video'
   timestamp: number
   url: string
+  title?: string
   pages?: Blob[]   // document mode: all captured page blobs
   frames?: Blob[]  // scan3d mode: 8-frame segmented capture array
 }
@@ -101,6 +102,11 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
             <Sparkles className="w-3 h-3" />
             {capture.type}
           </div>
+          {capture.title && (
+            <span className="text-sm font-semibold text-zinc-200 truncate max-w-[180px]">
+              {capture.title}
+            </span>
+          )}
           <span className="text-xs text-zinc-500">{dateStr}</span>
         </div>
         <button

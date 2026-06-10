@@ -6,6 +6,7 @@ export type CaptureRecord = {
   id: string
   mode: string          // CaptureMode id, e.g. 'artwork2d'
   type: string          // human-readable label, e.g. '2D Masterpiece'
+  title?: string        // user-defined name for this memory
   asset: Blob
   mediaType: 'image' | 'video'
   timestamp: number
@@ -72,6 +73,32 @@ export async function clearCaptures(): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
     tx.objectStore(STORE_NAME).clear()
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+export async function deleteCapture(id: string): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    tx.objectStore(STORE_NAME).delete(id)
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+export async function updateCapture(id: string, updates: Partial<Pick<CaptureRecord, 'title'>>): Promise<void> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const req = store.get(id)
+    req.onsuccess = () => {
+      const record = req.result as CaptureRecord | undefined
+      if (!record) { db.close(); reject(new Error('Record not found')); return }
+      store.put({ ...record, ...updates })
+    }
     tx.oncomplete = () => { db.close(); resolve() }
     tx.onerror = () => { db.close(); reject(tx.error) }
   })
