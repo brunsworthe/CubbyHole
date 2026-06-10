@@ -12,6 +12,7 @@ export type CapturedMedia = {
   blob: Blob
   url: string
   mediaType: 'image' | 'video'
+  pages?: Blob[]  // document mode: all captured page blobs
 }
 
 const MODE_LABELS: Record<CaptureMode, string> = {
@@ -39,7 +40,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       if (!record) return
       const url = URL.createObjectURL(record.asset)
       setMode(record.mode as CaptureMode)
-      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType })
+      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, pages: record.pages })
       setStep('result')
     }).catch(() => {})
   }, [])
@@ -55,6 +56,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       asset: media.blob,
       mediaType: media.mediaType,
       timestamp: Date.now(),
+      pages: media.pages,
     }).catch(() => {})
   }, [mode])
 

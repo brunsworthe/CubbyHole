@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { X, Sparkles } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
@@ -24,6 +24,7 @@ export type ViewableCapture = {
   mediaType: 'image' | 'video'
   timestamp: number
   url: string
+  pages?: Blob[]  // document mode: all captured page blobs
 }
 
 const BADGE: Record<string, string> = {
@@ -44,10 +45,20 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
   const isDocument = mode === 'document'
   const isVideo = capture.mediaType === 'video'
   const badgeClass = BADGE[mode] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30'
+  const [docPageUrls, setDocPageUrls] = useState<string[]>([])
 
   const dateStr = new Date(capture.timestamp).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
+
+  // Create blob URLs for all document pages, revoke on unmount
+  useEffect(() => {
+    const pages = capture.pages
+    if (!pages?.length) { setDocPageUrls([]); return }
+    const urls = pages.map(b => URL.createObjectURL(b))
+    setDocPageUrls(urls)
+    return () => urls.forEach(u => URL.revokeObjectURL(u))
+  }, [capture])
 
   // Lock body scroll while modal is open
   useEffect(() => {
@@ -93,7 +104,7 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
           : is2D
             ? <FloatingCanvas2D imageUrl={capture.url} />
             : isDocument
-              ? <DocumentViewer imageUrl={capture.url} />
+              ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : [capture.url]} />
               : <TimeCapsuleViewer modelUrl={FALLBACK_MODEL} />
         }
       </div>

@@ -80,16 +80,22 @@ function DocumentPage({ page, tilt }: { page: DocPage; tilt: { x: number; y: num
 
 interface Props {
   imageUrl?: string
+  imageUrls?: string[]  // multi-page: overrides imageUrl when provided
 }
 
-export default function DocumentViewer({ imageUrl }: Props) {
+export default function DocumentViewer({ imageUrl, imageUrls }: Props) {
   const {
     ref, tilt, active, zoomScale,
     pedestalScale, ambientScale, transitionClass,
     adjustZoom, handlers,
   } = useTiltZoom()
 
-  const pageCount = imageUrl ? 1 : PAGES.length
+  // Resolve effective URL array: multi-page > single > mock
+  const effectiveUrls = imageUrls && imageUrls.length > 0
+    ? imageUrls
+    : imageUrl ? [imageUrl] : undefined
+
+  const pageCount = effectiveUrls ? effectiveUrls.length : PAGES.length
   const [pageIndex, setPageIndex] = useState(0)
   const goPrev = () => setPageIndex((i) => clamp(i - 1, 0, pageCount - 1))
   const goNext = () => setPageIndex((i) => clamp(i + 1, 0, pageCount - 1))
@@ -121,30 +127,35 @@ export default function DocumentViewer({ imageUrl }: Props) {
         <div className="absolute inset-0 rounded-sm bg-zinc-300/70" style={{ transform: 'translate(3px, 3px) translateZ(-4px)' }} />
         <div className="absolute inset-0 rounded-sm bg-zinc-200/70" style={{ transform: 'translate(6px, 6px) translateZ(-8px)' }} />
 
-        {/* Page carousel — real image or mock pages */}
+        {/* Page carousel — real images (single or multi-page) or mock pages */}
         <div className="absolute inset-0 rounded-sm shadow-2xl overflow-hidden" style={{ transformStyle: 'preserve-3d' }}>
-          {imageUrl ? (
-            /* Real captured document */
-            <div className="absolute inset-0" style={{ transformStyle: 'preserve-3d' }}>
-              <div
-                className="absolute inset-0 bg-white"
-                style={{ transform: 'translateZ(6px)' }}
-              >
-                <img
-                  src={imageUrl}
-                  alt="Captured document"
-                  className="w-full h-full object-contain"
-                  draggable={false}
-                />
-              </div>
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  transform: `translateZ(40px) translate(${tilt.y * 1.4}px, ${tilt.x * 1.4}px)`,
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.32) 0%, transparent 40%, transparent 64%, rgba(255,255,255,0.08) 100%)',
-                  mixBlendMode: 'overlay',
-                }}
-              />
+          {effectiveUrls ? (
+            /* Real captured pages — slide carousel */
+            <div className="relative w-full h-full" style={{ transformStyle: 'preserve-3d' }}>
+              {effectiveUrls.map((url, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  style={{ transform: `translateX(${(i - pageIndex) * 100}%)`, transformStyle: 'preserve-3d' }}
+                >
+                  <div className="absolute inset-0 bg-white" style={{ transform: 'translateZ(6px)' }}>
+                    <img
+                      src={url}
+                      alt={`Page ${i + 1}`}
+                      className="w-full h-full object-contain"
+                      draggable={false}
+                    />
+                  </div>
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      transform: `translateZ(40px) translate(${tilt.y * 1.4}px, ${tilt.x * 1.4}px)`,
+                      background: 'linear-gradient(135deg, rgba(255,255,255,0.32) 0%, transparent 40%, transparent 64%, rgba(255,255,255,0.08) 100%)',
+                      mixBlendMode: 'overlay',
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           ) : (
             /* Mock page carousel */

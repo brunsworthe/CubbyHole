@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2, Trash2 } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
@@ -52,6 +52,16 @@ interface Props {
 
 export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onSetPrivacy, onRescan, onClearCache }: Props) {
   const [added, setAdded] = useState(false)
+  const [docPageUrls, setDocPageUrls] = useState<string[]>([])
+
+  // Create blob URLs for all captured document pages, revoke on change/unmount
+  useEffect(() => {
+    const pages = capturedMedia?.pages
+    if (!pages?.length) { setDocPageUrls([]); return }
+    const urls = pages.map(b => URL.createObjectURL(b))
+    setDocPageUrls(urls)
+    return () => urls.forEach(u => URL.revokeObjectURL(u))
+  }, [capturedMedia])
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
   const isRelief = mode === 'relief180'
@@ -110,7 +120,7 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
           : is2D
             ? <FloatingCanvas2D imageUrl={capturedUrl} />
             : isDocument
-              ? <DocumentViewer imageUrl={capturedUrl} />
+              ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
               : isRelief
                 ? <ReliefViewer />
                 : <TimeCapsuleViewer modelUrl={MODEL_URL} />

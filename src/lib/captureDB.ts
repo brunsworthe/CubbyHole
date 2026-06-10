@@ -9,6 +9,7 @@ export type CaptureRecord = {
   asset: Blob
   mediaType: 'image' | 'video'
   timestamp: number
+  pages?: Blob[]        // document mode: all captured page blobs
 }
 
 function openDB(): Promise<IDBDatabase> {
