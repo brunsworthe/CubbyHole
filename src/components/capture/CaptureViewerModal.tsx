@@ -7,6 +7,7 @@ import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
+import SpinSequenceViewer from './SpinSequenceViewer'
 import type { CaptureMode } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
@@ -24,7 +25,8 @@ export type ViewableCapture = {
   mediaType: 'image' | 'video'
   timestamp: number
   url: string
-  pages?: Blob[]  // document mode: all captured page blobs
+  pages?: Blob[]   // document mode: all captured page blobs
+  frames?: Blob[]  // scan3d mode: 8-frame segmented capture array
 }
 
 const BADGE: Record<string, string> = {
@@ -43,9 +45,11 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
   const mode = capture.mode as CaptureMode
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
+  const isScan3d = mode === 'scan3d'
   const isVideo = capture.mediaType === 'video'
   const badgeClass = BADGE[mode] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30'
   const [docPageUrls, setDocPageUrls] = useState<string[]>([])
+  const [spinFrameUrls, setSpinFrameUrls] = useState<string[]>([])
 
   const dateStr = new Date(capture.timestamp).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
@@ -59,6 +63,17 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
     setDocPageUrls(urls)
     return () => urls.forEach(u => URL.revokeObjectURL(u))
   }, [capture])
+
+  // Create blob URLs for the 8 scan3d frames, revoke on unmount
+  useEffect(() => {
+    const frames = capture.frames
+    if (!frames?.length) { setSpinFrameUrls([]); return }
+    const urls = frames.map(b => URL.createObjectURL(b))
+    setSpinFrameUrls(urls)
+    return () => urls.forEach(u => URL.revokeObjectURL(u))
+  }, [capture])
+
+  const hasSpinFrames = spinFrameUrls.length >= 2
 
   // Lock body scroll while modal is open
   useEffect(() => {
@@ -97,15 +112,17 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
         </button>
       </div>
 
-      {/* Viewer — same dispatch logic as ScanResultViewer */}
+      {/* Viewer */}
       <div className="flex-1 min-h-0">
-        {isVideo
-          ? <VideoCaptureViewer videoUrl={capture.url} mode={mode} />
-          : is2D
-            ? <FloatingCanvas2D imageUrl={capture.url} />
-            : isDocument
-              ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : [capture.url]} />
-              : <TimeCapsuleViewer modelUrl={FALLBACK_MODEL} />
+        {isScan3d && hasSpinFrames
+          ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
+          : isVideo
+            ? <VideoCaptureViewer videoUrl={capture.url} mode={mode} />
+            : is2D
+              ? <FloatingCanvas2D imageUrl={capture.url} />
+              : isDocument
+                ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : [capture.url]} />
+                : <TimeCapsuleViewer modelUrl={FALLBACK_MODEL} />
         }
       </div>
 
@@ -118,7 +135,9 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
               ? 'Move your phone or drag to feel the depth'
               : isDocument
                 ? 'Drag to tilt · Pinch or scroll to zoom'
-                : 'Drag to rotate · Pinch to zoom'}
+                : (isScan3d && hasSpinFrames)
+                  ? 'Drag left/right to rotate · ← → keys also work'
+                  : 'Drag to rotate · Pinch to zoom'}
         </p>
       </div>
     </div>

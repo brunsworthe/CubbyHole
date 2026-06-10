@@ -7,6 +7,7 @@ import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
+import SpinSequenceViewer from './SpinSequenceViewer'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
@@ -62,6 +63,17 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
     setDocPageUrls(urls)
     return () => urls.forEach(u => URL.revokeObjectURL(u))
   }, [capturedMedia])
+
+  // Create blob URLs for the 8 scan3d frames, revoke on change/unmount
+  const [spinFrameUrls, setSpinFrameUrls] = useState<string[]>([])
+  useEffect(() => {
+    const frames = capturedMedia?.frames
+    if (!frames?.length) { setSpinFrameUrls([]); return }
+    const urls = frames.map(b => URL.createObjectURL(b))
+    setSpinFrameUrls(urls)
+    return () => urls.forEach(u => URL.revokeObjectURL(u))
+  }, [capturedMedia])
+
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
   const isRelief = mode === 'relief180'
@@ -93,7 +105,9 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
                   ? 'Drag to inspect · Use the arrows to flip pages'
                   : isRelief
                     ? 'Drag to orbit · Zoom to inspect the surface'
-                    : 'Drag to rotate · Pinch to zoom'}
+                    : spinFrameUrls.length >= 2
+                      ? 'Drag left or right to spin through all 8 angles'
+                      : 'Drag to rotate · Pinch to zoom'}
             </p>
           </div>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 mt-0.5 border ${
@@ -115,15 +129,17 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
 
       {/* Showcase viewport */}
       <div className="flex-1 relative min-h-0">
-        {isVideoCapture
-          ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
-          : is2D
-            ? <FloatingCanvas2D imageUrl={capturedUrl} />
-            : isDocument
-              ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
-              : isRelief
-                ? <ReliefViewer />
-                : <TimeCapsuleViewer modelUrl={MODEL_URL} />
+        {mode === 'scan3d' && spinFrameUrls.length >= 2
+          ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
+          : isVideoCapture
+            ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
+            : is2D
+              ? <FloatingCanvas2D imageUrl={capturedUrl} />
+              : isDocument
+                ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
+                : isRelief
+                  ? <ReliefViewer />
+                  : <TimeCapsuleViewer modelUrl={MODEL_URL} />
         }
 
         {/* Pedestal warm glow */}
@@ -140,18 +156,20 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
           }}
         />
 
-        {/* Showcase stats */}
-        <div className="absolute bottom-4 inset-x-0 flex justify-center gap-2.5 pointer-events-none px-4">
-          {stats.map(({ label, value }) => (
-            <div
-              key={label}
-              className="bg-black/55 backdrop-blur-sm border border-white/10 rounded-xl px-3.5 py-2 text-center"
-            >
-              <div className="text-white/38 text-[10px] leading-none mb-1">{label}</div>
-              <div className="text-white font-mono text-sm font-medium leading-none">{value}</div>
-            </div>
-          ))}
-        </div>
+        {/* Showcase stats — hidden when spin viewer is active (it has its own HUD) */}
+        {!(mode === 'scan3d' && spinFrameUrls.length >= 2) && (
+          <div className="absolute bottom-4 inset-x-0 flex justify-center gap-2.5 pointer-events-none px-4">
+            {stats.map(({ label, value }) => (
+              <div
+                key={label}
+                className="bg-black/55 backdrop-blur-sm border border-white/10 rounded-xl px-3.5 py-2 text-center"
+              >
+                <div className="text-white/38 text-[10px] leading-none mb-1">{label}</div>
+                <div className="text-white font-mono text-sm font-medium leading-none">{value}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
