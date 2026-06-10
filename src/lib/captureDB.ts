@@ -50,6 +50,21 @@ export async function getLatestCapture(): Promise<CaptureRecord | null> {
   })
 }
 
+export async function getAllCaptures(): Promise<CaptureRecord[]> {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).getAll()
+    req.onsuccess = () => {
+      db.close()
+      const all = req.result as CaptureRecord[]
+      all.sort((a, b) => b.timestamp - a.timestamp)
+      resolve(all)
+    }
+    req.onerror = () => { db.close(); reject(req.error) }
+  })
+}
+
 export async function clearCaptures(): Promise<void> {
   const db = await openDB()
   return new Promise((resolve, reject) => {

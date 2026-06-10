@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Box, Link2, Scan, Share2 } from 'lucide-react'
 import ProfileSelector from './ProfileSelector'
 import CapsuleCard from './CapsuleCard'
+import CapsuleDashboard from './CapsuleDashboard'
 import ShareSettingsModal from '@/components/modals/ShareSettingsModal'
 import LinkHouseholdPanel from '@/components/panels/LinkHouseholdPanel'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -247,6 +248,18 @@ export default function DashboardGallery() {
 
       {/* ── Main ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* ── Captures from device camera (IndexedDB) ── */}
+        <CapsuleDashboard onOpenCapture={() => setShowScanFlow(true)} />
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-8">
+          <div className="flex-1 h-px bg-slate-200 dark:bg-zinc-800" />
+          <span className="text-xs font-medium text-slate-400 dark:text-zinc-600 tracking-widest uppercase">
+            Time Capsule Library
+          </span>
+          <div className="flex-1 h-px bg-slate-200 dark:bg-zinc-800" />
+        </div>
 
         {/* Section header */}
         <div className="mb-6">
