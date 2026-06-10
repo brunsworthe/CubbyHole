@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Camera, Box, Palette, FileText, Mountain, Layers, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
-import { getAllCaptures, deleteCapture, updateCapture } from '@/lib/captureDB'
+import { getAllCaptures, deleteCapture, updateCapture, clearCaptures } from '@/lib/captureDB'
 import type { CaptureRecord } from '@/lib/captureDB'
 import CaptureViewerModal from '@/components/capture/CaptureViewerModal'
 import type { ViewableCapture } from '@/components/capture/CaptureViewerModal'
@@ -334,28 +334,28 @@ function EmptyState({ onOpenCapture }: { onOpenCapture: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       <div className="relative mb-6">
-        <div className="absolute inset-0 rounded-full bg-amber-400/20 dark:bg-amber-400/10 blur-2xl scale-150" />
-        <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
-          <Camera className="w-9 h-9 text-amber-500 dark:text-amber-400" />
+        <div className="absolute inset-0 rounded-full bg-amber-400/20 dark:bg-amber-400/10 blur-3xl scale-150" />
+        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
+          <Camera className="w-10 h-10 text-amber-500 dark:text-amber-400" />
         </div>
       </div>
 
-      <h3 className="text-base font-bold text-slate-800 dark:text-zinc-100 mb-1">
-        No memories captured yet
+      <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-100 mb-2 tracking-tight">
+        Your Time Capsule is empty.
       </h3>
-      <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-xs leading-relaxed mb-6">
-        Scan a 3D object, photograph artwork, or digitize a document. Every capture is preserved here for you to revisit.
+      <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-xs leading-relaxed mb-7">
+        Scan a 3D object, photograph artwork, or digitize a document — every capture is preserved here in full fidelity, forever.
       </p>
 
       <button
         onClick={onOpenCapture}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/30"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-md shadow-amber-500/25"
       >
         <Camera className="w-4 h-4" />
         Capture your first memory
       </button>
 
-      <div className="mt-8 flex items-center gap-5 flex-wrap justify-center">
+      <div className="mt-8 flex items-center gap-3 flex-wrap justify-center">
         {(Object.entries(MODE_CONFIG) as [ModeKey, typeof MODE_CONFIG[ModeKey]][]).map(([key, { icon: Icon, badge }]) => (
           <div key={key} className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border ${badge}`}>
             <Icon className="w-3 h-3" />
@@ -428,6 +428,15 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
     deleteCapture(id).catch(() => {})
   }, [deleteTarget])
 
+  // ── Clear DB ───────────────────────────────────────────────────────────────
+
+  const handleClearDB = useCallback(() => {
+    clearCaptures().catch(() => {})
+    urlsRef.current.forEach(u => URL.revokeObjectURL(u))
+    urlsRef.current = []
+    setCaptures([])
+  }, [])
+
   // ── Edit ───────────────────────────────────────────────────────────────────
 
   const handleEditSave = useCallback((title: string) => {
@@ -467,6 +476,9 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Loading skeleton — no footer yet, data hasn't landed
   if (loading) {
     return (
       <section aria-label="My Captures">
@@ -478,39 +490,46 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
     )
   }
 
-  if (captures.length === 0) {
-    return (
-      <section aria-label="My Captures">
-        {sectionHeader}
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-          <EmptyState onOpenCapture={onOpenCapture} />
-        </div>
-      </section>
-    )
-  }
-
+  // Unified render — empty state OR grid, always followed by the dev footer
   return (
     <section aria-label="My Captures">
       {sectionHeader}
 
-      <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-0">
-        {captures.map(capture => (
-          <div key={capture.id} className="break-inside-avoid mb-3">
-            <CaptureCard
-              capture={capture}
-              isDeleting={deletingIds.has(capture.id)}
-              onView={() => setSelected({ ...capture })}
-              onEdit={() => setEditTarget(capture)}
-              onDelete={() => setDeleteTarget(capture)}
-            />
-          </div>
-        ))}
+      {captures.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+          <EmptyState onOpenCapture={onOpenCapture} />
+        </div>
+      ) : (
+        <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-0">
+          {captures.map(capture => (
+            <div key={capture.id} className="break-inside-avoid mb-3">
+              <CaptureCard
+                capture={capture}
+                isDeleting={deletingIds.has(capture.id)}
+                onView={() => setSelected({ ...capture })}
+                onEdit={() => setEditTarget(capture)}
+                onDelete={() => setDeleteTarget(capture)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Developer reset utility */}
+      <div className="mt-8 pt-5 border-t border-slate-100 dark:border-zinc-800/70 flex justify-center">
+        <button
+          onClick={handleClearDB}
+          className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-zinc-600 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/25 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Trash2 className="w-3 h-3" />
+          Clear Database
+        </button>
       </div>
 
+      {/* Modals */}
       {selected && (
         <CaptureViewerModal capture={selected} onClose={() => setSelected(null)} />
       )}
-
       {deleteTarget && (
         <DeleteConfirmModal
           capture={deleteTarget}
@@ -518,7 +537,6 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-
       {editTarget && (
         <EditDetailsModal
           capture={editTarget}
