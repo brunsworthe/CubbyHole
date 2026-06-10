@@ -380,7 +380,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
   }, [docPages, onCapture])
 
-  const dismissDocOverlay = useCallback(() => setDocOverlay(false), [])
+  const dismissDocOverlay = useCallback(() => {
+    setScanProgress(0)
+    setDocOverlay(false)
+  }, [])
 
   // ── Video recording (relief180 only) ─────────────────────────────────────
   const startRecording = useCallback(() => {
@@ -470,10 +473,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   }, [isScan3d, captureFrame3D, isDocument, isOrbitMode, isRecording, docOverlay, isCapturing, captureDocPage, startRecording, captureImage])
 
   // ── SVG calculations ──────────────────────────────────────────────────────
-  const rad    = (orbitAngle * Math.PI) / 180
-  const dotX   = ORBIT_CX + ORBIT_RX * Math.sin(rad)
-  const dotY   = ORBIT_CY - ORBIT_RY * Math.cos(rad)
-
   const ringOffset = RING_CIRC * (1 - scanProgress / 100)
 
   const reliefNorm     = orbitAngle % 360
@@ -494,18 +493,21 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── UI text ───────────────────────────────────────────────────────────────
   const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : isRelief ? 'ALIGN RELIEF' : 'ALIGN OBJECT'
 
+  // Tip text — scan3d has its own guidance area so this is only shown for the other 3 modes
   const tipText = docOverlay
     ? ''
     : isDocument && docPages.length > 0
-    ? `Page ${docPages.length} saved — press shutter to add another`
+    ? `Page ${docPages.length} saved — tap shutter to add another`
     : isRecording
     ? 'Pivot slowly left-to-right over the surface texture'
     : isCapturing
-    ? is2D ? 'Hold steady — capturing every brushstroke and texture'
-           : 'Hold steady — scanning'
-    : is2D      ? 'Lay artwork flat · Level indicator turns green when steady'
+    ? is2D       ? 'Hold steady — capturing every brushstroke and texture'
+      : isRelief ? 'Recording…'
+      :             'Hold steady — scanning'
+    : is2D       ? 'Lay artwork flat · Level indicator turns green when steady'
     : isDocument ? 'Place each page flat within the frame, then press shutter'
-    :               'Hold relief artwork at arm\'s length, facing forward'
+    : isRelief   ? 'Hold relief artwork at arm\'s length, facing forward'
+    :               ''
 
   const scanLabel = isDocument ? 'CAPTURING' : isFlat ? 'CAPTURING' : isRecording ? 'RECORDING' : 'SCANNING'
 
