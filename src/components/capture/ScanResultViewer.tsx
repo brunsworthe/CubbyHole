@@ -18,9 +18,9 @@ const MODEL_URL =
   'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/RobotExpressive.glb'
 
 const STATS_3D = [
-  { label: 'Polygons',  value: '18,432' },
-  { label: 'Texture',   value: '2K UV'  },
-  { label: 'File Size', value: '4.2 MB' },
+  { label: 'Frames',   value: '8'      },
+  { label: 'Coverage', value: '360°'   },
+  { label: 'File Size', value: '~14 MB' },
 ]
 
 const STATS_2D = [

@@ -12,7 +12,8 @@ export type CapturedMedia = {
   blob: Blob
   url: string
   mediaType: 'image' | 'video'
-  pages?: Blob[]  // document mode: all captured page blobs
+  pages?: Blob[]   // document mode: all captured page blobs
+  frames?: Blob[]  // scan3d mode: 8-frame segmented capture array
 }
 
 const MODE_LABELS: Record<CaptureMode, string> = {
@@ -40,7 +41,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       if (!record) return
       const url = URL.createObjectURL(record.asset)
       setMode(record.mode as CaptureMode)
-      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, pages: record.pages })
+      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, pages: record.pages, frames: record.frames })
       setStep('result')
     }).catch(() => {})
   }, [])
@@ -57,6 +58,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       mediaType: media.mediaType,
       timestamp: Date.now(),
       pages: media.pages,
+      frames: media.frames,
     }).catch(() => {})
   }, [mode])
 
