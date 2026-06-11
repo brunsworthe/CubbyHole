@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { X, Sparkles } from 'lucide-react'
+import { X, Sparkles, Cloud } from 'lucide-react'
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
-import ReliefViewer from './ReliefViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
 import SpinSequenceViewer from './SpinSequenceViewer'
+import LenticularViewer from './LenticularViewer'
 import type { CaptureMode } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
@@ -24,10 +24,11 @@ export type ViewableCapture = {
   type: string
   mediaType: 'image' | 'video'
   timestamp: number
-  url: string
   title?: string
-  pages?: Blob[]   // document mode: all captured page blobs
-  frames?: Blob[]  // scan3d mode: 8-frame segmented capture array
+  cloudUrl: string
+  cloudPages?: string[]
+  cloudFrames?: string[]
+  cloudReliefFrames?: string[]
 }
 
 const BADGE: Record<string, string> = {
@@ -47,34 +48,20 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
   const isScan3d = mode === 'scan3d'
+  const isRelief = mode === 'relief180'
   const isVideo = capture.mediaType === 'video'
   const badgeClass = BADGE[mode] ?? 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30'
-  const [docPageUrls, setDocPageUrls] = useState<string[]>([])
-  const [spinFrameUrls, setSpinFrameUrls] = useState<string[]>([])
+
+  const spinFrameUrls = capture.cloudFrames ?? []
+  const reliefFrameUrls = capture.cloudReliefFrames ?? []
+  const docPageUrls = capture.cloudPages?.length ? capture.cloudPages : [capture.cloudUrl]
+
+  const hasSpinFrames = spinFrameUrls.length >= 2
+  const hasReliefFrames = reliefFrameUrls.length >= 2
 
   const dateStr = new Date(capture.timestamp).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
-
-  // Create blob URLs for all document pages, revoke on unmount
-  useEffect(() => {
-    const pages = capture.pages
-    if (!pages?.length) { setDocPageUrls([]); return }
-    const urls = pages.map(b => URL.createObjectURL(b))
-    setDocPageUrls(urls)
-    return () => urls.forEach(u => URL.revokeObjectURL(u))
-  }, [capture])
-
-  // Create blob URLs for the 8 scan3d frames, revoke on unmount
-  useEffect(() => {
-    const frames = capture.frames
-    if (!frames?.length) { setSpinFrameUrls([]); return }
-    const urls = frames.map(b => URL.createObjectURL(b))
-    setSpinFrameUrls(urls)
-    return () => urls.forEach(u => URL.revokeObjectURL(u))
-  }, [capture])
-
-  const hasSpinFrames = spinFrameUrls.length >= 2
 
   // Lock body scroll while modal is open
   useEffect(() => {
@@ -88,6 +75,15 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  // Hint text for footer
+  let hintText: string
+  if (isScan3d && hasSpinFrames) hintText = 'Drag left/right to rotate · ← → keys also work'
+  else if (isRelief && hasReliefFrames) hintText = 'Drag left/right to shift the light · feel the depth'
+  else if (isVideo) hintText = 'Drag to orbit · Pinch to zoom'
+  else if (is2D) hintText = 'Move your phone or drag to feel the depth'
+  else if (isDocument) hintText = 'Drag to tilt · Pinch or scroll to zoom'
+  else hintText = 'Asset stored in cloud'
 
   return (
     <div
@@ -122,29 +118,42 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
       <div className="flex-1 min-h-0">
         {isScan3d && hasSpinFrames
           ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
-          : isVideo
-            ? <VideoCaptureViewer videoUrl={capture.url} mode={mode} />
-            : is2D
-              ? <FloatingCanvas2D imageUrl={capture.url} />
-              : isDocument
-                ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : [capture.url]} />
-                : <TimeCapsuleViewer modelUrl={FALLBACK_MODEL} />
+          : isRelief && hasReliefFrames
+            ? <LenticularViewer imageUrls={reliefFrameUrls} />
+            : isVideo
+              ? <VideoCaptureViewer videoUrl={capture.cloudUrl} mode={mode} />
+              : is2D
+                ? <FloatingCanvas2D imageUrl={capture.cloudUrl} />
+                : isDocument
+                  ? <DocumentViewer imageUrls={docPageUrls} />
+                  : (
+                    // Cloud placeholder — shown for scan3d/relief without multi-frame arrays
+                    // (older records or first-generation captures pre-Phase 4)
+                    <CloudAssetPlaceholder cloudUrl={capture.cloudUrl} />
+                  )
         }
       </div>
 
       {/* Footer hint */}
       <div className="flex-shrink-0 px-5 py-2 border-t border-zinc-800/60 bg-zinc-950/80">
-        <p className="text-xs text-zinc-600 text-center">
-          {isVideo
-            ? 'Drag to orbit · Pinch to zoom'
-            : is2D
-              ? 'Move your phone or drag to feel the depth'
-              : isDocument
-                ? 'Drag to tilt · Pinch or scroll to zoom'
-                : (isScan3d && hasSpinFrames)
-                  ? 'Drag left/right to rotate · ← → keys also work'
-                  : 'Drag to rotate · Pinch to zoom'}
+        <p className="text-xs text-zinc-600 text-center">{hintText}</p>
+      </div>
+    </div>
+  )
+}
+
+function CloudAssetPlaceholder({ cloudUrl }: { cloudUrl: string }) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-zinc-950 px-8">
+      <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+        <Cloud className="w-7 h-7 text-zinc-600" />
+      </div>
+      <div className="text-center space-y-1">
+        <p className="text-zinc-400 text-sm font-semibold">Asset Stored in Cloud</p>
+        <p className="text-zinc-600 text-xs leading-relaxed max-w-[260px]">
+          Full-fidelity playback fetches from the cloud server. This would stream automatically in production.
         </p>
+        <p className="text-zinc-700 text-[10px] font-mono mt-3 break-all">{cloudUrl}</p>
       </div>
     </div>
   )

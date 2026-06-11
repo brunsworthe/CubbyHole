@@ -1,13 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Camera, Box, Palette, FileText, Mountain, Layers, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react'
+import { Camera, Box, Palette, FileText, Mountain, Layers, MoreHorizontal, Pencil, Trash2, X, Cloud } from 'lucide-react'
 import { getAllCaptures, deleteCapture, updateCapture, clearCaptures } from '@/lib/captureDB'
 import type { CaptureRecord } from '@/lib/captureDB'
 import CaptureViewerModal from '@/components/capture/CaptureViewerModal'
 import type { ViewableCapture } from '@/components/capture/CaptureViewerModal'
-
-type LoadedCapture = CaptureRecord & { url: string }
 
 // ── Mode config ───────────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ function DeleteConfirmModal({
   onConfirm,
   onCancel,
 }: {
-  capture: LoadedCapture
+  capture: CaptureRecord
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -80,7 +78,7 @@ function DeleteConfirmModal({
         </div>
 
         <p className="text-sm text-slate-600 dark:text-zinc-400 leading-relaxed mb-5">
-          This will permanently remove the captured item and all associated frames from your local storage. This cannot be undone.
+          This will permanently remove the capture record and its cloud reference from your library. This cannot be undone.
         </p>
 
         <div className="flex gap-2.5">
@@ -109,11 +107,12 @@ function EditDetailsModal({
   onSave,
   onCancel,
 }: {
-  capture: LoadedCapture
+  capture: CaptureRecord
   onSave: (title: string) => void
   onCancel: () => void
 }) {
   const [value, setValue] = useState(capture.title ?? '')
+  const [imgError, setImgError] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -126,6 +125,8 @@ function EditDetailsModal({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onCancel])
+
+  const { icon: Icon } = getModeConfig(capture.mode)
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -144,11 +145,27 @@ function EditDetailsModal({
 
         {/* Preview row */}
         <div className="flex items-center gap-3 mb-5 p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-slate-100 dark:border-zinc-800">
-          <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-slate-200 dark:bg-zinc-700">
-            {capture.mediaType === 'image' ? (
-              <img src={capture.url} alt="" className="w-full h-full object-cover" draggable={false} />
+          <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-slate-200 dark:bg-zinc-700 flex items-center justify-center">
+            {!imgError ? (
+              capture.mediaType === 'image' ? (
+                <img
+                  src={capture.cloudUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <video
+                  src={capture.cloudUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  preload="metadata"
+                  onError={() => setImgError(true)}
+                />
+              )
             ) : (
-              <video src={capture.url} className="w-full h-full object-cover" muted preload="metadata" />
+              <Icon className="w-5 h-5 text-slate-400 dark:text-zinc-500" />
             )}
           </div>
           <div className="min-w-0">
@@ -196,7 +213,7 @@ function EditDetailsModal({
 // ── CaptureCard ───────────────────────────────────────────────────────────────
 
 interface CardProps {
-  capture: LoadedCapture
+  capture: CaptureRecord
   isDeleting: boolean
   onView: () => void
   onEdit: () => void
@@ -206,6 +223,7 @@ interface CardProps {
 function CaptureCard({ capture, isDeleting, onView, onEdit, onDelete }: CardProps) {
   const { icon: Icon, badge } = getModeConfig(capture.mode)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [imgError, setImgError] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const dateStr = new Date(capture.timestamp).toLocaleDateString('en-US', {
@@ -235,23 +253,31 @@ function CaptureCard({ capture, isDeleting, onView, onEdit, onDelete }: CardProp
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onView() }}
     >
-      {/* Thumbnail — clipped independently so the menu can overflow the card */}
+      {/* Thumbnail */}
       <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-zinc-800 rounded-t-2xl">
-        {capture.mediaType === 'image' ? (
+        {imgError ? (
+          /* Cloud placeholder thumbnail — shown when mock URL fails to load */
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5">
+            <Cloud className="w-6 h-6 text-slate-300 dark:text-zinc-600" />
+            <span className="text-[9px] font-mono text-slate-400 dark:text-zinc-600 tracking-wide">CLOUD</span>
+          </div>
+        ) : capture.mediaType === 'image' ? (
           <img
-            src={capture.url}
+            src={capture.cloudUrl}
             alt={capture.title ?? capture.type}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             draggable={false}
+            onError={() => setImgError(true)}
           />
         ) : (
           <video
-            src={capture.url}
+            src={capture.cloudUrl}
             preload="metadata"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             muted
             playsInline
             onLoadedMetadata={e => { e.currentTarget.currentTime = 0.5 }}
+            onError={() => setImgError(true)}
           />
         )}
 
@@ -271,7 +297,7 @@ function CaptureCard({ capture, isDeleting, onView, onEdit, onDelete }: CardProp
         )}
       </div>
 
-      {/* Ellipsis menu — positioned relative to the card outer div, not the thumbnail */}
+      {/* Ellipsis menu */}
       <div
         ref={menuRef}
         className="absolute top-2 right-2 z-20"
@@ -386,31 +412,20 @@ interface Props {
 }
 
 export default function CapsuleDashboard({ onOpenCapture }: Props) {
-  const [captures, setCaptures] = useState<LoadedCapture[]>([])
+  const [captures, setCaptures] = useState<CaptureRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<ViewableCapture | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<LoadedCapture | null>(null)
-  const [editTarget, setEditTarget] = useState<LoadedCapture | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<CaptureRecord | null>(null)
+  const [editTarget, setEditTarget] = useState<CaptureRecord | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
-  const urlsRef = useRef<string[]>([])
 
   useEffect(() => {
     getAllCaptures()
       .then(records => {
-        const loaded = records.map(r => {
-          const url = URL.createObjectURL(r.asset)
-          urlsRef.current.push(url)
-          return { ...r, url }
-        })
-        setCaptures(loaded)
+        setCaptures(records)
         setLoading(false)
       })
       .catch(() => setLoading(false))
-
-    return () => {
-      urlsRef.current.forEach(u => URL.revokeObjectURL(u))
-      urlsRef.current = []
-    }
   }, [])
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -420,7 +435,6 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
     const id = deleteTarget.id
     setDeleteTarget(null)
     setDeletingIds(prev => new Set(prev).add(id))
-    // Remove after exit transition, delete from DB in parallel
     setTimeout(() => {
       setCaptures(prev => prev.filter(c => c.id !== id))
       setDeletingIds(prev => { const n = new Set(prev); n.delete(id); return n })
@@ -432,8 +446,6 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
 
   const handleClearDB = useCallback(() => {
     clearCaptures().catch(() => {})
-    urlsRef.current.forEach(u => URL.revokeObjectURL(u))
-    urlsRef.current = []
     setCaptures([])
   }, [])
 
@@ -460,7 +472,7 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
           <p className="text-sm text-slate-500 dark:text-zinc-500 mt-0.5">
             {captures.length === 0
               ? 'Nothing here yet'
-              : `${captures.length} item${captures.length !== 1 ? 's' : ''} preserved locally`}
+              : `${captures.length} item${captures.length !== 1 ? 's' : ''} synced to cloud`}
           </p>
         )}
       </div>
@@ -476,9 +488,6 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  // Loading skeleton — no footer yet, data hasn't landed
   if (loading) {
     return (
       <section aria-label="My Captures">
@@ -490,7 +499,6 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
     )
   }
 
-  // Unified render — empty state OR grid, always followed by the dev footer
   return (
     <section aria-label="My Captures">
       {sectionHeader}

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import CaptureScreen from './CaptureScreen'
 import NamingScreen from './NamingScreen'
 import ProcessingState from './ProcessingState'
 import ScanResultViewer from './ScanResultViewer'
-import { saveCapture, getLatestCapture, clearCaptures } from '@/lib/captureDB'
+import UploadSyncScreen from './UploadSyncScreen'
+import { saveCapture, clearCaptures } from '@/lib/captureDB'
+import { uploadCapture } from '@/lib/uploadManager'
 
 export type CaptureMode = 'scan3d' | 'relief180' | 'artwork2d' | 'document'
 
@@ -14,9 +16,9 @@ export type CapturedMedia = {
   url: string
   mediaType: 'image' | 'video'
   title?: string
-  pages?: Blob[]         // document mode: all captured page blobs
-  frames?: Blob[]        // scan3d mode: 8-frame segmented capture array
-  reliefFrames?: Blob[]  // relief180 mode: 5-frame lenticular capture array
+  pages?: Blob[]
+  frames?: Blob[]
+  reliefFrames?: Blob[]
 }
 
 const MODE_LABELS: Record<CaptureMode, string> = {
@@ -26,7 +28,7 @@ const MODE_LABELS: Record<CaptureMode, string> = {
   document:  'Document Scanner',
 }
 
-type Step = 'capture' | 'naming' | 'processing' | 'result'
+type Step = 'capture' | 'naming' | 'uploading' | 'processing' | 'result'
 
 interface Props {
   onClose: () => void
@@ -37,45 +39,65 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   const [step, setStep] = useState<Step>('capture')
   const [mode, setMode] = useState<CaptureMode>('scan3d')
   const [capturedMedia, setCapturedMedia] = useState<CapturedMedia | null>(null)
+  const [uploadError, setUploadError] = useState(false)
 
-  // On mount: restore the latest cached capture so the viewer opens immediately
-  useEffect(() => {
-    getLatestCapture().then(record => {
-      if (!record) return
-      const url = URL.createObjectURL(record.asset)
-      setMode(record.mode as CaptureMode)
-      setCapturedMedia({ blob: record.asset, url, mediaType: record.mediaType, title: record.title, pages: record.pages, frames: record.frames, reliefFrames: record.reliefFrames })
-      setStep('result')
-    }).catch(() => {})
-  }, [])
+  // Refs hold the latest capture + title for use inside async upload closures
+  const capturedMediaRef = useRef<CapturedMedia | null>(null)
+  const pendingTitleRef = useRef<string | undefined>(undefined)
 
   // Stage 1: capture done → show naming prompt
   const goToNaming = useCallback((media: CapturedMedia) => {
+    capturedMediaRef.current = media
     setCapturedMedia(media)
     setStep('naming')
   }, [])
 
-  // Stage 2: name confirmed (or skipped) → persist and enter processing animation
-  const goToProcessing = useCallback((title?: string) => {
-    setCapturedMedia(prev => prev ? { ...prev, title } : prev)
-    setStep('processing')
-    setCapturedMedia(prev => {
-      if (!prev) return prev
-      saveCapture({
-        id: Date.now().toString(),
-        mode,
-        type: MODE_LABELS[mode],
-        title,
-        asset: prev.blob,
-        mediaType: prev.mediaType,
-        timestamp: Date.now(),
-        pages: prev.pages,
-        frames: prev.frames,
-        reliefFrames: prev.reliefFrames,
-      }).catch(() => {})
-      return prev
+  // Stage 2: name confirmed → run cloud upload, then processing
+  const runUpload = useCallback((title?: string) => {
+    const media = capturedMediaRef.current
+    if (!media) return
+    const titleTrimmed = title || undefined
+    pendingTitleRef.current = titleTrimmed
+    setCapturedMedia(prev => prev ? { ...prev, title: titleTrimmed } : prev)
+    setUploadError(false)
+    setStep('uploading')
+
+    uploadCapture({
+      mode,
+      asset: media.blob,
+      mediaType: media.mediaType,
+      pages: media.pages,
+      frames: media.frames,
+      reliefFrames: media.reliefFrames,
     })
+      .then(result => {
+        saveCapture({
+          id: Date.now().toString(),
+          mode,
+          type: MODE_LABELS[mode],
+          title: titleTrimmed,
+          mediaType: media.mediaType,
+          timestamp: Date.now(),
+          cloudUrl: result.cloudUrl,
+          cloudPages: result.cloudPages,
+          cloudFrames: result.cloudFrames,
+          cloudReliefFrames: result.cloudReliefFrames,
+        }).catch(() => {})
+        setStep('processing')
+      })
+      .catch(() => {
+        setUploadError(true)
+      })
   }, [mode])
+
+  const retryUpload = useCallback(() => {
+    runUpload(pendingTitleRef.current)
+  }, [runUpload])
+
+  const cancelUpload = useCallback(() => {
+    setUploadError(false)
+    setStep('naming')
+  }, [])
 
   const goToResult = useCallback(() => setStep('result'), [])
 
@@ -84,6 +106,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       if (prev?.url) URL.revokeObjectURL(prev.url)
       return null
     })
+    capturedMediaRef.current = null
     setStep('capture')
   }, [])
 
@@ -107,7 +130,14 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
           mode={mode}
           previewUrl={capturedMedia.url}
           mediaType={capturedMedia.mediaType}
-          onConfirm={goToProcessing}
+          onConfirm={runUpload}
+        />
+      )}
+      {step === 'uploading' && (
+        <UploadSyncScreen
+          hasError={uploadError}
+          onRetry={retryUpload}
+          onCancel={cancelUpload}
         />
       )}
       {step === 'processing' && (
