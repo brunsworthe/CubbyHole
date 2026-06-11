@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Info, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2 } from 'lucide-react'
+import { X, Lightbulb, Info, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -12,19 +12,30 @@ const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ class
 ]
 
 const SCAN_STEPS = [
-  { dir: 'N',  heading: 'Frame 1 / 8 — Front (0°)',        sub: 'Face the front of the object toward the camera'   },
-  { dir: 'NE', heading: 'Frame 2 / 8 — Front-Right (45°)', sub: 'Rotate the object 45° clockwise from front'        },
-  { dir: 'E',  heading: 'Frame 3 / 8 — Right Side (90°)',  sub: 'Right side of the object now faces the camera'     },
-  { dir: 'SE', heading: 'Frame 4 / 8 — Rear-Right (135°)', sub: 'Continue rotating another 45° clockwise'           },
-  { dir: 'S',  heading: 'Frame 5 / 8 — Rear View (180°)',  sub: "Object's back now faces the camera"               },
-  { dir: 'SW', heading: 'Frame 6 / 8 — Rear-Left (225°)',  sub: 'Continue rotating another 45° clockwise'           },
-  { dir: 'W',  heading: 'Frame 7 / 8 — Left Side (270°)',  sub: 'Left side of the object now faces the camera'      },
-  { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Final frame — almost done!'                        },
+  { dir: 'N',  heading: 'Frame 1 / 8 — Front (0°)',        sub: 'Face the front of the object toward the camera'  },
+  { dir: 'NE', heading: 'Frame 2 / 8 — Front-Right (45°)', sub: 'Rotate the object 45° clockwise from front'       },
+  { dir: 'E',  heading: 'Frame 3 / 8 — Right Side (90°)',  sub: 'Right side of the object now faces the camera'    },
+  { dir: 'SE', heading: 'Frame 4 / 8 — Rear-Right (135°)', sub: 'Continue rotating another 45° clockwise'          },
+  { dir: 'S',  heading: 'Frame 5 / 8 — Rear View (180°)',  sub: "Object's back now faces the camera"              },
+  { dir: 'SW', heading: 'Frame 6 / 8 — Rear-Left (225°)',  sub: 'Continue rotating another 45° clockwise'          },
+  { dir: 'W',  heading: 'Frame 7 / 8 — Left Side (270°)',  sub: 'Left side of the object now faces the camera'     },
+  { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Final frame — almost done!'                       },
+] as const
+
+const RELIEF_STEPS = [
+  { pos: 'XL', heading: 'Frame 1/5 — Extreme Left',     sub: 'Tilt phone far left — light rakes across the texture from the right' },
+  { pos: 'LC', heading: 'Frame 2/5 — Left-Center',       sub: 'Move phone slightly right toward center'                            },
+  { pos: 'TD', heading: 'Frame 3/5 — Top-Down Center',   sub: 'Hold directly above, camera facing straight down at the artwork'    },
+  { pos: 'RC', heading: 'Frame 4/5 — Right-Center',      sub: 'Move phone slightly left of rightmost position'                     },
+  { pos: 'XR', heading: 'Frame 5/5 — Extreme Right',     sub: 'Tilt phone far right — light rakes across from the left'            },
 ] as const
 
 const ORBIT_CX = 150, ORBIT_CY = 312, ORBIT_RX = 88, ORBIT_RY = 20
 const RING_CX = 150, RING_CY = 190, RING_R = 52
 const RING_CIRC = 2 * Math.PI * RING_R
+
+// 5 evenly-spaced angular positions along the upper semi-ellipse (in degrees, 0=top, ±90=endpoints)
+const RELIEF_ARC_ANGLES = [-72, -36, 0, 36, 72] as const
 
 type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
 
@@ -42,7 +53,6 @@ function CompassDial({ capturedFrames, currentStep }: {
   const cx = 100, cy = 100
   const ro = 84, ri = 46
   const GAP = 3
-  // offset -112.5° centers segment 0 at top (12 o'clock = North)
   const OFFSET = -112.5
 
   function segPath(i: number) {
@@ -64,7 +74,6 @@ function CompassDial({ capturedFrames, currentStep }: {
 
   return (
     <svg viewBox="0 0 200 200" className="w-40 h-40" aria-hidden="true">
-      {/* Outer ring guide */}
       <circle cx={cx} cy={cy} r={ro + 9} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
 
       {SCAN_STEPS.map((step, i) => {
@@ -86,46 +95,29 @@ function CompassDial({ capturedFrames, currentStep }: {
         return (
           <g key={i}>
             <path d={segPath(i)} fill={fill} stroke={stroke} strokeWidth={isActive ? 1.5 : 1} />
-
-            {/* Pulse ring on active segment */}
             {isActive && (
               <path d={segPath(i)} fill="none" stroke="rgba(251,191,36,0.4)" strokeWidth="3">
                 <animate attributeName="opacity" values="0.7;0;0.7" dur="1.6s" repeatCount="indefinite" />
               </path>
             )}
-
-            {/* Checkmark for captured segments */}
             {isCaptured && (
               <path
                 d={`M ${mx - 4} ${my} L ${mx - 1} ${my + 3} L ${mx + 4.5} ${my - 3.5}`}
-                fill="none"
-                stroke="rgba(251,191,36,0.95)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                fill="none" stroke="rgba(251,191,36,0.95)" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round"
               />
             )}
-
-            {/* Direction label outside the ring */}
-            <text
-              x={lx} y={ly + 3.5}
-              textAnchor="middle"
-              fill={labelFill}
-              fontSize="8.5"
-              fontFamily="monospace"
-              fontWeight={isActive ? 'bold' : 'normal'}
-            >
+            <text x={lx} y={ly + 3.5} textAnchor="middle" fill={labelFill}
+              fontSize="8.5" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
               {step.dir}
             </text>
           </g>
         )
       })}
 
-      {/* Center hole */}
       <circle cx={cx} cy={cy} r={ri - 3} fill="rgba(0,0,0,0.55)" />
       <circle cx={cx} cy={cy} r={ri - 3} fill="none" stroke="rgba(251,191,36,0.18)" strokeWidth="1" />
 
-      {/* Center counter */}
       {allCaptured ? (
         <>
           <text x={cx} y={cy + 5}  textAnchor="middle" fill="rgba(251,191,36,1)" fontSize="18" fontWeight="bold">✓</text>
@@ -138,6 +130,106 @@ function CompassDial({ capturedFrames, currentStep }: {
           </text>
           <text x={cx} y={cy + 16} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="8" fontFamily="monospace">
             / 8
+          </text>
+        </>
+      )}
+    </svg>
+  )
+}
+
+// ── Arc dial for 5-step relief180 capture ────────────────────────────────────
+function ReliefArcDial({ capturedFrames, currentStep }: {
+  capturedFrames: (Blob | null)[]
+  currentStep: number
+}) {
+  const cx = 100, cy = 115
+  const ro = 70, ri = 44
+  const GAP = 4   // degrees of gap between segments
+  const STEP_DEG = 36  // 180° / 5 segments
+
+  // Parametric: angle 0°=top, +CW in SVG coords
+  // x = cx + r*sin(a°),  y = cy - r*cos(a°)
+  function pt(a: number, r: number): [number, number] {
+    const rad = a * Math.PI / 180
+    return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)]
+  }
+
+  function segPath(i: number): string {
+    const s = -90 + i * STEP_DEG + GAP
+    const e = -90 + (i + 1) * STEP_DEG - GAP
+    const [x1, y1] = pt(s, ro)
+    const [x2, y2] = pt(e, ro)
+    const [x3, y3] = pt(e, ri)
+    const [x4, y4] = pt(s, ri)
+    return `M ${x1} ${y1} A ${ro} ${ro} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${ri} ${ri} 0 0 0 ${x4} ${y4} Z`
+  }
+
+  const allCaptured = currentStep >= 5
+  const LABELS = ['XL', 'L', 'TD', 'R', 'XR']
+
+  return (
+    <svg viewBox="0 0 200 200" className="w-40 h-40" aria-hidden="true">
+      {/* Outer guide ring (upper half only) */}
+      <path
+        d={`M ${cx - ro - 8} ${cy} A ${ro + 8} ${ro + 8} 0 0 1 ${cx + ro + 8} ${cy}`}
+        fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1"
+      />
+
+      {[0, 1, 2, 3, 4].map(i => {
+        const isCaptured = capturedFrames[i] !== null
+        const isActive   = i === currentStep && !allCaptured
+        const [mx, my]   = pt(-90 + (i + 0.5) * STEP_DEG, (ro + ri) / 2)
+        const [lx, ly]   = pt(-90 + (i + 0.5) * STEP_DEG, ro + 13)
+
+        const fill   = isCaptured ? 'rgba(251,146,60,0.50)'
+                     : isActive   ? 'rgba(251,146,60,0.88)'
+                     :               'rgba(251,146,60,0.07)'
+        const stroke = isCaptured ? 'rgba(251,146,60,0.65)'
+                     : isActive   ? 'rgba(251,146,60,1)'
+                     :               'rgba(251,146,60,0.20)'
+        const labelFill = isCaptured ? 'rgba(251,146,60,0.70)'
+                        : isActive   ? 'rgba(255,255,255,0.95)'
+                        :               'rgba(255,255,255,0.22)'
+
+        return (
+          <g key={i}>
+            <path d={segPath(i)} fill={fill} stroke={stroke} strokeWidth={isActive ? 1.5 : 1} />
+
+            {isActive && (
+              <path d={segPath(i)} fill="none" stroke="rgba(251,146,60,0.4)" strokeWidth="3">
+                <animate attributeName="opacity" values="0.7;0;0.7" dur="1.6s" repeatCount="indefinite" />
+              </path>
+            )}
+
+            {isCaptured && (
+              <path
+                d={`M ${mx - 4} ${my} L ${mx - 1} ${my + 3} L ${mx + 4.5} ${my - 3.5}`}
+                fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round"
+              />
+            )}
+
+            <text x={lx} y={ly + 3.5} textAnchor="middle" fill={labelFill}
+              fontSize="8.5" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
+              {LABELS[i]}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* Counter — below the arc centerline */}
+      {allCaptured ? (
+        <>
+          <text x={cx} y={cy + 18} textAnchor="middle" fill="rgba(251,146,60,1)" fontSize="18" fontWeight="bold">✓</text>
+          <text x={cx} y={cy + 30} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="7.5" fontFamily="monospace">ALL DONE</text>
+        </>
+      ) : (
+        <>
+          <text x={cx} y={cy + 18} textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="monospace">
+            {currentStep + 1}
+          </text>
+          <text x={cx} y={cy + 29} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="8" fontFamily="monospace">
+            / 5
           </text>
         </>
       )}
@@ -165,10 +257,18 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [docPages, setDocPages] = useState<Blob[]>([])
   const [docOverlay, setDocOverlay] = useState(false)
 
-  // ── scan3d 8-frame segmented capture state ────────────────────────────────
+  // ── scan3d 8-frame state ──────────────────────────────────────────────────
   const [capturedFrames, setCapturedFrames] = useState<(Blob | null)[]>(() => Array(8).fill(null))
   const [currentStep, setCurrentStep] = useState(0)
   const [ghostUrl, setGhostUrl] = useState<string | null>(null)
+
+  // ── relief180 5-frame state ───────────────────────────────────────────────
+  const [reliefFrames, setReliefFrames] = useState<(Blob | null)[]>(() => Array(5).fill(null))
+  const [reliefStep, setReliefStep] = useState(0)
+  const [reliefGhostUrl, setReliefGhostUrl] = useState<string | null>(null)
+  const [lightingMode, setLightingMode] = useState<'natural' | 'torch'>('natural')
+  const [torchActive, setTorchActive] = useState(false)
+  const [torchUnsupported, setTorchUnsupported] = useState(false)
 
   // ── Level indicator for 2D mode ───────────────────────────────────────────
   const [levelBeta, setLevelBeta] = useState(30)
@@ -183,16 +283,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const fileInputRef = useRef<HTMLInputElement>(null)
   const capturedFramesRef = useRef<(Blob | null)[]>(Array(8).fill(null))
   const ghostUrlRef = useRef<string | null>(null)
+  const reliefFramesRef = useRef<(Blob | null)[]>(Array(5).fill(null))
+  const reliefGhostUrlRef = useRef<string | null>(null)
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const is2D         = mode === 'artwork2d'
-  const isDocument   = mode === 'document'
-  const isRelief     = mode === 'relief180'
-  const isScan3d     = mode === 'scan3d'
-  const isFlat       = is2D || isDocument
-  const isOrbitMode  = isRelief   // only relief uses auto-timer video recording now
-  const cameraReady  = cameraStatus === 'active'
-  const allFramesCaptured = isScan3d && currentStep >= 8
+  const is2D       = mode === 'artwork2d'
+  const isDocument = mode === 'document'
+  const isRelief   = mode === 'relief180'
+  const isScan3d   = mode === 'scan3d'
+  const isFlat     = is2D || isDocument
+  const cameraReady = cameraStatus === 'active'
+
+  const allFramesCaptured  = isScan3d  && currentStep >= 8
+  const allReliefCaptured  = isRelief  && reliefStep  >= 5
 
   const accent = is2D      ? 'rgb(196 181 253)'
                : isDocument ? 'rgb(125 211 252)'
@@ -238,10 +341,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       streamRef.current?.getTracks().forEach(t => t.stop())
       clearInterval(recordingTimerRef.current)
       if (ghostUrlRef.current) URL.revokeObjectURL(ghostUrlRef.current)
+      if (reliefGhostUrlRef.current) URL.revokeObjectURL(reliefGhostUrlRef.current)
     }
   }, [initCamera])
 
-  // Reset all transient capture state when mode changes
+  // Reset all transient state when mode changes
   useEffect(() => {
     if (isRecording) {
       clearInterval(recordingTimerRef.current)
@@ -249,17 +353,34 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
     setDocPages([])
     setDocOverlay(false)
-    // Reset scan3d — always wipe on mode switch so entering scan3d starts fresh
+
+    // Reset scan3d
     const freshFrames = Array(8).fill(null) as (Blob | null)[]
     capturedFramesRef.current = freshFrames
     setCapturedFrames(freshFrames)
     setCurrentStep(0)
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
+
+    // Reset relief + disable torch (any lingering torch from the previous mode)
+    const freshRelief = Array(5).fill(null) as (Blob | null)[]
+    reliefFramesRef.current = freshRelief
+    setReliefFrames(freshRelief)
+    setReliefStep(0)
+    if (reliefGhostUrlRef.current) { URL.revokeObjectURL(reliefGhostUrlRef.current); reliefGhostUrlRef.current = null }
+    setReliefGhostUrl(null)
+    setLightingMode('natural')
+    setTorchActive(false)
+    setTorchUnsupported(false)
+    // Always attempt torch-off on mode switch (safe no-op if not supported)
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (track) {
+      track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
-  // Update ghost (onion-skin) whenever current step advances
+  // Update scan3d ghost (onion-skin) when step advances
   useEffect(() => {
     if (!isScan3d || currentStep === 0) {
       if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
@@ -274,7 +395,37 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setGhostUrl(url)
   }, [isScan3d, currentStep])
 
-  // Orbit dot animation (used by relief180 idle dot)
+  // Update relief ghost (onion-skin) when step advances
+  useEffect(() => {
+    if (!isRelief || reliefStep === 0) {
+      if (reliefGhostUrlRef.current) { URL.revokeObjectURL(reliefGhostUrlRef.current); reliefGhostUrlRef.current = null }
+      setReliefGhostUrl(null)
+      return
+    }
+    const prevBlob = reliefFramesRef.current[reliefStep - 1]
+    if (!prevBlob) return
+    if (reliefGhostUrlRef.current) URL.revokeObjectURL(reliefGhostUrlRef.current)
+    const url = URL.createObjectURL(prevBlob)
+    reliefGhostUrlRef.current = url
+    setReliefGhostUrl(url)
+  }, [isRelief, reliefStep])
+
+  // Apply / remove hardware torch when lighting mode changes (relief only)
+  useEffect(() => {
+    if (!isRelief || !cameraReady) return
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (!track) return
+    const enable = lightingMode === 'torch'
+    track
+      .applyConstraints({ advanced: [{ torch: enable } as unknown as MediaTrackConstraintSet] })
+      .then(() => setTorchActive(enable))
+      .catch(() => {
+        if (enable) setTorchUnsupported(true)
+        setTorchActive(false)
+      })
+  }, [lightingMode, isRelief, cameraReady])
+
+  // Orbit dot animation for relief idle SVG overlay
   useEffect(() => {
     let rafId: number, last = 0
     const step = (t: number) => {
@@ -321,7 +472,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return () => cleanup?.()
   }, [is2D])
 
-  // ── Image capture (2D / relief still) ────────────────────────────────────
+  // ── Image capture (artwork2d) ─────────────────────────────────────────────
   const captureImage = useCallback(() => {
     if (isCapturing) return
     const video = videoRef.current
@@ -385,38 +536,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setDocOverlay(false)
   }, [])
 
-  // ── Video recording (relief180 only) ─────────────────────────────────────
-  const startRecording = useCallback(() => {
-    const maxMs = 4_000  // relief only
-    const stream = streamRef.current
-    if (!stream || isCapturing) return
-    const mimeType = getSupportedMimeType()
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-    recordingChunks.current = []
-    recorder.ondataavailable = e => { if (e.data.size > 0) recordingChunks.current.push(e.data) }
-    recorder.onstop = () => {
-      clearInterval(recordingTimerRef.current)
-      const blob = new Blob(recordingChunks.current, { type: recorder.mimeType || 'video/webm' })
-      const url = URL.createObjectURL(blob)
-      setIsRecording(false)
-      setIsCapturing(false)
-      setScanProgress(0)
-      onCapture({ blob, url, mediaType: 'video' })
-    }
-    mediaRecorderRef.current = recorder
-    recorder.start(100)
-    setIsRecording(true)
-    setIsCapturing(true)
-    setScanProgress(0)
-    const startTime = Date.now()
-    recordingTimerRef.current = window.setInterval(() => {
-      const pct = Math.min(((Date.now() - startTime) / maxMs) * 100, 100)
-      setScanProgress(pct)
-      if (pct >= 100) recorder.stop()
-    }, 100)
-  }, [isCapturing, onCapture])
-
-  // ── scan3d: capture one frame still ──────────────────────────────────────
+  // ── scan3d: capture one still frame ──────────────────────────────────────
   const captureFrame3D = useCallback(() => {
     if (isCapturing || currentStep >= 8) return
     const video = videoRef.current
@@ -440,13 +560,50 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, currentStep])
 
-  // ── scan3d: compile all 8 frames and hand off ─────────────────────────────
   const compileScan3D = useCallback(() => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 8) return
     const primaryBlob = frames[0]
     const url = URL.createObjectURL(primaryBlob)
     onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
+  }, [onCapture])
+
+  // ── relief180: capture one still frame ───────────────────────────────────
+  const captureReliefFrame = useCallback(() => {
+    if (isCapturing || reliefStep >= 5) return
+    const video = videoRef.current
+    if (!video || video.readyState < 2) return
+    setIsCapturing(true)
+    const canvas = document.createElement('canvas')
+    canvas.width  = video.videoWidth  || 1280
+    canvas.height = video.videoHeight || 720
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (!blob) { setIsCapturing(false); return }
+      const step = reliefStep
+      setReliefFrames(prev => {
+        const next = [...prev]
+        next[step] = blob
+        reliefFramesRef.current = next
+        return next
+      })
+      setReliefStep(step + 1)
+      setIsCapturing(false)
+    }, 'image/jpeg', 0.92)
+  }, [isCapturing, reliefStep])
+
+  const compileRelief = useCallback(() => {
+    const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
+    if (frames.length < 5) return
+    // Disable torch before handing off
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (track) {
+      track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
+    }
+    setTorchActive(false)
+    const primaryBlob = frames[2]  // center (Top-Down) frame as primary thumbnail
+    const url = URL.createObjectURL(primaryBlob)
+    onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
   }, [onCapture])
 
   // ── File upload ───────────────────────────────────────────────────────────
@@ -461,63 +618,42 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // ── Shutter ───────────────────────────────────────────────────────────────
   const handleShutter = useCallback(() => {
-    if (isScan3d) {
-      captureFrame3D()
-    } else if (isDocument) {
-      if (!docOverlay && !isCapturing) captureDocPage()
-    } else if (isOrbitMode) {
-      if (!isRecording) startRecording()
-    } else {
-      captureImage()
-    }
-  }, [isScan3d, captureFrame3D, isDocument, isOrbitMode, isRecording, docOverlay, isCapturing, captureDocPage, startRecording, captureImage])
+    if (isScan3d)      captureFrame3D()
+    else if (isRelief) captureReliefFrame()
+    else if (isDocument) { if (!docOverlay && !isCapturing) captureDocPage() }
+    else                 captureImage()
+  }, [isScan3d, captureFrame3D, isRelief, captureReliefFrame, isDocument, docOverlay, isCapturing, captureDocPage, captureImage])
 
-  // ── SVG calculations ──────────────────────────────────────────────────────
+  // ── SVG calculations (flat/2D modes) ─────────────────────────────────────
   const ringOffset = RING_CIRC * (1 - scanProgress / 100)
 
+  // Relief arc overlay: idle oscillating dot (kept for non-step overlay visual)
   const reliefNorm     = orbitAngle % 360
   const reliefOsc      = reliefNorm <= 180 ? reliefNorm : 360 - reliefNorm
   const reliefIdleRad  = Math.PI * (1 - reliefOsc / 180)
   const reliefIdleDotX = ORBIT_CX + ORBIT_RX * Math.cos(reliefIdleRad)
   const reliefIdleDotY = ORBIT_CY - ORBIT_RY * Math.sin(reliefIdleRad)
-  const reliefCovRad   = Math.PI - (scanProgress / 100) * Math.PI
-  const reliefCovX     = ORBIT_CX + ORBIT_RX * Math.cos(reliefCovRad)
-  const reliefCovY     = ORBIT_CY - ORBIT_RY * Math.sin(reliefCovRad)
-  const reliefDotX     = isCapturing ? reliefCovX : reliefIdleDotX
-  const reliefDotY     = isCapturing ? reliefCovY : reliefIdleDotY
-  const reliefLargeArc = scanProgress > 50 ? 1 : 0
-  const reliefCovPath  = isCapturing && scanProgress > 0 && scanProgress < 100
-    ? `M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 ${reliefLargeArc} 1 ${reliefCovX} ${reliefCovY}`
-    : ''
 
   // ── UI text ───────────────────────────────────────────────────────────────
   const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : isRelief ? 'ALIGN RELIEF' : 'ALIGN OBJECT'
 
-  // Tip text — scan3d has its own guidance area so this is only shown for the other 3 modes
   const tipText = docOverlay
     ? ''
     : isDocument && docPages.length > 0
     ? `Page ${docPages.length} saved — tap shutter to add another`
-    : isRecording
-    ? 'Pivot slowly left-to-right over the surface texture'
     : isCapturing
-    ? is2D       ? 'Hold steady — capturing every brushstroke and texture'
-      : isRelief ? 'Recording…'
-      :             'Hold steady — scanning'
+    ? is2D ? 'Hold steady — capturing every brushstroke and texture' : 'Hold steady — scanning'
     : is2D       ? 'Lay artwork flat · Level indicator turns green when steady'
     : isDocument ? 'Place each page flat within the frame, then press shutter'
-    : isRelief   ? 'Hold relief artwork at arm\'s length, facing forward'
     :               ''
 
-  const scanLabel = isDocument ? 'CAPTURING' : isFlat ? 'CAPTURING' : isRecording ? 'RECORDING' : 'SCANNING'
+  const scanLabel = isDocument ? 'CAPTURING' : isFlat ? 'CAPTURING' : 'SCANNING'
 
   const accentBtn = is2D
     ? { idle: 'bg-violet-400 hover:bg-violet-300', active: 'bg-violet-500' }
     : isDocument
     ? { idle: 'bg-sky-400 hover:bg-sky-300',      active: 'bg-sky-500' }
-    : isRelief
-    ? { idle: 'bg-orange-400 hover:bg-orange-300', active: 'bg-orange-500' }
-    : { idle: 'bg-amber-400 hover:bg-amber-300',   active: 'bg-amber-500' }
+    : { idle: 'bg-orange-400 hover:bg-orange-300', active: 'bg-orange-500' }
 
   const accentTailwind = is2D ? 'bg-violet-500 hover:bg-violet-400'
     : isDocument ? 'bg-sky-500 hover:bg-sky-400'
@@ -545,9 +681,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
            : is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : isRelief ? 'Depth Sensor Active' : 'LiDAR Active'}
           </span>
         </div>
-        <button className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors" aria-label="Toggle flash">
-          <Lightbulb className="w-5 h-5" />
-        </button>
+        <div className="w-9 h-9 flex items-center justify-center">
+          {isRelief && torchActive && (
+            <Zap className="w-4 h-4 text-orange-400 animate-pulse" aria-label="Torch active" />
+          )}
+          {isRelief && !torchActive && (
+            <Lightbulb className="w-4 h-4 text-white/25" />
+          )}
+          {!isRelief && (
+            <Lightbulb className="w-5 h-5 text-white/40" />
+          )}
+        </div>
       </div>
 
       {/* Mode switcher */}
@@ -581,11 +725,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           autoPlay playsInline muted
         />
 
-        {/* Ghost / onion-skin: previous scan3d frame at 25% opacity */}
+        {/* Ghost / onion-skin: previous frame at 25% opacity */}
         {isScan3d && ghostUrl && (
-          <img
-            src={ghostUrl}
-            alt=""
+          <img src={ghostUrl} alt="" aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            style={{ opacity: 0.25 }}
+          />
+        )}
+        {isRelief && reliefGhostUrl && (
+          <img src={reliefGhostUrl} alt="" aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover pointer-events-none"
             style={{ opacity: 0.25 }}
           />
@@ -660,7 +808,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {[108,148,188,228,268].map(y => <line key={y} x1="58" y1={y} x2="242" y2={y} />)}
             </g>
 
-            {/* 2D Masterpiece: enhanced rule-of-thirds grid */}
+            {/* 2D Masterpiece: rule-of-thirds grid */}
             {is2D && (
               <g>
                 <g stroke={accent} strokeWidth="0.7" opacity="0.22">
@@ -676,7 +824,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               </g>
             )}
 
-            {/* 360°: Wireframe sphere dome — always visible during scan3d */}
+            {/* 360°: Wireframe sphere dome */}
             {isScan3d && (
               <g>
                 <circle cx="150" cy="190" r="90" fill="none" stroke={accent} strokeWidth="0.8"
@@ -695,19 +843,56 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               </g>
             )}
 
-            {/* Relief 180°: prominent semi-circle arc */}
-            {isRelief && !isRecording && (
+            {/* Relief 180°: 5-position arc with per-step status dots */}
+            {isRelief && (
               <g>
-                <path d={`M ${ORBIT_CX - ORBIT_RX - 10} ${ORBIT_CY} A ${ORBIT_RX + 10} ${ORBIT_RY + 5} 0 1 1 ${ORBIT_CX + ORBIT_RX + 10} ${ORBIT_CY}`}
-                  fill="none" stroke={accent} strokeWidth="1.2" strokeOpacity="0.30" strokeDasharray="5 4" />
-                <line x1={ORBIT_CX - ORBIT_RX} y1={ORBIT_CY - 16} x2={ORBIT_CX - ORBIT_RX} y2={ORBIT_CY + 16}
+                {/* Static guide arc */}
+                <path
+                  d={`M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 0 1 ${ORBIT_CX + ORBIT_RX} ${ORBIT_CY}`}
+                  fill="none" stroke={accent} strokeWidth="1.2" strokeOpacity="0.28" strokeDasharray="5 4"
+                />
+                {/* End-stop markers */}
+                <line x1={ORBIT_CX - ORBIT_RX} y1={ORBIT_CY - 14} x2={ORBIT_CX - ORBIT_RX} y2={ORBIT_CY + 14}
                   stroke={accent} strokeWidth="2" strokeOpacity="0.55" strokeLinecap="round" />
-                <line x1={ORBIT_CX + ORBIT_RX} y1={ORBIT_CY - 16} x2={ORBIT_CX + ORBIT_RX} y2={ORBIT_CY + 16}
+                <line x1={ORBIT_CX + ORBIT_RX} y1={ORBIT_CY - 14} x2={ORBIT_CX + ORBIT_RX} y2={ORBIT_CY + 14}
                   stroke={accent} strokeWidth="2" strokeOpacity="0.55" strokeLinecap="round" />
                 <text x={ORBIT_CX} y={ORBIT_CY - ORBIT_RY - 10} fill={accent} fontSize="7.5" fontFamily="monospace"
                   opacity="0.60" letterSpacing="1" textAnchor="middle">180° ARC</text>
-                <circle cx={reliefDotX} cy={reliefDotY} r="5" fill={accent} opacity="0.90" />
-                <circle cx={reliefDotX} cy={reliefDotY} r="9" fill="none" stroke={accent} strokeWidth="1.2" opacity="0.28" />
+
+                {/* 5 position dots along the arc */}
+                {RELIEF_ARC_ANGLES.map((angle, i) => {
+                  const rad = angle * Math.PI / 180
+                  const x = ORBIT_CX + ORBIT_RX * Math.sin(rad)
+                  const y = ORBIT_CY - ORBIT_RY * Math.cos(rad)
+                  const captured = reliefFrames[i] !== null
+                  const active   = i === reliefStep && !allReliefCaptured
+                  return (
+                    <g key={i}>
+                      <circle
+                        cx={x} cy={y}
+                        r={active ? 5.5 : captured ? 4.5 : 3}
+                        fill={captured || active ? accent : 'rgba(255,255,255,0.35)'}
+                        opacity={active ? 0.95 : captured ? 0.75 : 0.50}
+                      />
+                      {active && (
+                        <>
+                          <circle cx={x} cy={y} r="9" fill="none" stroke={accent} strokeWidth="1.2" opacity="0">
+                            <animate attributeName="r" values="5.5;13" dur="1.4s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite" />
+                          </circle>
+                        </>
+                      )}
+                    </g>
+                  )
+                })}
+
+                {/* Idle oscillating position dot when not yet started */}
+                {reliefStep === 0 && !allReliefCaptured && (
+                  <>
+                    <circle cx={reliefIdleDotX} cy={reliefIdleDotY} r="4" fill={accent} opacity="0.70" />
+                    <circle cx={reliefIdleDotX} cy={reliefIdleDotY} r="8" fill="none" stroke={accent} strokeWidth="1" opacity="0.22" />
+                  </>
+                )}
               </g>
             )}
 
@@ -732,7 +917,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             {/* HUD labels */}
             <text x="60" y="65" fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">{hudLabel}</text>
             <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">
-              {isFlat ? 'FLAT · 0°' : isRelief ? 'FRONT 180°' : isScan3d ? `${currentStep}/8` : '~0.4 m'}
+              {isFlat ? 'FLAT · 0°' : isRelief ? `${reliefStep}/5` : isScan3d ? `${currentStep}/8` : '~0.4 m'}
             </text>
 
             {/* Mode-specific indicators */}
@@ -758,23 +943,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </circle>
                 )}
               </>
-            ) : isRelief ? (
-              <>
-                <path d={`M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 1 1 ${ORBIT_CX + ORBIT_RX} ${ORBIT_CY}`}
-                  fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.18" strokeDasharray="4 3" />
-                {reliefCovPath && (
-                  <path d={reliefCovPath} fill="none" stroke={accent} strokeWidth="2.5" strokeOpacity="0.88" strokeLinecap="round" />
-                )}
-                <circle cx={reliefDotX} cy={reliefDotY} r="4.5" fill={accent} opacity="0.95" />
-                <circle cx={reliefDotX} cy={reliefDotY} r="8.5" fill="none" stroke={accent} strokeWidth="1" opacity="0.30" />
-                <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
-                  <circle cx="150" cy="190" r="3.5" />
-                  <line x1="141" y1="190" x2="159" y2="190" />
-                  <line x1="150" y1="181" x2="150" y2="199" />
-                </g>
-              </>
-            ) : isScan3d ? (
-              /* Crosshair center indicator */
+            ) : (isScan3d || isRelief) ? (
               <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
                 <circle cx="150" cy="190" r="3.5" />
                 <line x1="141" y1="190" x2="159" y2="190" />
@@ -886,20 +1055,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </span>
           </div>
         )}
-
-        {/* REC badge (relief180 recording only) */}
-        {isRecording && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-white text-xs font-mono">
-              RELIEF {Math.round(scanProgress)}%
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* ── Tip text (hidden for scan3d — guidance lives in the compass area) ── */}
-      {!isScan3d && (
+      {/* ── Tip text (flat modes only) ── */}
+      {isFlat && (
         <div className="flex-shrink-0 px-6 py-2">
           <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">{tipText}</p>
         </div>
@@ -908,24 +1067,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       {/* ── scan3d: compass capture area ── */}
       {isScan3d ? (
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pb-8 pt-2">
-          {/* Step guidance */}
           <div className="text-center px-3">
             <p className="text-white/90 font-semibold text-sm leading-tight">
-              {allFramesCaptured
-                ? 'All 8 frames captured!'
-                : SCAN_STEPS[currentStep]?.heading}
+              {allFramesCaptured ? 'All 8 frames captured!' : SCAN_STEPS[currentStep]?.heading}
             </p>
             <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-              {allFramesCaptured
-                ? 'Tap below to compile your 3D object'
-                : SCAN_STEPS[currentStep]?.sub}
+              {allFramesCaptured ? 'Tap below to compile your 3D object' : SCAN_STEPS[currentStep]?.sub}
             </p>
           </div>
 
-          {/* Compass dial */}
           <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} />
 
-          {/* Compile CTA or shutter */}
           {allFramesCaptured ? (
             <button
               onClick={compileScan3D}
@@ -950,14 +1102,91 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </button>
           )}
         </div>
+
+      ) : isRelief ? (
+        /* ── relief180: 5-step arc capture area ── */
+        <div className="flex-shrink-0 flex flex-col items-center gap-2.5 px-5 pb-8 pt-2">
+
+          {/* Lighting toggle */}
+          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
+            <Lightbulb className={`w-4 h-4 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
+            <span className="text-white/50 text-xs flex-1 font-medium">Lighting</span>
+            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
+              <button
+                onClick={() => setLightingMode('natural')}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  lightingMode === 'natural'
+                    ? 'bg-white/20 text-white shadow-sm'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                Natural
+              </button>
+              <button
+                onClick={() => setLightingMode('torch')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  lightingMode === 'torch'
+                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                <Zap className="w-2.5 h-2.5" />
+                Flashlight
+              </button>
+            </div>
+            {torchUnsupported && (
+              <span className="text-[9px] text-orange-400/65 whitespace-nowrap">unsupported</span>
+            )}
+          </div>
+
+          {/* Step guidance */}
+          <div className="text-center px-3">
+            <p className="text-white/90 font-semibold text-sm leading-tight">
+              {allReliefCaptured ? 'All 5 frames captured!' : RELIEF_STEPS[reliefStep]?.heading}
+            </p>
+            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+              {allReliefCaptured
+                ? 'Tap below to finish and save your Relief'
+                : RELIEF_STEPS[reliefStep]?.sub}
+            </p>
+          </div>
+
+          {/* Arc dial */}
+          <ReliefArcDial capturedFrames={reliefFrames} currentStep={reliefStep} />
+
+          {/* Compile CTA or shutter */}
+          {allReliefCaptured ? (
+            <button
+              onClick={compileRelief}
+              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
+            >
+              <Mountain className="w-5 h-5" />
+              Finish &amp; Save Relief
+            </button>
+          ) : (
+            <button
+              onClick={handleShutter}
+              disabled={!cameraReady || isCapturing}
+              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+              aria-label="Capture relief frame"
+            >
+              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
+              }`} />
+              {isCapturing && (
+                <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
+              )}
+            </button>
+          )}
+        </div>
+
       ) : (
-        /* ── Standard bottom controls (non-scan3d modes) ── */
+        /* ── Standard bottom controls (artwork2d, document) ── */
         <div className="flex-shrink-0 flex items-center justify-around px-10 pb-14 pt-2">
 
-          {/* Gallery / upload */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={(isCapturing && !isRecording) || docOverlay}
+            disabled={isCapturing || docOverlay}
             className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
             aria-label="Upload from gallery"
           >
@@ -965,50 +1194,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </button>
           <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
 
-          {/* Shutter or circular progress ring for relief recording */}
-          {isOrbitMode && isRecording ? (
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
-                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
-                <circle
-                  cx="40" cy="40" r="34" fill="none"
-                  stroke={accent} strokeWidth="5"
-                  strokeDasharray={`${2 * Math.PI * 34}`}
-                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - scanProgress / 100)}`}
-                  strokeLinecap="round"
-                  style={{ transition: 'stroke-dashoffset 150ms linear' }}
-                />
-              </svg>
-              <div className="flex flex-col items-center leading-none">
-                <span className="text-white font-bold text-base tabular-nums">{Math.round(scanProgress)}%</span>
-                <span className="text-white/45 text-[9px] font-mono mt-0.5">
-                  {Math.ceil(4 * (1 - scanProgress / 100))}s
-                </span>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={handleShutter}
-              disabled={
-                (!cameraReady && !isRecording) ||
-                (isCapturing && !isOrbitMode) ||
-                (isDocument && docOverlay)
-              }
-              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-              aria-label={isOrbitMode ? 'Start recording' : isDocument ? 'Capture page' : 'Take photo'}
-            >
-              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                isCapturing ? accentBtn.active : accentBtn.idle
+          <button
+            onClick={handleShutter}
+            disabled={!cameraReady || isCapturing || (isDocument && docOverlay)}
+            className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+            aria-label={isDocument ? 'Capture page' : 'Take photo'}
+          >
+            <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+              isCapturing ? accentBtn.active : accentBtn.idle
+            }`} />
+            {isCapturing && (
+              <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
+                is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
               }`} />
-              {isCapturing && !isOrbitMode && (
-                <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-                  is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
-                }`} />
-              )}
-            </button>
-          )}
+            )}
+          </button>
 
-          {/* Info */}
           <button className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors">
             <Info className="w-5 h-5" />
           </button>

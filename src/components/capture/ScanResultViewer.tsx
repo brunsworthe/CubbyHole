@@ -6,6 +6,7 @@ import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2, Trash2 } f
 import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
+import LenticularViewer from './LenticularViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
 import SpinSequenceViewer from './SpinSequenceViewer'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
@@ -37,9 +38,9 @@ const STATS_DOCUMENT = [
 ]
 
 const STATS_RELIEF = [
-  { label: 'Depth Layers', value: '6'      },
-  { label: 'Surface Res',  value: '1K'     },
-  { label: 'File Size',    value: '3.1 MB' },
+  { label: 'Frames',   value: '5'      },
+  { label: 'Coverage', value: '180°'   },
+  { label: 'File Size', value: '4.8 MB' },
 ]
 
 interface Props {
@@ -74,6 +75,16 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
     return () => urls.forEach(u => URL.revokeObjectURL(u))
   }, [capturedMedia])
 
+  // Create blob URLs for the 5 relief180 lenticular frames, revoke on change/unmount
+  const [reliefFrameUrls, setReliefFrameUrls] = useState<string[]>([])
+  useEffect(() => {
+    const frames = capturedMedia?.reliefFrames
+    if (!frames?.length) { setReliefFrameUrls([]); return }
+    const urls = frames.map(b => URL.createObjectURL(b))
+    setReliefFrameUrls(urls)
+    return () => urls.forEach(u => URL.revokeObjectURL(u))
+  }, [capturedMedia])
+
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
   const isRelief = mode === 'relief180'
@@ -104,7 +115,9 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
                 : isDocument
                   ? 'Drag to inspect · Use the arrows to flip pages'
                   : isRelief
-                    ? 'Drag to orbit · Zoom to inspect the surface'
+                    ? reliefFrameUrls.length >= 2
+                      ? 'Drag left or right to feel the depth shift'
+                      : 'Drag to orbit · Zoom to inspect the surface'
                     : spinFrameUrls.length >= 2
                       ? 'Drag left or right to spin through all 8 angles'
                       : 'Drag to rotate · Pinch to zoom'}
@@ -131,15 +144,17 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
       <div className="flex-1 relative min-h-0">
         {mode === 'scan3d' && spinFrameUrls.length >= 2
           ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
-          : isVideoCapture
-            ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
-            : is2D
-              ? <FloatingCanvas2D imageUrl={capturedUrl} />
-              : isDocument
-                ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
-                : isRelief
-                  ? <ReliefViewer />
-                  : <TimeCapsuleViewer modelUrl={MODEL_URL} />
+          : isRelief && reliefFrameUrls.length >= 2
+            ? <LenticularViewer imageUrls={reliefFrameUrls} />
+            : isVideoCapture
+              ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
+              : is2D
+                ? <FloatingCanvas2D imageUrl={capturedUrl} />
+                : isDocument
+                  ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
+                  : isRelief
+                    ? <ReliefViewer />
+                    : <TimeCapsuleViewer modelUrl={MODEL_URL} />
         }
 
         {/* Pedestal warm glow */}
@@ -156,8 +171,8 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
           }}
         />
 
-        {/* Showcase stats — hidden when spin viewer is active (it has its own HUD) */}
-        {!(mode === 'scan3d' && spinFrameUrls.length >= 2) && (
+        {/* Showcase stats — hidden when spin or lenticular viewer is active (they have their own HUD) */}
+        {!(mode === 'scan3d' && spinFrameUrls.length >= 2) && !(isRelief && reliefFrameUrls.length >= 2) && (
           <div className="absolute bottom-4 inset-x-0 flex justify-center gap-2.5 pointer-events-none px-4">
             {stats.map(({ label, value }) => (
               <div
