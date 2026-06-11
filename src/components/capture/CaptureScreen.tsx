@@ -46,9 +46,10 @@ function getSupportedMimeType(): string {
 }
 
 // ── Compass dial for 8-segment scan3d capture ─────────────────────────────────
-function CompassDial({ capturedFrames, currentStep }: {
+function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40' }: {
   capturedFrames: (Blob | null)[]
   currentStep: number
+  svgClassName?: string
 }) {
   const cx = 100, cy = 100
   const ro = 84, ri = 46
@@ -73,7 +74,7 @@ function CompassDial({ capturedFrames, currentStep }: {
   const allCaptured = currentStep >= 8
 
   return (
-    <svg viewBox="0 0 200 200" className="w-40 h-40" aria-hidden="true">
+    <svg viewBox="0 0 200 200" className={svgClassName} aria-hidden="true">
       <circle cx={cx} cy={cy} r={ro + 9} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
 
       {SCAN_STEPS.map((step, i) => {
@@ -138,9 +139,10 @@ function CompassDial({ capturedFrames, currentStep }: {
 }
 
 // ── Arc dial for 5-step relief180 capture ────────────────────────────────────
-function ReliefArcDial({ capturedFrames, currentStep }: {
+function ReliefArcDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40' }: {
   capturedFrames: (Blob | null)[]
   currentStep: number
+  svgClassName?: string
 }) {
   const cx = 100, cy = 115
   const ro = 70, ri = 44
@@ -168,7 +170,7 @@ function ReliefArcDial({ capturedFrames, currentStep }: {
   const LABELS = ['XL', 'L', 'TD', 'R', 'XR']
 
   return (
-    <svg viewBox="0 0 200 200" className="w-40 h-40" aria-hidden="true">
+    <svg viewBox="0 0 200 200" className={svgClassName} aria-hidden="true">
       {/* Outer guide ring (upper half only) */}
       <path
         d={`M ${cx - ro - 8} ${cy} A ${ro + 8} ${ro + 8} 0 0 1 ${cx + ro + 8} ${cy}`}
@@ -1056,6 +1058,24 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </span>
           </div>
         )}
+
+        {/* HUD: compass dial for scan3d — floats over the bottom of the camera feed */}
+        {isScan3d && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
+              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" />
+            </div>
+          </div>
+        )}
+
+        {/* HUD: arc dial for relief180 — floats over the bottom of the camera feed */}
+        {isRelief && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-black/40 backdrop-blur-md rounded-3xl p-2">
+              <ReliefArcDial capturedFrames={reliefFrames} currentStep={reliefStep} svgClassName="w-32 h-32" />
+            </div>
+          </div>
+        )}
         </div>
       </div>
 
@@ -1066,9 +1086,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
       )}
 
-      {/* ── scan3d: compass capture area ── */}
+      {/* ── scan3d: controls ── */}
       {isScan3d ? (
-        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pb-8 pt-2">
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
           <div className="text-center px-3">
             <p className="text-white/90 font-semibold text-sm leading-tight">
               {allFramesCaptured ? 'All 8 frames captured!' : SCAN_STEPS[currentStep]?.heading}
@@ -1077,8 +1097,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {allFramesCaptured ? 'Tap below to compile your 3D object' : SCAN_STEPS[currentStep]?.sub}
             </p>
           </div>
-
-          <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} />
 
           {allFramesCaptured ? (
             <button
@@ -1106,8 +1124,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
 
       ) : isRelief ? (
-        /* ── relief180: 5-step arc capture area ── */
-        <div className="flex-shrink-0 flex flex-col items-center gap-2.5 px-5 pb-8 pt-2">
+        /* ── relief180: controls ── */
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
 
           {/* Lighting toggle */}
           <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
@@ -1152,9 +1170,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 : RELIEF_STEPS[reliefStep]?.sub}
             </p>
           </div>
-
-          {/* Arc dial */}
-          <ReliefArcDial capturedFrames={reliefFrames} currentStep={reliefStep} />
 
           {/* Compile CTA or shutter */}
           {allReliefCaptured ? (
