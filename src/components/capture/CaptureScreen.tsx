@@ -716,25 +716,26 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       </div>
 
       {/* Viewfinder */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
+        <div className="relative w-full h-full max-h-[75vh] overflow-hidden">
 
         {/* Live camera feed */}
         <video
           ref={videoRef}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${cameraReady ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${cameraReady ? 'opacity-100' : 'opacity-0'}`}
           autoPlay playsInline muted
         />
 
         {/* Ghost / onion-skin: previous frame at 25% opacity */}
         {isScan3d && ghostUrl && (
           <img src={ghostUrl} alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             style={{ opacity: 0.25 }}
           />
         )}
         {isRelief && reliefGhostUrl && (
           <img src={reliefGhostUrl} alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             style={{ opacity: 0.25 }}
           />
         )}
@@ -778,7 +779,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         {/* ── SVG scanning overlay ── */}
         {(cameraReady || cameraStatus === 'requesting') && (
           <svg viewBox="0 0 300 440" className="absolute inset-0 w-full h-full pointer-events-none"
-            preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+            preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                 <feGaussianBlur stdDeviation="1.8" result="blur" />
@@ -1055,6 +1056,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </span>
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Tip text (flat modes only) ── */}
