@@ -33,7 +33,7 @@ export default function LoginPage() {
       setMessage({ type: 'error', text: error.message })
       setLoading(false)
     } else {
-      router.push('/')
+      router.push('/dashboard')
       router.refresh()
     }
   }
@@ -73,7 +73,7 @@ export default function LoginPage() {
       options: {
         // Supabase will redirect here after the user clicks the link.
         // Make sure this URL is allow-listed in your Supabase Auth settings.
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     })
 
