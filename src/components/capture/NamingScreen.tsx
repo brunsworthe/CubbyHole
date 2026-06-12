@@ -42,15 +42,15 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
   }, [])
 
   const handleConfirm = () => {
-    const resolvedDescription = description.trim() ||
-      `A ${MODE_DESCRIPTIONS[mode]} preserved on ${captureDate}.`
+    const resolvedTitle = title.trim() ||
+      `${MODE_DESCRIPTIONS[mode]} — ${captureDate}`
 
     onConfirm({
-      title:       title.trim()   || undefined,
-      creator:     creator.trim() || undefined,
-      captureDate: captureDate    || undefined,
-      location:    location.trim()|| undefined,
-      description: resolvedDescription,
+      title:       resolvedTitle,
+      creator:     creator.trim()     || undefined,
+      captureDate: captureDate        || undefined,
+      location:    location.trim()    || undefined,
+      description: description.trim() || undefined,
     })
   }
 
@@ -159,7 +159,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder={`Auto-filled: "A ${MODE_DESCRIPTIONS[mode]} preserved on ${captureDate}."`}
+              placeholder="Optional — add any notes about this memory."
               maxLength={300}
               rows={3}
               className={`${inputClass} resize-none`}
