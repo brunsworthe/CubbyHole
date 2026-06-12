@@ -326,7 +326,7 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
         const active   = step === currentStep && !allCaptured
         const atGround = nodeAngle === 0 || nodeAngle === 180
         const labelY   = atGround ? cy + 13 : y - 8
-        const phoneRot = -(nodeAngle - 90) * (2 / 3)
+        const phoneRot = (nodeAngle - 90) * (2 / 3)
         return (
           <g key={step}>
             {active && (
@@ -1288,11 +1288,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
           <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
             {([
-              { step: 1, label: 'XL', rotation: 'rotate-[60deg]'  },
-              { step: 2, label: 'LC', rotation: 'rotate-[30deg]'  },
+              { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
+              { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
               { step: 3, label: 'TD', rotation: 'rotate-0'        },
-              { step: 4, label: 'RC', rotation: 'rotate-[-30deg]' },
-              { step: 5, label: 'XR', rotation: 'rotate-[-60deg]' },
+              { step: 4, label: 'RC', rotation: 'rotate-[30deg]'  },
+              { step: 5, label: 'XR', rotation: 'rotate-[60deg]'  },
             ] as const).map(({ step, label, rotation }) => {
               const isActive   = step === reliefStep
               const isCaptured = reliefFrames[step] !== null
