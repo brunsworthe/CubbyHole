@@ -326,6 +326,7 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
         const active   = step === currentStep && !allCaptured
         const atGround = nodeAngle === 0 || nodeAngle === 180
         const labelY   = atGround ? cy + 13 : y - 8
+        const phoneRot = -(nodeAngle - 90) * (2 / 3)
         return (
           <g key={step}>
             {active && (
@@ -341,6 +342,13 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
               <path d={`M ${x - 3} ${y} L ${x - 1} ${y + 2.5} L ${x + 3.5} ${y - 3}`}
                 fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.5"
                 strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {active && (
+              <g transform={`translate(${x}, ${y}) rotate(${phoneRot})`} opacity="0.90">
+                <rect x="-9" y="-2.5" width="18" height="5" rx="1.5"
+                  fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.2" />
+                <circle cx="7" cy="0" r="1.4" fill="rgba(251,146,60,0.75)" />
+              </g>
             )}
             <text x={x} y={labelY} textAnchor="middle"
               fill={active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.33)'}
@@ -1280,18 +1288,18 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
           <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
             {([
-              { step: 1, label: 'XL', rotation: '-rotate-90' },
-              { step: 2, label: 'LC', rotation: '-rotate-45' },
-              { step: 3, label: 'TD', rotation: 'rotate-0'   },
-              { step: 4, label: 'RC', rotation: 'rotate-45'  },
-              { step: 5, label: 'XR', rotation: 'rotate-90'  },
+              { step: 1, label: 'XL', rotation: 'rotate-[60deg]'  },
+              { step: 2, label: 'LC', rotation: 'rotate-[30deg]'  },
+              { step: 3, label: 'TD', rotation: 'rotate-0'        },
+              { step: 4, label: 'RC', rotation: 'rotate-[-30deg]' },
+              { step: 5, label: 'XR', rotation: 'rotate-[-60deg]' },
             ] as const).map(({ step, label, rotation }) => {
               const isActive   = step === reliefStep
               const isCaptured = reliefFrames[step] !== null
               return (
                 <div key={step} className="relative flex flex-col items-center justify-center">
                   {isActive && (
-                    <div className={`w-1.5 h-12 bg-orange-400/90 rounded-full ${rotation}`} />
+                    <div className={`w-12 h-2.5 bg-orange-400/90 rounded-full ${rotation}`} />
                   )}
                   <span className={`absolute bottom-3 text-[9px] font-mono ${
                     isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
