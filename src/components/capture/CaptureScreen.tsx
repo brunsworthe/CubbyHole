@@ -511,6 +511,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const ghostUrlRef = useRef<string | null>(null)
   const reliefFramesRef = useRef<(Blob | null)[]>(Array(6).fill(null))
 
+  // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el
+    if (el && streamRef.current) {
+      el.srcObject = streamRef.current
+    }
+  }, [])
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const is2D       = mode === 'artwork2d'
   const isDocument = mode === 'document'
@@ -600,6 +608,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  // Re-attach stream on mode change in case the video element was remounted
+  useEffect(() => {
+    const el = videoRef.current
+    if (el && streamRef.current && !el.srcObject) {
+      el.srcObject = streamRef.current
+    }
   }, [mode])
 
   // Update scan3d ghost (onion-skin) when step advances
@@ -986,11 +1002,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
+        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'w-full max-w-sm md:max-w-md h-auto aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
-          ref={videoRef}
+          ref={setVideoRef}
           className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isRelief ? 'object-cover' : 'object-contain'} ${
             cropState ? 'opacity-0' : cameraReady ? 'opacity-100' : 'opacity-0'
           }`}
