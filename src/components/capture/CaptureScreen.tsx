@@ -493,6 +493,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [lightingMode, setLightingMode] = useState<'natural' | 'torch'>('natural')
   const [torchActive, setTorchActive] = useState(false)
   const [torchUnsupported, setTorchUnsupported] = useState(false)
+  const [baseSilhouetteUrl, setBaseSilhouetteUrl] = useState<string | null>(null)
 
   // ── Level indicator for 2D mode ───────────────────────────────────────────
   const [levelBeta, setLevelBeta] = useState(30)
@@ -677,6 +678,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
     return () => cleanup?.()
   }, [is2D])
+
+  // Create/revoke object URL for BASE silhouette overlay (relief steps 1–5)
+  useEffect(() => {
+    if (!isRelief || reliefStep < 1) { setBaseSilhouetteUrl(null); return }
+    const blob = reliefFrames[0]
+    if (!blob) { setBaseSilhouetteUrl(null); return }
+    const url = URL.createObjectURL(blob)
+    setBaseSilhouetteUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [isRelief, reliefStep, reliefFrames])
 
   // ── Image capture (artwork2d) → enters crop state ────────────────────────
   const captureImage = useCallback(() => {
@@ -975,12 +986,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className="relative w-full h-full max-h-[75vh] overflow-hidden">
+        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
           ref={videoRef}
-          className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-500 ${
+          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isRelief ? 'object-cover' : 'object-contain'} ${
             cropState ? 'opacity-0' : cameraReady ? 'opacity-100' : 'opacity-0'
           }`}
           autoPlay playsInline muted
@@ -1007,6 +1018,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <img src={ghostUrl} alt="" aria-hidden="true"
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             style={{ opacity: 0.25 }}
+          />
+        )}
+        {/* Base texture silhouette overlay — relief steps 1–5 */}
+        {isRelief && reliefStep >= 1 && baseSilhouetteUrl && (
+          <img
+            src={baseSilhouetteUrl}
+            alt="" aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover opacity-30 z-10 pointer-events-none"
           />
         )}
         {/* Dark fallback */}
@@ -1167,44 +1186,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </g>
                 )}
 
-                {/* 5-column position grid + rotating phone guide (steps 1–5) */}
-                {reliefStep >= 1 && !allReliefCaptured && (
-                  <g>
-                    {[94.8, 131.6, 168.4, 205.2].map(x => (
-                      <line key={x} x1={x} y1="72" x2={x} y2="308"
-                        stroke={accent} strokeWidth="0.5" strokeOpacity="0.14" strokeDasharray="3 3" />
-                    ))}
-                    {[
-                      { step: 1, x: 76.4,  label: 'XL', rot: 65  },
-                      { step: 2, x: 113.2, label: 'LC', rot: 32  },
-                      { step: 3, x: 150,   label: 'TD', rot: 0   },
-                      { step: 4, x: 186.8, label: 'RC', rot: -32 },
-                      { step: 5, x: 223.6, label: 'XR', rot: -65 },
-                    ].map(({ step, x, label, rot }) => {
-                      const isActive   = step === reliefStep
-                      const isCaptured = reliefFrames[step] !== null
-                      return (
-                        <g key={step}>
-                          <text x={x} y="319" textAnchor="middle"
-                            fill={isActive ? 'rgba(251,146,60,0.90)' : isCaptured ? 'rgba(251,146,60,0.55)' : 'rgba(255,255,255,0.22)'}
-                            fontSize="7" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
-                            {label}
-                          </text>
-                          {isActive && (
-                            <g transform={`translate(${x}, 190) rotate(${rot})`} opacity="0.88">
-                              <rect x="-8" y="-13" width="16" height="26" rx="3"
-                                fill="rgba(251,146,60,0.15)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.3" />
-                              <rect x="-6" y="-11" width="12" height="20" rx="2"
-                                fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.35)" strokeWidth="0.6" />
-                              <circle cx="0" cy="-9" r="2" fill="rgba(251,146,60,0.65)" />
-                              <circle cx="3.5" cy="-9" r="0.8" fill="rgba(255,255,255,0.45)" />
-                            </g>
-                          )}
-                        </g>
-                      )
-                    })}
-                  </g>
-                )}
               </g>
             )}
 
@@ -1277,6 +1258,34 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               </>
             )}
           </svg>
+        )}
+
+        {/* ── 5-column grid with side-profile phone icons for relief180 steps 1–5 ── */}
+        {isRelief && reliefStep >= 1 && !allReliefCaptured && (
+          <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
+            {([
+              { step: 1, label: 'XL', rotation: '-rotate-90' },
+              { step: 2, label: 'LC', rotation: '-rotate-45' },
+              { step: 3, label: 'TD', rotation: 'rotate-0'   },
+              { step: 4, label: 'RC', rotation: 'rotate-45'  },
+              { step: 5, label: 'XR', rotation: 'rotate-90'  },
+            ] as const).map(({ step, label, rotation }) => {
+              const isActive   = step === reliefStep
+              const isCaptured = reliefFrames[step] !== null
+              return (
+                <div key={step} className="relative flex flex-col items-center justify-center">
+                  {isActive && (
+                    <div className={`w-1.5 h-12 bg-orange-400/90 rounded-full ${rotation}`} />
+                  )}
+                  <span className={`absolute bottom-3 text-[9px] font-mono ${
+                    isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
+                  }`}>
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         )}
 
         {/* ── Document between-pages overlay ── */}

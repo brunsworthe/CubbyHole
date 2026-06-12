@@ -12,7 +12,9 @@ interface Props {
 }
 
 export default function LenticularViewer({ imageUrls }: Props) {
-  const totalFrames = imageUrls.length
+  // Frame 0 is the flat BASE/albedo shot — exclude it from the lenticular scrub
+  const scrubUrls = imageUrls.slice(1)
+  const totalFrames = scrubUrls.length
   const centerIndex = Math.floor(totalFrames / 2)
   const [frameIndex, setFrameIndex] = useState(centerIndex)
   const [isDragging, setIsDragging] = useState(false)
@@ -24,12 +26,13 @@ export default function LenticularViewer({ imageUrls }: Props) {
 
   const allLoaded = loadedCount >= totalFrames
 
-  // Preload all frames for instant scrubbing
+  // Preload arc frames (1–5) for instant scrubbing
   useEffect(() => {
-    if (!totalFrames) return
+    const frames = imageUrls.slice(1)
+    if (!frames.length) return
     let cancelled = false
     setLoadedCount(0)
-    imageUrls.forEach(url => {
+    frames.forEach(url => {
       const img = new Image()
       img.onload = img.onerror = () => {
         if (!cancelled) setLoadedCount(n => n + 1)
@@ -37,7 +40,7 @@ export default function LenticularViewer({ imageUrls }: Props) {
       img.src = url
     })
     return () => { cancelled = true }
-  }, [imageUrls, totalFrames])
+  }, [imageUrls])
 
   const dismiss = useCallback(() => setHintDismissed(true), [])
 
@@ -106,7 +109,7 @@ export default function LenticularViewer({ imageUrls }: Props) {
       />
 
       {/* Frame stack — only the active frame is visible */}
-      {imageUrls.map((url, i) => (
+      {scrubUrls.map((url, i) => (
         <img
           key={i}
           src={url}
@@ -145,7 +148,7 @@ export default function LenticularViewer({ imageUrls }: Props) {
           <div className="flex items-center gap-3 bg-black/55 backdrop-blur-sm border border-white/10 rounded-2xl px-4 py-2.5">
             {/* 5 dots indicating the arc position */}
             <div className="flex items-center gap-1.5">
-              {imageUrls.map((_, i) => (
+              {scrubUrls.map((_, i) => (
                 <div
                   key={i}
                   className={`rounded-full transition-all duration-150 ${
