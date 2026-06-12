@@ -23,7 +23,7 @@ const SCAN_STEPS = [
 ] as const
 
 const RELIEF_STEPS = [
-  { pos: 'BASE', heading: 'Frame 1/6 — Base Texture',      sub: 'Hold phone flat & directly above — capture the whole landscape'      },
+  { pos: 'BASE', heading: 'Frame 1/6 — Base Texture',      sub: 'Hold phone flat & parallel directly overhead — capture the full albedo (base colour) before any light raking'  },
   { pos: 'XL',   heading: 'Frame 2/6 — Extreme Left',      sub: 'Tilt phone far left — light rakes across the texture from the right'  },
   { pos: 'LC',   heading: 'Frame 3/6 — Left-Center',        sub: 'Move phone slightly right toward center'                              },
   { pos: 'TD',   heading: 'Frame 4/6 — Top-Down Center',    sub: 'Hold directly above, camera facing straight down at the artwork'      },
@@ -278,6 +278,88 @@ function ReliefArcDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40'
           </text>
           <text x={cx} y={cy + 3} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="8" fontFamily="monospace">/ 6</text>
         </>
+      )}
+    </svg>
+  )
+}
+
+// ── Cross-section arc HUD for relief180 (side-view tilt guide) ───────────────
+function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
+  currentStep: number
+  capturedFrames: (Blob | null)[]
+}) {
+  const cx = 100, cy = 78, r = 52
+  const allCaptured = currentStep >= 6
+
+  const NODES = [
+    { step: 1, nodeAngle: 0,   label: 'XL' },
+    { step: 2, nodeAngle: 45,  label: 'LC' },
+    { step: 3, nodeAngle: 90,  label: 'TD' },
+    { step: 4, nodeAngle: 135, label: 'RC' },
+    { step: 5, nodeAngle: 180, label: 'XR' },
+  ] as const
+
+  const nPos = (na: number) => {
+    const rad = (180 - na) * Math.PI / 180
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) }
+  }
+
+  return (
+    <svg viewBox="0 0 200 96" className="w-52 h-16" aria-hidden="true">
+      {/* Ground surface */}
+      <line x1="14" y1={cy} x2="186" y2={cy}
+        stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" />
+      {[28, 46, 64, 82, 100, 118, 136, 154, 172].map(x => (
+        <line key={x} x1={x} y1={cy} x2={x - 4} y2={cy + 6}
+          stroke="rgba(255,255,255,0.13)" strokeWidth="1" />
+      ))}
+      {/* Dashed arc */}
+      <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+        fill="none" stroke="rgba(251,146,60,0.28)" strokeWidth="1.2" strokeDasharray="4 3" />
+      {/* Overhead guide */}
+      <line x1={cx} y1={cy - r - 4} x2={cx} y2={cy}
+        stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" strokeDasharray="2 2" />
+
+      {NODES.map(({ step, nodeAngle, label }) => {
+        const { x, y } = nPos(nodeAngle)
+        const captured = capturedFrames[step] !== null
+        const active   = step === currentStep && !allCaptured
+        const atGround = nodeAngle === 0 || nodeAngle === 180
+        const labelY   = atGround ? cy + 13 : y - 8
+        return (
+          <g key={step}>
+            {active && (
+              <circle cx={x} cy={y} r="6" fill="none" stroke="rgba(251,146,60,0.40)" strokeWidth="1">
+                <animate attributeName="r" values="6;14" dur="1.4s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite" />
+              </circle>
+            )}
+            <circle cx={x} cy={y}
+              r={active ? 6 : captured ? 5 : 3.5}
+              fill={active ? 'rgba(251,146,60,0.95)' : captured ? 'rgba(251,146,60,0.58)' : 'rgba(255,255,255,0.26)'} />
+            {captured && (
+              <path d={`M ${x - 3} ${y} L ${x - 1} ${y + 2.5} L ${x + 3.5} ${y - 3}`}
+                fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.5"
+                strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            <text x={x} y={labelY} textAnchor="middle"
+              fill={active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.33)'}
+              fontSize="7" fontFamily="monospace" fontWeight={active ? 'bold' : 'normal'}>
+              {label}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* BASE step: pulsing flat-camera icon at apex */}
+      {currentStep === 0 && !allCaptured && (
+        <g transform={`translate(${cx}, ${cy - r})`} opacity="0.82">
+          <rect x="-7" y="-5" width="14" height="10" rx="2"
+            fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.88)" strokeWidth="1.2">
+            <animate attributeName="opacity" values="0.82;0.30;0.82" dur="1.6s" repeatCount="indefinite" />
+          </rect>
+          <circle cx="0" cy="0" r="2.2" fill="rgba(251,146,60,0.70)" />
+        </g>
       )}
     </svg>
   )
@@ -1084,6 +1166,45 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     </circle>
                   </g>
                 )}
+
+                {/* 5-column position grid + rotating phone guide (steps 1–5) */}
+                {reliefStep >= 1 && !allReliefCaptured && (
+                  <g>
+                    {[94.8, 131.6, 168.4, 205.2].map(x => (
+                      <line key={x} x1={x} y1="72" x2={x} y2="308"
+                        stroke={accent} strokeWidth="0.5" strokeOpacity="0.14" strokeDasharray="3 3" />
+                    ))}
+                    {[
+                      { step: 1, x: 76.4,  label: 'XL', rot: 65  },
+                      { step: 2, x: 113.2, label: 'LC', rot: 32  },
+                      { step: 3, x: 150,   label: 'TD', rot: 0   },
+                      { step: 4, x: 186.8, label: 'RC', rot: -32 },
+                      { step: 5, x: 223.6, label: 'XR', rot: -65 },
+                    ].map(({ step, x, label, rot }) => {
+                      const isActive   = step === reliefStep
+                      const isCaptured = reliefFrames[step] !== null
+                      return (
+                        <g key={step}>
+                          <text x={x} y="319" textAnchor="middle"
+                            fill={isActive ? 'rgba(251,146,60,0.90)' : isCaptured ? 'rgba(251,146,60,0.55)' : 'rgba(255,255,255,0.22)'}
+                            fontSize="7" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
+                            {label}
+                          </text>
+                          {isActive && (
+                            <g transform={`translate(${x}, 190) rotate(${rot})`} opacity="0.88">
+                              <rect x="-8" y="-13" width="16" height="26" rx="3"
+                                fill="rgba(251,146,60,0.15)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.3" />
+                              <rect x="-6" y="-11" width="12" height="20" rx="2"
+                                fill="rgba(251,146,60,0.08)" stroke="rgba(251,146,60,0.35)" strokeWidth="0.6" />
+                              <circle cx="0" cy="-9" r="2" fill="rgba(251,146,60,0.65)" />
+                              <circle cx="3.5" cy="-9" r="0.8" fill="rgba(255,255,255,0.45)" />
+                            </g>
+                          )}
+                        </g>
+                      )
+                    })}
+                  </g>
+                )}
               </g>
             )}
 
@@ -1256,11 +1377,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* HUD: arc dial for relief180 — floats over the bottom of the camera feed */}
+        {/* HUD: cross-section arc for relief180 — floats over the bottom of the camera feed */}
         {isRelief && !cropState && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-black/40 backdrop-blur-md rounded-3xl p-2">
-              <ReliefArcDial capturedFrames={reliefFrames} currentStep={reliefStep} svgClassName="w-32 h-32" />
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-black/50 backdrop-blur-md rounded-2xl px-3 py-2">
+              <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
             </div>
           </div>
         )}
