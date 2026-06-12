@@ -2,33 +2,63 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import type { CaptureMode } from './CaptureFlow'
+import type { CaptureMode, CaptureMetadata } from './CaptureFlow'
 
-const PLACEHOLDERS: Record<CaptureMode, string> = {
+const TITLE_PLACEHOLDERS: Record<CaptureMode, string> = {
   scan3d:    "e.g. Sam's Clay Dinosaur",
   relief180: 'e.g. Ancient Stone Tablet',
   artwork2d: 'e.g. Watercolour Sunset',
   document:  'e.g. Passport — Front Page',
 }
 
+const MODE_DESCRIPTIONS: Record<CaptureMode, string> = {
+  scan3d:    '360° object scan',
+  relief180: 'textured relief capture',
+  artwork2d: '2D artwork capture',
+  document:  'document scan',
+}
+
 interface Props {
   mode: CaptureMode
   previewUrl: string
   mediaType: 'image' | 'video'
-  onConfirm: (title: string | undefined) => void
+  onConfirm: (metadata: CaptureMetadata) => void
 }
 
 export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }: Props) {
-  const [title, setTitle] = useState('')
+  const todayISO = new Date().toISOString().split('T')[0]
+
+  const [title, setTitle]           = useState('')
+  const [creator, setCreator]       = useState('')
+  const [captureDate, setCaptureDate] = useState(todayISO)
+  const [location, setLocation]     = useState('')
+  const [description, setDescription] = useState('')
+
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Delay focus so the screen transition has time to settle
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 150)
     return () => clearTimeout(t)
   }, [])
 
-  const handleConfirm = () => onConfirm(title.trim() || undefined)
+  const handleConfirm = () => {
+    const resolvedDescription = description.trim() ||
+      `A ${MODE_DESCRIPTIONS[mode]} preserved on ${captureDate}.`
+
+    onConfirm({
+      title:       title.trim()   || undefined,
+      creator:     creator.trim() || undefined,
+      captureDate: captureDate    || undefined,
+      location:    location.trim()|| undefined,
+      description: resolvedDescription,
+    })
+  }
+
+  const inputClass =
+    'w-full bg-zinc-900 border border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm outline-none transition-colors'
+
+  const labelClass =
+    'block text-zinc-400 text-xs font-medium mb-1.5 tracking-wider uppercase'
 
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col">
@@ -38,9 +68,9 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
         style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 30%, rgba(251,191,36,0.06) 0%, transparent 70%)' }}
       />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        {/* Thumbnail */}
-        <div className="relative w-24 h-24 rounded-2xl overflow-hidden mb-6 shadow-2xl ring-1 ring-white/10 flex-shrink-0">
+      {/* Header — thumbnail + heading */}
+      <div className="flex-shrink-0 flex flex-col items-center pt-10 pb-4 px-6">
+        <div className="relative w-24 h-24 rounded-2xl overflow-hidden mb-6 shadow-2xl ring-1 ring-white/10">
           {mediaType === 'image' ? (
             <img src={previewUrl} alt="" className="w-full h-full object-cover" draggable={false} />
           ) : (
@@ -52,21 +82,96 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
         <h2 className="text-white font-bold text-xl mb-1.5 text-center tracking-tight">
           Name this memory
         </h2>
-        <p className="text-zinc-500 text-sm text-center leading-relaxed mb-8 max-w-xs">
-          Give it a personal label so you can find it later. You can always rename it from the gallery.
+        <p className="text-zinc-500 text-sm text-center leading-relaxed max-w-xs">
+          Add a label and optional details. You can edit these from the gallery.
         </p>
+      </div>
 
-        <div className="w-full max-w-sm space-y-3">
-          <input
-            ref={inputRef}
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleConfirm() }}
-            placeholder={PLACEHOLDERS[mode]}
-            maxLength={60}
-            className="w-full bg-zinc-900 border border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm outline-none transition-colors"
-          />
+      {/* Scrollable form */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="w-full max-w-sm mx-auto space-y-4">
+
+          {/* Title */}
+          <div>
+            <label className={labelClass}>
+              Title <span className="text-amber-500">*</span>
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleConfirm() }}
+              placeholder={TITLE_PLACEHOLDERS[mode]}
+              maxLength={60}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Creator */}
+          <div>
+            <label className={labelClass}>
+              Artist / Author / Recipient
+            </label>
+            <input
+              type="text"
+              value={creator}
+              onChange={e => setCreator(e.target.value)}
+              placeholder="e.g. Grandma Rose"
+              maxLength={80}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className={labelClass}>
+              Date
+            </label>
+            <input
+              type="date"
+              value={captureDate}
+              onChange={e => setCaptureDate(e.target.value)}
+              className={`${inputClass} [color-scheme:dark]`}
+            />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className={labelClass}>
+              Location
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              placeholder="e.g. London, UK"
+              maxLength={80}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className={labelClass}>
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder={`Auto-filled: "A ${MODE_DESCRIPTIONS[mode]} preserved on ${captureDate}."`}
+              maxLength={300}
+              rows={3}
+              className={`${inputClass} resize-none`}
+            />
+          </div>
+
+        </div>
+      </div>
+
+      {/* Footer — fixed CTA */}
+      <div className="flex-shrink-0 px-6 pb-8 pt-3 bg-gradient-to-t from-zinc-950 via-zinc-950/95 to-transparent">
+        <div className="w-full max-w-sm mx-auto space-y-3">
           <button
             onClick={handleConfirm}
             className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-amber-500/20"
@@ -75,7 +180,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
             {title.trim() ? 'Save & Continue' : 'Continue'}
           </button>
           <button
-            onClick={() => onConfirm(undefined)}
+            onClick={() => onConfirm({})}
             className="w-full text-zinc-500 hover:text-zinc-400 text-sm py-2 transition-colors"
           >
             Skip naming

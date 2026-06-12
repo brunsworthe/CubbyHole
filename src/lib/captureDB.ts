@@ -7,6 +7,10 @@ export type CaptureRecord = {
   mode: string          // CaptureMode id, e.g. 'artwork2d'
   type: string          // human-readable label, e.g. '2D Masterpiece'
   title?: string
+  creator?: string
+  captureDate?: string
+  location?: string
+  description?: string
   mediaType: 'image' | 'video'
   timestamp: number
   cloudUrl: string             // primary asset cloud URL
@@ -76,7 +80,10 @@ export async function deleteCapture(id: string): Promise<void> {
   })
 }
 
-export async function updateCapture(id: string, updates: Partial<Pick<CaptureRecord, 'title'>>): Promise<void> {
+export async function updateCapture(
+  id: string,
+  updates: Partial<Pick<CaptureRecord, 'title' | 'creator' | 'captureDate' | 'location' | 'description'>>,
+): Promise<void> {
   const db = await openDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')

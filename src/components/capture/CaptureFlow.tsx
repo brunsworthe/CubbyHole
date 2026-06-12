@@ -11,6 +11,14 @@ import { uploadCapture } from '@/lib/uploadManager'
 
 export type CaptureMode = 'scan3d' | 'relief180' | 'artwork2d' | 'document'
 
+export type CaptureMetadata = {
+  title?: string
+  creator?: string
+  captureDate?: string
+  location?: string
+  description?: string
+}
+
 export type CapturedMedia = {
   blob: Blob
   url: string
@@ -41,9 +49,9 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   const [capturedMedia, setCapturedMedia] = useState<CapturedMedia | null>(null)
   const [uploadError, setUploadError] = useState(false)
 
-  // Refs hold the latest capture + title for use inside async upload closures
+  // Refs hold the latest capture + metadata for use inside async upload closures
   const capturedMediaRef = useRef<CapturedMedia | null>(null)
-  const pendingTitleRef = useRef<string | undefined>(undefined)
+  const pendingMetadataRef = useRef<CaptureMetadata>({})
 
   // Stage 1: capture done → show naming prompt
   const goToNaming = useCallback((media: CapturedMedia) => {
@@ -53,12 +61,11 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   }, [])
 
   // Stage 2: name confirmed → run cloud upload, then processing
-  const runUpload = useCallback((title?: string) => {
+  const runUpload = useCallback((metadata: CaptureMetadata) => {
     const media = capturedMediaRef.current
     if (!media) return
-    const titleTrimmed = title || undefined
-    pendingTitleRef.current = titleTrimmed
-    setCapturedMedia(prev => prev ? { ...prev, title: titleTrimmed } : prev)
+    pendingMetadataRef.current = metadata
+    setCapturedMedia(prev => prev ? { ...prev, title: metadata.title } : prev)
     setUploadError(false)
     setStep('uploading')
 
@@ -75,7 +82,11 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
           id: Date.now().toString(),
           mode,
           type: MODE_LABELS[mode],
-          title: titleTrimmed,
+          title: metadata.title,
+          creator: metadata.creator,
+          captureDate: metadata.captureDate,
+          location: metadata.location,
+          description: metadata.description,
           mediaType: media.mediaType,
           timestamp: Date.now(),
           cloudUrl: result.cloudUrl,
@@ -91,7 +102,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
   }, [mode])
 
   const retryUpload = useCallback(() => {
-    runUpload(pendingTitleRef.current)
+    runUpload(pendingMetadataRef.current)
   }, [runUpload])
 
   const cancelUpload = useCallback(() => {
