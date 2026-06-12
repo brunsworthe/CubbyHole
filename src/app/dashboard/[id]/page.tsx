@@ -1,0 +1,522 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import {
+  ArrowLeft, Plus, Box, Camera,
+  FileText, Mountain, Palette, Cloud,
+  CalendarDays, MapPin, User, X,
+} from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import CaptureFlow from '@/components/capture/CaptureFlow'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Capsule {
+  id: string
+  name: string
+  theme_color: string | null
+}
+
+interface Capture {
+  id: string
+  capsule_id: string
+  title: string
+  description: string | null
+  capture_date: string
+  location: string | null
+  creator: string | null
+  cloud_url: string
+  type: '2D' | '3D' | 'Relief' | 'Document'
+  created_at: string
+}
+
+// ── Type badge config ─────────────────────────────────────────────────────────
+
+type CaptureType = '2D' | '3D' | 'Relief' | 'Document'
+
+const TYPE_CONFIG: Record<CaptureType, {
+  icon: React.ComponentType<{ className?: string }>
+  badge: string
+  label: string
+}> = {
+  '3D':       { icon: Box,      badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',    label: '360° Object'     },
+  'Relief':   { icon: Mountain, badge: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30', label: 'Textured Relief' },
+  '2D':       { icon: Palette,  badge: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30', label: '2D Artwork'      },
+  'Document': { icon: FileText, badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30',            label: 'Document'        },
+}
+
+const FALLBACK_TYPE = {
+  icon: Cloud,
+  badge: 'bg-zinc-500/15 text-zinc-500 border-zinc-500/30',
+  label: 'Capture',
+}
+
+function getTypeConfig(type: string) {
+  return TYPE_CONFIG[type as CaptureType] ?? FALLBACK_TYPE
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Append T00:00:00 so the Date constructor treats the ISO date string as local,
+// not UTC — avoids the "one day off" shift on display.
+function formatDate(isoDate: string, style: 'short' | 'long' = 'short') {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-US', {
+    month: style === 'long' ? 'long' : 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+// ── CaptureCard ───────────────────────────────────────────────────────────────
+
+function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => void }) {
+  const [imgError, setImgError] = useState(false)
+  const { icon: Icon, badge, label } = getTypeConfig(capture.type)
+
+  return (
+    <button
+      onClick={onClick}
+      className="group w-full text-left rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/50 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+    >
+      {/* Thumbnail */}
+      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-zinc-800">
+        {imgError ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+            <Cloud className="w-7 h-7 text-slate-300 dark:text-zinc-600" />
+            <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-600 tracking-widest">
+              CLOUD
+            </span>
+          </div>
+        ) : (
+          <img
+            src={capture.cloud_url}
+            alt={capture.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            draggable={false}
+            onError={() => setImgError(true)}
+          />
+        )}
+        {/* Hover scrim */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 pointer-events-none" />
+      </div>
+
+      {/* Footer */}
+      <div className="px-3.5 pt-2.5 pb-3.5 space-y-1.5">
+
+        {/* Type badge */}
+        <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge}`}>
+          <Icon className="w-2.5 h-2.5 flex-shrink-0" />
+          {label}
+        </div>
+
+        {/* Title */}
+        <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 leading-snug line-clamp-2">
+          {capture.title}
+        </p>
+
+        {/* Meta row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {capture.capture_date && (
+            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500">
+              <CalendarDays className="w-3 h-3 flex-shrink-0" />
+              {formatDate(capture.capture_date)}
+            </span>
+          )}
+          {capture.creator && (
+            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500 truncate max-w-[80px]">
+              <User className="w-3 h-3 flex-shrink-0" />
+              {capture.creator}
+            </span>
+          )}
+          {capture.location && (
+            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500 truncate max-w-[80px]">
+              <MapPin className="w-3 h-3 flex-shrink-0" />
+              {capture.location}
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+// ── SkeletonCard ──────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 animate-pulse">
+      <div className="aspect-[4/3] bg-slate-100 dark:bg-zinc-800" />
+      <div className="px-3.5 py-3 space-y-2">
+        <div className="h-2.5 w-20 bg-slate-100 dark:bg-zinc-800 rounded-full" />
+        <div className="h-3 w-32 bg-slate-100 dark:bg-zinc-800 rounded-full" />
+        <div className="h-2.5 w-16 bg-slate-100 dark:bg-zinc-800 rounded-full" />
+      </div>
+    </div>
+  )
+}
+
+// ── EmptyState ────────────────────────────────────────────────────────────────
+
+function EmptyState({ capsuleName, onAddMemory }: { capsuleName: string; onAddMemory: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+      <div className="relative mb-6">
+        <div className="absolute inset-0 rounded-full bg-amber-400/15 dark:bg-amber-400/10 blur-3xl scale-150" />
+        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
+          <Camera className="w-11 h-11 text-amber-500 dark:text-amber-400" />
+        </div>
+      </div>
+
+      <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-100 mb-2 tracking-tight">
+        {capsuleName} is empty
+      </h3>
+      <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-xs leading-relaxed mb-2">
+        Scan a 2D artwork, capture a clay model as a full 360° object, digitize a document, or record a textured relief surface.
+      </p>
+      <p className="text-sm text-slate-400 dark:text-zinc-600 max-w-xs leading-relaxed mb-8">
+        Every capture is preserved here in full fidelity — forever.
+      </p>
+
+      <button
+        onClick={onAddMemory}
+        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-md shadow-amber-500/25"
+      >
+        <Camera className="w-4 h-4" />
+        Scan your first memory
+      </button>
+
+      {/* Capture type pills */}
+      <div className="mt-8 flex items-center gap-2 flex-wrap justify-center">
+        {(Object.entries(TYPE_CONFIG) as [CaptureType, typeof TYPE_CONFIG[CaptureType]][]).map(
+          ([type, { icon: Icon, badge, label }]) => (
+            <div
+              key={type}
+              className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border ${badge}`}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+
+function Lightbox({ capture, onClose }: { capture: Capture; onClose: () => void }) {
+  const { icon: Icon, badge, label } = getTypeConfig(capture.type)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handler)
+    }
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col bg-zinc-950"
+      role="dialog"
+      aria-modal="true"
+    >
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${badge}`}>
+            <Icon className="w-3 h-3" />
+            {label}
+          </div>
+          <span className="text-sm font-semibold text-zinc-200 truncate">
+            {capture.title}
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="ml-4 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors flex-shrink-0"
+          aria-label="Close viewer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Image fill */}
+      <div className="flex-1 min-h-0 flex items-center justify-center p-6 overflow-hidden">
+        <img
+          src={capture.cloud_url}
+          alt={capture.title}
+          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+          draggable={false}
+        />
+      </div>
+
+      {/* Footer metadata */}
+      <div className="flex-shrink-0 px-5 py-3.5 border-t border-zinc-800/60 bg-zinc-950/80">
+        <div className="flex items-center justify-center gap-5 flex-wrap">
+          {capture.capture_date && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {formatDate(capture.capture_date, 'long')}
+            </span>
+          )}
+          {capture.creator && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <User className="w-3.5 h-3.5" />
+              {capture.creator}
+            </span>
+          )}
+          {capture.location && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <MapPin className="w-3.5 h-3.5" />
+              {capture.location}
+            </span>
+          )}
+        </div>
+        {capture.description && (
+          <p className="text-xs text-zinc-600 text-center mt-2 max-w-sm mx-auto leading-relaxed">
+            {capture.description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function CapsuleGalleryPage() {
+  const router = useRouter()
+  const { id: capsuleId } = useParams<{ id: string }>()
+
+  const [capsule,         setCapsule]         = useState<Capsule | null>(null)
+  const [captures,        setCaptures]        = useState<Capture[]>([])
+  const [loading,         setLoading]         = useState(true)
+  const [notFound,        setNotFound]        = useState(false)
+  const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
+  const [showCaptureFlow, setShowCaptureFlow] = useState(false)
+
+  // Lock body scroll while the full-screen capture flow is open
+  useEffect(() => {
+    document.body.style.overflow = showCaptureFlow ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showCaptureFlow])
+
+  // ── Fetch capsule + its captures in parallel ──────────────────────────────
+
+  const fetchData = useCallback(async (uid: string) => {
+    setLoading(true)
+
+    const [capsuleRes, capturesRes] = await Promise.all([
+      supabase
+        .from('capsules')
+        .select('id, name, theme_color')
+        .eq('id', capsuleId)
+        .eq('profile_id', uid)   // RLS-enforced, but belt-and-suspenders
+        .single(),
+      supabase
+        .from('captures')
+        .select('*')
+        .eq('capsule_id', capsuleId)
+        .order('created_at', { ascending: false }),
+    ])
+
+    if (capsuleRes.error || !capsuleRes.data) {
+      setNotFound(true)
+    } else {
+      setCapsule(capsuleRes.data as Capsule)
+      setCaptures((capturesRes.data ?? []) as Capture[])
+    }
+
+    setLoading(false)
+  }, [capsuleId])
+
+  // ── Auth guard ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { router.replace('/login'); return }
+      fetchData(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) router.replace('/login')
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router, fetchData])
+
+  // ── Capture flow callbacks ────────────────────────────────────────────────
+
+  const handleCaptureComplete = useCallback(() => {
+    setShowCaptureFlow(false)
+    // Re-fetches so that captures written to Supabase (once the camera
+    // pipeline is migrated from IndexedDB in a future phase) appear here automatically.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchData(session.user.id)
+    })
+  }, [fetchData])
+
+  // ── Accent color (from capsule.theme_color) ───────────────────────────────
+
+  const accent = capsule?.theme_color ?? '#f59e0b'
+
+  // ── 404 state ─────────────────────────────────────────────────────────────
+
+  if (!loading && notFound) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-slate-500 dark:text-zinc-500 mb-4">
+            This capsule doesn&apos;t exist or you don&apos;t have access.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-amber-500 hover:text-amber-400 text-sm font-medium transition-colors"
+          >
+            ← Back to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors duration-200">
+
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-10 border-b border-slate-200 dark:border-zinc-900 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
+
+          {/* Back to Dashboard */}
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-1.5 text-slate-400 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-zinc-300 text-sm font-medium transition-colors flex-shrink-0 -ml-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </button>
+
+          {/* Vertical divider */}
+          <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800 flex-shrink-0" />
+
+          {/* Capsule name + accent swatch */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div
+              className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center transition-all duration-300"
+              style={{ background: `${accent}25`, border: `1.5px solid ${accent}55` }}
+            >
+              <Box className="w-2.5 h-2.5" style={{ color: accent }} />
+            </div>
+
+            {loading ? (
+              <div className="h-4 w-32 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
+            ) : (
+              <h1 className="font-bold text-base tracking-tight truncate">
+                {capsule?.name ?? 'Gallery'}
+              </h1>
+            )}
+          </div>
+
+          {/* Right: theme toggle + desktop CTA */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <ThemeToggle />
+            {!loading && (
+              <button
+                onClick={() => setShowCaptureFlow(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
+                style={{
+                  background: accent,
+                  boxShadow: `0 2px 8px ${accent}40`,
+                }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Memory
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+        {/* Count line */}
+        {!loading && (
+          <p className="text-sm text-slate-500 dark:text-zinc-500 mb-6">
+            {captures.length === 0
+              ? 'No memories yet'
+              : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
+          </p>
+        )}
+
+        {/* Content */}
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : captures.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+            <EmptyState
+              capsuleName={capsule?.name ?? 'This capsule'}
+              onAddMemory={() => setShowCaptureFlow(true)}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {captures.map(capture => (
+              <CaptureCard
+                key={capture.id}
+                capture={capture}
+                onClick={() => setSelectedCapture(capture)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* ── Mobile FAB (only when there are captures — empty state has its own CTA) ── */}
+      {!loading && captures.length > 0 && (
+        <div className="sm:hidden fixed bottom-6 right-5 z-30">
+          <button
+            onClick={() => setShowCaptureFlow(true)}
+            className="flex items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:opacity-75"
+            style={{
+              background: accent,
+              boxShadow: `0 8px 24px ${accent}45`,
+            }}
+          >
+            <Plus className="w-5 h-5" />
+            Add Memory
+          </button>
+        </div>
+      )}
+
+      {/* ── Image lightbox ── */}
+      {selectedCapture && (
+        <Lightbox
+          capture={selectedCapture}
+          onClose={() => setSelectedCapture(null)}
+        />
+      )}
+
+      {/* ── Capture flow overlay ──
+          Opens the existing full-screen camera pipeline.
+          capsuleId is available here for the camera pipeline to use
+          once it is migrated from IndexedDB to Supabase inserts. ── */}
+      {showCaptureFlow && (
+        <CaptureFlow
+          onClose={() => setShowCaptureFlow(false)}
+          onAddToCapsule={handleCaptureComplete}
+        />
+      )}
+    </div>
+  )
+}

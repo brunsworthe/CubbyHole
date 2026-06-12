@@ -1,0 +1,470 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import ThemeToggle from '@/components/ui/ThemeToggle'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Capsule {
+  id: string
+  profile_id: string
+  name: string
+  theme_color: string | null
+  created_at: string
+}
+
+// ── Color swatches ────────────────────────────────────────────────────────────
+
+const SWATCHES = [
+  { label: 'Amber',   hex: '#f59e0b' },
+  { label: 'Sky',     hex: '#0ea5e9' },
+  { label: 'Emerald', hex: '#10b981' },
+  { label: 'Violet',  hex: '#8b5cf6' },
+  { label: 'Rose',    hex: '#f43f5e' },
+  { label: 'Coral',   hex: '#f97316' },
+  { label: 'Teal',    hex: '#14b8a6' },
+  { label: 'Indigo',  hex: '#6366f1' },
+]
+
+const DEFAULT_COLOR = SWATCHES[0].hex
+
+function resolveColor(hex: string | null): string {
+  return hex ?? DEFAULT_COLOR
+}
+
+// ── CapsuleCard ───────────────────────────────────────────────────────────────
+
+function CapsuleCard({ capsule, onClick }: { capsule: Capsule; onClick: () => void }) {
+  const color = resolveColor(capsule.theme_color)
+  const dateStr = new Date(capsule.created_at).toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+
+  return (
+    <button
+      onClick={onClick}
+      className="group w-full text-left rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/50 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+    >
+      {/* Coloured band + folder icon */}
+      <div
+        className="relative h-32 flex items-center justify-center"
+        style={{ background: `${color}14` }}
+      >
+        {/* Dot-grid texture */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `radial-gradient(circle, ${color}35 1px, transparent 1px)`,
+            backgroundSize: '16px 16px',
+          }}
+        />
+
+        {/* Folder icon */}
+        <div
+          className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+          style={{ background: `${color}22`, border: `1.5px solid ${color}50` }}
+        >
+          <FolderOpen className="w-8 h-8 transition-colors duration-300" style={{ color }} />
+        </div>
+
+        {/* "View Gallery" pill — appears on hover */}
+        <div className="absolute bottom-2.5 right-3 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+          <div
+            className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full text-white"
+            style={{ background: color }}
+          >
+            View Gallery <ChevronRight className="w-3 h-3" />
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3">
+        <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 truncate leading-snug mb-0.5">
+          {capsule.name}
+        </p>
+        <p className="text-xs text-slate-400 dark:text-zinc-500">Created {dateStr}</p>
+      </div>
+    </button>
+  )
+}
+
+// ── SkeletonCard ──────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 animate-pulse">
+      <div className="h-32 bg-slate-100 dark:bg-zinc-800" />
+      <div className="px-4 py-3 space-y-2">
+        <div className="h-3 w-28 bg-slate-100 dark:bg-zinc-800 rounded-full" />
+        <div className="h-2.5 w-16 bg-slate-100 dark:bg-zinc-800 rounded-full" />
+      </div>
+    </div>
+  )
+}
+
+// ── EmptyState ────────────────────────────────────────────────────────────────
+
+function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+      <div className="relative mb-6">
+        <div className="absolute inset-0 rounded-full bg-amber-400/15 dark:bg-amber-400/10 blur-3xl scale-150" />
+        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
+          <FolderOpen className="w-11 h-11 text-amber-500 dark:text-amber-400" />
+        </div>
+      </div>
+
+      <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-100 mb-2 tracking-tight">
+        No capsules yet
+      </h3>
+      <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-xs leading-relaxed mb-7">
+        A <span className="font-medium text-slate-700 dark:text-zinc-300">capsule</span> is a
+        named collection for one child or theme — like &ldquo;Leo&rsquo;s Kindergarten
+        Art&rdquo; or &ldquo;Family Road Trip 2025&rdquo;. Create one to start capturing
+        memories.
+      </p>
+
+      <button
+        onClick={onCreateClick}
+        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-md shadow-amber-500/25"
+      >
+        <Plus className="w-4 h-4" />
+        Create your first capsule
+      </button>
+    </div>
+  )
+}
+
+// ── CreateCapsuleModal ────────────────────────────────────────────────────────
+
+interface ModalProps {
+  profileId: string
+  onClose: () => void
+  onCreated: (capsule: Capsule) => void
+}
+
+function CreateCapsuleModal({ profileId, onClose, onCreated }: ModalProps) {
+  const [name,          setName]          = useState('')
+  const [selectedColor, setSelectedColor] = useState(DEFAULT_COLOR)
+  const [loading,       setLoading]       = useState(false)
+  const [error,         setError]         = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 150)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  const handleSubmit = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) return setError('Please give this capsule a name.')
+
+    setLoading(true)
+    setError(null)
+
+    const { data, error: sbError } = await supabase
+      .from('capsules')
+      .insert({ profile_id: profileId, name: trimmed, theme_color: selectedColor })
+      .select()
+      .single()
+
+    setLoading(false)
+
+    if (sbError) {
+      setError(sbError.message)
+    } else {
+      onCreated(data as Capsule)
+      onClose()
+    }
+  }
+
+  const labelClass =
+    'block text-slate-500 dark:text-zinc-400 text-xs font-medium mb-1.5 tracking-wider uppercase'
+  const inputClass =
+    'w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-600 text-sm outline-none transition-colors'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Scrim */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Sheet — slides up from bottom on mobile, centred on desktop */}
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-zinc-950 sm:rounded-2xl rounded-t-2xl border-t border-x border-slate-200 dark:border-zinc-800 sm:border shadow-2xl">
+
+        {/* Drag handle (mobile) */}
+        <div className="sm:hidden flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-slate-300 dark:bg-zinc-700" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-4 sm:pt-5 pb-4 border-b border-slate-100 dark:border-zinc-800">
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
+              style={{ background: `${selectedColor}20`, border: `1.5px solid ${selectedColor}45` }}
+            >
+              <FolderOpen className="w-4 h-4" style={{ color: selectedColor }} />
+            </div>
+            <h2 className="font-bold text-slate-900 dark:text-zinc-100 text-base">New Capsule</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-5">
+
+          {/* Name field */}
+          <div>
+            <label className={labelClass}>
+              Name <span className="text-amber-500">*</span>
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={e => { setName(e.target.value); setError(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
+              placeholder="e.g. Leo's Kindergarten Art"
+              maxLength={60}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Colour picker */}
+          <div>
+            <label className={labelClass}>Colour</label>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {SWATCHES.map(({ hex, label }) => (
+                <button
+                  key={hex}
+                  onClick={() => setSelectedColor(hex)}
+                  title={label}
+                  className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400 shadow-sm"
+                  style={{ background: hex }}
+                  aria-label={label}
+                  aria-pressed={selectedColor === hex}
+                >
+                  {selectedColor === hex && (
+                    <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow-sm" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Error toast */}
+          {error && (
+            <div className="rounded-xl px-4 py-3 text-sm bg-red-500/10 border border-red-500/20 text-red-500 dark:text-red-400">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-6 sm:pb-5 flex gap-2.5">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading || !name.trim()}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            style={{
+              background: loading || !name.trim() ? '#9ca3af' : selectedColor,
+              boxShadow: !loading && name.trim() ? `0 2px 12px ${selectedColor}40` : undefined,
+            }}
+          >
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
+              : <><Check  className="w-4 h-4" />              Create Capsule</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const router = useRouter()
+
+  const [userId,          setUserId]          = useState<string | null>(null)
+  const [capsules,        setCapsules]        = useState<Capsule[]>([])
+  const [loading,         setLoading]         = useState(true)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+
+  // ── Auth guard + data fetch ───────────────────────────────────────────────
+
+  const fetchCapsules = useCallback(async (uid: string) => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('capsules')
+      .select('*')
+      .eq('profile_id', uid)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) setCapsules(data as Capsule[])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    // Check session on mount and redirect if unauthenticated
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+      setUserId(session.user.id)
+      fetchCapsules(session.user.id)
+    })
+
+    // Also react to auth state changes (e.g. session expiry or sign-out from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) router.replace('/login')
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router, fetchCapsules])
+
+  // ── Optimistic insert ─────────────────────────────────────────────────────
+
+  const handleCreated = useCallback((capsule: Capsule) => {
+    setCapsules(prev => [capsule, ...prev])
+  }, [])
+
+  // ── Sign out ──────────────────────────────────────────────────────────────
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors duration-200">
+
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-10 border-b border-slate-200 dark:border-zinc-900 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+
+          {/* Brand */}
+          <div className="flex items-center gap-2.5 flex-shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500/25 dark:border-amber-400/25 flex items-center justify-center">
+              <Box className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <span className="font-bold text-base tracking-tight">CubbyHole</span>
+          </div>
+
+          {/* Right controls */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={handleSignOut}
+              title="Sign out"
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+
+        {/* Section heading */}
+        <div className="flex items-end justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">My Capsules</h1>
+            {!loading && (
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mt-0.5">
+                {capsules.length === 0
+                  ? 'Create a capsule to start preserving memories'
+                  : `${capsules.length} collection${capsules.length !== 1 ? 's' : ''}`}
+              </p>
+            )}
+          </div>
+
+          {/* Desktop CTA — only shown when there are existing capsules */}
+          {!loading && capsules.length > 0 && (
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/20 flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              New Capsule
+            </button>
+          )}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        ) : capsules.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+            <EmptyState onCreateClick={() => setIsCreateModalOpen(true)} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {capsules.map(capsule => (
+              <CapsuleCard
+                key={capsule.id}
+                capsule={capsule}
+                onClick={() => router.push(`/dashboard/${capsule.id}`)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* ── FAB (mobile only, when capsules exist) ── */}
+      {!loading && capsules.length > 0 && (
+        <div className="sm:hidden fixed bottom-6 right-5 z-30">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold shadow-xl shadow-amber-500/35 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            New Capsule
+          </button>
+        </div>
+      )}
+
+      {/* ── Create modal ── */}
+      {isCreateModalOpen && userId && (
+        <CreateCapsuleModal
+          profileId={userId}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={handleCreated}
+        />
+      )}
+    </div>
+  )
+}
