@@ -542,7 +542,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [capturedFrames, setCapturedFrames] = useState<(Blob | null)[]>(() => Array(8).fill(null))
   const [currentStep, setCurrentStep] = useState(0)
   const [isOrbitMode, setIsOrbitMode] = useState(false)
-  const [guideBoxScale, setGuideBoxScale] = useState(65)
+  const [guideBoxWidth, setGuideBoxWidth] = useState(65)
+  const [guideBoxHeight, setGuideBoxHeight] = useState(80)
   const [ghostUrl, setGhostUrl] = useState<string | null>(null)
 
   // ── relief180 6-frame state ───────────────────────────────────────────────
@@ -650,7 +651,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setCapturedFrames(freshFrames)
     setCurrentStep(0)
     setIsOrbitMode(false)
-    setGuideBoxScale(65)
+    setGuideBoxWidth(65)
+    setGuideBoxHeight(80)
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
 
@@ -860,7 +862,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
       setGhostUrl(null)
     }
-    setGuideBoxScale(65)
+    setGuideBoxWidth(65)
+    setGuideBoxHeight(80)
     setIsOrbitMode(orbit)
   }, [isOrbitMode, currentStep])
 
@@ -1111,16 +1114,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           />
         )}
 
-        {/* Orbit mode guide box: dashed bounding box + crosshair, locked after step 1 */}
+        {/* Orbit mode guide box — ONLY in orbit mode, never in rotate mode */}
         {isScan3d && isOrbitMode && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
             <div
               className="relative border-2 border-dashed border-white/55"
               style={{
-                width: `${guideBoxScale}%`,
-                aspectRatio: '3/4',
-                maxHeight: '82%',
-                transition: currentStep === 0 ? 'width 60ms linear' : 'none',
+                width: `${guideBoxWidth}%`,
+                height: `${guideBoxHeight}%`,
+                transition: currentStep === 0 ? 'width 50ms linear, height 50ms linear' : 'none',
               }}
             >
               {/* Crosshair */}
@@ -1135,7 +1137,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 .map((cls, i) => (
                   <div key={i} className={`absolute w-4 h-4 border-white/80 ${cls}`} />
                 ))}
-              {/* Lock badge */}
+              {/* Lock badge — only after baseline captured */}
               {currentStep > 0 && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
                   <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
@@ -1588,23 +1590,43 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </div>
           </div>
 
-          {/* Guide box size slider — Orbit mode, Step 1 only */}
+          {/* Width + Height sliders — STRICTLY: orbit mode AND step 0 (baseline) only */}
           {isOrbitMode && currentStep === 0 && !allFramesCaptured && (
-            <div className="w-full px-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-white/45 text-[10px] font-mono tracking-wider">FRAME SIZE</span>
-                <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxScale}%</span>
+            <div className="w-full space-y-3 px-1">
+              {/* Width slider */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
+                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="95"
+                  step="1"
+                  value={guideBoxWidth}
+                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box width"
+                />
               </div>
-              <input
-                type="range"
-                min="25"
-                max="92"
-                step="1"
-                value={guideBoxScale}
-                onChange={e => setGuideBoxScale(Number(e.target.value))}
-                className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
-                aria-label="Guide box size"
-              />
+              {/* Height slider */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
+                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="95"
+                  step="1"
+                  value={guideBoxHeight}
+                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box height"
+                />
+              </div>
             </div>
           )}
 
