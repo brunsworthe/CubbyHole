@@ -148,6 +148,12 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
         </>
       ) : (
         <>
+          {/* Object icon rotates 45° per step to show current face toward camera */}
+          <g transform={`rotate(${currentStep * 45} ${cx} ${cy})`}>
+            <rect x={cx - 7} y={cy - 10} width="14" height="20" rx="2.5"
+              fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.38)" strokeWidth="1.2" />
+            <circle cx={cx} cy={cy - 4} r="1.8" fill="rgba(251,191,36,0.45)" />
+          </g>
           <text x={cx} y={cy + 5}  textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="monospace">
             {currentStep + 1}
           </text>
@@ -156,6 +162,27 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
           </text>
         </>
       )}
+
+      {/* Fixed camera icon at south (0° / bottom) — rotate mode */}
+      {!allCaptured && !isOrbitMode && (
+        <g transform={`translate(${cx}, ${cy + ro + 11})`} opacity="0.75">
+          <rect x="-8" y="-5.5" width="16" height="11" rx="2.5"
+            fill="rgba(251,191,36,0.18)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.3" />
+          <circle cx="0" cy="0" r="2.5" fill="none" stroke="rgba(251,191,36,0.70)" strokeWidth="1.1" />
+        </g>
+      )}
+
+      {/* Camera marker moves to active orbital position — orbit mode */}
+      {!allCaptured && isOrbitMode && (() => {
+        const [mx, my] = midPt(currentStep, (ro + ri) / 2)
+        return (
+          <g transform={`translate(${mx}, ${my})`} opacity="0.88">
+            <rect x="-4.5" y="-7" width="9" height="14" rx="2"
+              fill="rgba(0,0,0,0.35)" stroke="rgba(251,191,36,0.95)" strokeWidth="1.1" />
+            <circle cx="0" cy="-3" r="1.3" fill="rgba(251,191,36,0.80)" />
+          </g>
+        )
+      })()}
     </svg>
   )
 }
@@ -514,7 +541,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── scan3d 8-frame state ──────────────────────────────────────────────────
   const [capturedFrames, setCapturedFrames] = useState<(Blob | null)[]>(() => Array(8).fill(null))
   const [currentStep, setCurrentStep] = useState(0)
-  const [isOrbitMode, setIsOrbitMode] = useState<boolean | null>(null)
+  const [isOrbitMode, setIsOrbitMode] = useState(false)
+  const [guideBoxScale, setGuideBoxScale] = useState(65)
   const [ghostUrl, setGhostUrl] = useState<string | null>(null)
 
   // ── relief180 6-frame state ───────────────────────────────────────────────
@@ -621,7 +649,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     capturedFramesRef.current = freshFrames
     setCapturedFrames(freshFrames)
     setCurrentStep(0)
-    setIsOrbitMode(null)
+    setIsOrbitMode(false)
+    setGuideBoxScale(65)
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
 
@@ -820,6 +849,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     const url = URL.createObjectURL(primaryBlob)
     onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
   }, [onCapture])
+
+  const handleOrbitToggle = useCallback((orbit: boolean) => {
+    if (orbit === isOrbitMode) return
+    if (currentStep > 1) {
+      const freshFrames = Array(8).fill(null) as (Blob | null)[]
+      capturedFramesRef.current = freshFrames
+      setCapturedFrames(freshFrames)
+      setCurrentStep(0)
+      if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
+      setGhostUrl(null)
+    }
+    setGuideBoxScale(65)
+    setIsOrbitMode(orbit)
+  }, [isOrbitMode, currentStep])
 
   // ── relief180: capture one still frame ───────────────────────────────────
   const captureReliefFrame = useCallback(() => {
@@ -1060,13 +1103,48 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </>
         )}
 
-        {/* Ghost / onion-skin: previous frame at 25% opacity */}
-        {isScan3d && ghostUrl && (
+        {/* Ghost / onion-skin: previous frame at 25% opacity — rotate mode only */}
+        {isScan3d && !isOrbitMode && ghostUrl && (
           <img src={ghostUrl} alt="" aria-hidden="true"
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             style={{ opacity: 0.25 }}
           />
         )}
+
+        {/* Orbit mode guide box: dashed bounding box + crosshair, locked after step 1 */}
+        {isScan3d && isOrbitMode && (
+          <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+            <div
+              className="relative border-2 border-dashed border-white/55"
+              style={{
+                width: `${guideBoxScale}%`,
+                aspectRatio: '3/4',
+                maxHeight: '82%',
+                transition: currentStep === 0 ? 'width 60ms linear' : 'none',
+              }}
+            >
+              {/* Crosshair */}
+              <div className="absolute inset-y-0 left-1/2 w-px bg-white/20 -translate-x-1/2" />
+              <div className="absolute inset-x-0 top-1/2 h-px bg-white/20 -translate-y-1/2" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-white/55" />
+              </div>
+              {/* Corner accents */}
+              {(['top-0 left-0 border-t-2 border-l-2', 'top-0 right-0 border-t-2 border-r-2',
+                'bottom-0 left-0 border-b-2 border-l-2', 'bottom-0 right-0 border-b-2 border-r-2'] as const)
+                .map((cls, i) => (
+                  <div key={i} className={`absolute w-4 h-4 border-white/80 ${cls}`} />
+                ))}
+              {/* Lock badge */}
+              {currentStep > 0 && (
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Base texture silhouette overlay — relief steps 1–5 */}
         {isRelief && reliefStep >= 1 && baseSilhouetteUrl && (
           <img
@@ -1428,7 +1506,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         {isScan3d && !cropState && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
             <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
-              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode === true} />
+              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode} />
             </div>
           </div>
         )}
@@ -1478,88 +1556,101 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
 
       ) : isScan3d ? (
-        isOrbitMode === null ? (
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
 
-          /* ── Method selection ── */
-          <div className="flex-shrink-0 flex flex-col gap-3 px-5 pb-6 pt-2">
-            <p className="text-center text-white/45 text-[10px] font-mono tracking-[0.15em] uppercase">
-              Choose capture method
-            </p>
-
-            <button
-              onClick={() => setIsOrbitMode(false)}
-              className="flex items-center gap-4 w-full bg-white/6 hover:bg-amber-500/15 active:bg-amber-500/20 border border-white/10 hover:border-amber-400/30 rounded-2xl px-4 py-3.5 text-left transition-all duration-200"
-            >
-              <div className="w-10 h-10 rounded-xl bg-amber-400/15 border border-amber-400/25 flex items-center justify-center flex-shrink-0">
-                <Box className="w-5 h-5 text-amber-400" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-white font-semibold text-sm">Rotate Object</p>
-                <p className="text-white/40 text-xs mt-0.5 leading-snug">For small items on a table</p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setIsOrbitMode(true)}
-              className="flex items-center gap-4 w-full bg-white/6 hover:bg-amber-500/15 active:bg-amber-500/20 border border-white/10 hover:border-amber-400/30 rounded-2xl px-4 py-3.5 text-left transition-all duration-200"
-            >
-              <div className="w-10 h-10 rounded-xl bg-amber-400/15 border border-amber-400/25 flex items-center justify-center flex-shrink-0">
-                <svg viewBox="0 0 20 20" className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" strokeLinecap="round">
-                  <circle cx="10" cy="10" r="2.5" fill="currentColor" fillOpacity="0.45" stroke="none" />
-                  <circle cx="10" cy="10" r="7" strokeWidth="1.3" strokeDasharray="2.5 2" />
-                  <circle cx="17" cy="10" r="1.8" fill="currentColor" stroke="none" />
+          {/* Rotate / Orbit toggle — mirrors the Relief lighting toggle */}
+          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
+            <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-amber-400' : 'text-white/30'}`} />
+            <span className="text-white/50 text-xs flex-1 font-medium">3D Mode</span>
+            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
+              <button
+                onClick={() => handleOrbitToggle(false)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                Rotate
+              </button>
+              <button
+                onClick={() => handleOrbitToggle(true)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  isOrbitMode
+                    ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                  <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                  <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
                 </svg>
-              </div>
-              <div className="min-w-0">
-                <p className="text-white font-semibold text-sm">Walk Around</p>
-                <p className="text-white/40 text-xs mt-0.5 leading-snug">For fixed or large items</p>
-              </div>
-            </button>
-          </div>
-
-        ) : (
-
-          /* ── Capture controls ── */
-          <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
-            <div className="text-center px-3">
-              <p className="text-white/90 font-semibold text-sm leading-tight">
-                {allFramesCaptured
-                  ? 'All 8 frames captured!'
-                  : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
-              </p>
-              <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-                {allFramesCaptured
-                  ? 'Tap below to compile your 3D object'
-                  : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.sub}
-              </p>
+                Orbit
+              </button>
             </div>
-
-            {allFramesCaptured ? (
-              <button
-                onClick={compileScan3D}
-                className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
-              >
-                <Box className="w-5 h-5" />
-                Compile &amp; Save 3D Object
-              </button>
-            ) : (
-              <button
-                onClick={handleShutter}
-                disabled={!cameraReady || isCapturing}
-                className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                aria-label="Capture scan frame"
-              >
-                <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                  isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
-                }`} />
-                {isCapturing && (
-                  <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
-                )}
-              </button>
-            )}
           </div>
 
-        )
+          {/* Guide box size slider — Orbit mode, Step 1 only */}
+          {isOrbitMode && currentStep === 0 && !allFramesCaptured && (
+            <div className="w-full px-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-white/45 text-[10px] font-mono tracking-wider">FRAME SIZE</span>
+                <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxScale}%</span>
+              </div>
+              <input
+                type="range"
+                min="25"
+                max="92"
+                step="1"
+                value={guideBoxScale}
+                onChange={e => setGuideBoxScale(Number(e.target.value))}
+                className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                aria-label="Guide box size"
+              />
+            </div>
+          )}
+
+          {/* Step heading + contextual helper text */}
+          <div className="text-center px-3">
+            <p className="text-white/90 font-semibold text-sm leading-tight">
+              {allFramesCaptured
+                ? 'All 8 frames captured!'
+                : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
+            </p>
+            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+              {allFramesCaptured
+                ? 'Tap below to compile your 3D object'
+                : isOrbitMode && currentStep === 0
+                ? 'Use slider to frame subject, then capture baseline.'
+                : isOrbitMode
+                ? 'Box locked. Step right and fit subject back inside frame.'
+                : (SCAN_STEPS[currentStep]?.sub ?? '')}
+            </p>
+          </div>
+
+          {/* Compile CTA or shutter */}
+          {allFramesCaptured ? (
+            <button
+              onClick={compileScan3D}
+              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
+            >
+              <Box className="w-5 h-5" />
+              Compile &amp; Save 3D Object
+            </button>
+          ) : (
+            <button
+              onClick={handleShutter}
+              disabled={!cameraReady || isCapturing}
+              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+              aria-label="Capture scan frame"
+            >
+              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+              }`} />
+              {isCapturing && (
+                <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
+              )}
+            </button>
+          )}
+        </div>
 
       ) : isRelief ? (
         /* ── relief180: controls ── */
