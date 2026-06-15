@@ -22,6 +22,17 @@ const SCAN_STEPS = [
   { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Final frame — almost done!'                       },
 ] as const
 
+const ORBIT_STEPS = [
+  { dir: 'N',  heading: 'Frame 1 / 8 — Front (0°)',        sub: 'Face the exact front of the object.'          },
+  { dir: 'NE', heading: 'Frame 2 / 8 — Front-Right (45°)', sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'E',  heading: 'Frame 3 / 8 — Right Side (90°)',  sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'SE', heading: 'Frame 4 / 8 — Rear-Right (135°)', sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'S',  heading: 'Frame 5 / 8 — Rear View (180°)',  sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'SW', heading: 'Frame 6 / 8 — Rear-Left (225°)',  sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'W',  heading: 'Frame 7 / 8 — Left Side (270°)',  sub: 'Take a step right. Keep the object centered.' },
+  { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Take a step right. Keep the object centered.' },
+] as const
+
 const RELIEF_STEPS = [
   { pos: 'BASE', heading: 'Frame 1/6 — Base Texture',      sub: 'Hold phone flat & parallel directly overhead — capture the full albedo (base colour) before any light raking'  },
   { pos: 'XL',   heading: 'Frame 2/6 — Extreme Left',      sub: 'Tilt phone far left — light rakes across the texture from the right'  },
@@ -47,10 +58,11 @@ function getSupportedMimeType(): string {
 }
 
 // ── Compass dial for 8-segment scan3d capture ─────────────────────────────────
-function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40' }: {
+function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', isOrbitMode = false }: {
   capturedFrames: (Blob | null)[]
   currentStep: number
   svgClassName?: string
+  isOrbitMode?: boolean
 }) {
   const cx = 100, cy = 100
   const ro = 84, ri = 46
@@ -124,6 +136,15 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40' }
         <>
           <text x={cx} y={cy + 5}  textAnchor="middle" fill="rgba(251,191,36,1)" fontSize="18" fontWeight="bold">✓</text>
           <text x={cx} y={cy + 16} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="7.5" fontFamily="monospace">ALL DONE</text>
+        </>
+      ) : isOrbitMode ? (
+        <>
+          {/* Fixed object icon: camera orbits around this */}
+          <rect x={cx - 9} y={cy - 12} width="18" height="24" rx="3"
+            fill="rgba(251,191,36,0.10)" stroke="rgba(251,191,36,0.50)" strokeWidth="1.4" />
+          <text x={cx} y={cy + 22} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="7.5" fontFamily="monospace">
+            {currentStep + 1}/8
+          </text>
         </>
       ) : (
         <>
@@ -493,6 +514,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── scan3d 8-frame state ──────────────────────────────────────────────────
   const [capturedFrames, setCapturedFrames] = useState<(Blob | null)[]>(() => Array(8).fill(null))
   const [currentStep, setCurrentStep] = useState(0)
+  const [isOrbitMode, setIsOrbitMode] = useState<boolean | null>(null)
   const [ghostUrl, setGhostUrl] = useState<string | null>(null)
 
   // ── relief180 6-frame state ───────────────────────────────────────────────
@@ -599,6 +621,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     capturedFramesRef.current = freshFrames
     setCapturedFrames(freshFrames)
     setCurrentStep(0)
+    setIsOrbitMode(null)
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
 
@@ -1405,7 +1428,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         {isScan3d && !cropState && (
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
             <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
-              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" />
+              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode === true} />
             </div>
           </div>
         )}
@@ -1455,40 +1478,88 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
 
       ) : isScan3d ? (
-        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
-          <div className="text-center px-3">
-            <p className="text-white/90 font-semibold text-sm leading-tight">
-              {allFramesCaptured ? 'All 8 frames captured!' : SCAN_STEPS[currentStep]?.heading}
+        isOrbitMode === null ? (
+
+          /* ── Method selection ── */
+          <div className="flex-shrink-0 flex flex-col gap-3 px-5 pb-6 pt-2">
+            <p className="text-center text-white/45 text-[10px] font-mono tracking-[0.15em] uppercase">
+              Choose capture method
             </p>
-            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-              {allFramesCaptured ? 'Tap below to compile your 3D object' : SCAN_STEPS[currentStep]?.sub}
-            </p>
+
+            <button
+              onClick={() => setIsOrbitMode(false)}
+              className="flex items-center gap-4 w-full bg-white/6 hover:bg-amber-500/15 active:bg-amber-500/20 border border-white/10 hover:border-amber-400/30 rounded-2xl px-4 py-3.5 text-left transition-all duration-200"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-400/15 border border-amber-400/25 flex items-center justify-center flex-shrink-0">
+                <Box className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-semibold text-sm">Rotate Object</p>
+                <p className="text-white/40 text-xs mt-0.5 leading-snug">For small items on a table</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setIsOrbitMode(true)}
+              className="flex items-center gap-4 w-full bg-white/6 hover:bg-amber-500/15 active:bg-amber-500/20 border border-white/10 hover:border-amber-400/30 rounded-2xl px-4 py-3.5 text-left transition-all duration-200"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-400/15 border border-amber-400/25 flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 20 20" className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" strokeLinecap="round">
+                  <circle cx="10" cy="10" r="2.5" fill="currentColor" fillOpacity="0.45" stroke="none" />
+                  <circle cx="10" cy="10" r="7" strokeWidth="1.3" strokeDasharray="2.5 2" />
+                  <circle cx="17" cy="10" r="1.8" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-white font-semibold text-sm">Walk Around</p>
+                <p className="text-white/40 text-xs mt-0.5 leading-snug">For fixed or large items</p>
+              </div>
+            </button>
           </div>
 
-          {allFramesCaptured ? (
-            <button
-              onClick={compileScan3D}
-              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
-            >
-              <Box className="w-5 h-5" />
-              Compile &amp; Save 3D Object
-            </button>
-          ) : (
-            <button
-              onClick={handleShutter}
-              disabled={!cameraReady || isCapturing}
-              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-              aria-label="Capture scan frame"
-            >
-              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
-              }`} />
-              {isCapturing && (
-                <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
-              )}
-            </button>
-          )}
-        </div>
+        ) : (
+
+          /* ── Capture controls ── */
+          <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+            <div className="text-center px-3">
+              <p className="text-white/90 font-semibold text-sm leading-tight">
+                {allFramesCaptured
+                  ? 'All 8 frames captured!'
+                  : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
+              </p>
+              <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+                {allFramesCaptured
+                  ? 'Tap below to compile your 3D object'
+                  : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.sub}
+              </p>
+            </div>
+
+            {allFramesCaptured ? (
+              <button
+                onClick={compileScan3D}
+                className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
+              >
+                <Box className="w-5 h-5" />
+                Compile &amp; Save 3D Object
+              </button>
+            ) : (
+              <button
+                onClick={handleShutter}
+                disabled={!cameraReady || isCapturing}
+                className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                aria-label="Capture scan frame"
+              >
+                <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                  isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+                }`} />
+                {isCapturing && (
+                  <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
+                )}
+              </button>
+            )}
+          </div>
+
+        )
 
       ) : isRelief ? (
         /* ── relief180: controls ── */
