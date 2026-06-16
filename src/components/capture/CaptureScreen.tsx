@@ -599,6 +599,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                    : isRelief   ? 'rgb(251 146 60)'
                    :               'rgb(110 231 183)'
 
+  // Unified ghost URL: previous scan3d frame OR relief base silhouette
+  const ghostSilhouetteUrl: string | null = isScan3d
+    ? (currentStep > 0 ? ghostUrl : null)
+    : (isRelief && reliefStep > 0 ? baseSilhouetteUrl : null)
+
   const isLevel = is2D && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
   const bubbleX = Math.max(-11, Math.min(11, (levelGamma / 30) * 11))
   const bubbleY = Math.max(-11, Math.min(11, (levelBeta  / 30) * 11))
@@ -1079,12 +1084,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'w-full max-w-sm md:max-w-md h-auto aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
+        <div ref={cropContainerRef} className="relative w-full h-full overflow-hidden">
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
           ref={setVideoRef}
-          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isRelief ? 'object-cover' : 'object-contain'} ${
+          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isFlat ? 'object-contain' : 'object-cover'} ${
             cropState ? 'opacity-0' : cameraReady ? 'opacity-100' : 'opacity-0'
           }`}
           autoPlay playsInline muted
@@ -1106,54 +1111,50 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </>
         )}
 
-        {/* Ghost / onion-skin: previous frame at 25% opacity — rotate mode only */}
-        {isScan3d && !isOrbitMode && ghostUrl && (
-          <img src={ghostUrl} alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-            style={{ opacity: 0.25 }}
+        {/* Ghost / onion-skin: previous scan3d frame or relief base silhouette, clipped to guide box */}
+        {ghostSilhouetteUrl && (
+          <img src={ghostSilhouetteUrl} alt="" aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            style={{
+              opacity: 0.25,
+              clipPath: `inset(${(100 - guideBoxHeight) / 2}% ${(100 - guideBoxWidth) / 2}%)`,
+            }}
           />
         )}
 
-        {/* Orbit mode guide box — ONLY in orbit mode, never in rotate mode */}
-        {isScan3d && isOrbitMode && (
+        {/* Universal guide box — 3D (both sub-modes) and Relief */}
+        {(isScan3d || isRelief) && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
             <div
-              className="relative border-2 border-dashed border-white/55"
+              className={`relative border-2 border-dashed ${isRelief ? 'border-orange-400/55' : 'border-white/55'}`}
               style={{
                 width: `${guideBoxWidth}%`,
                 height: `${guideBoxHeight}%`,
-                transition: currentStep === 0 ? 'width 50ms linear, height 50ms linear' : 'none',
+                transition: (isScan3d ? currentStep === 0 : reliefStep === 0)
+                  ? 'width 50ms linear, height 50ms linear'
+                  : 'none',
               }}
             >
               {/* Crosshair */}
-              <div className="absolute inset-y-0 left-1/2 w-px bg-white/20 -translate-x-1/2" />
-              <div className="absolute inset-x-0 top-1/2 h-px bg-white/20 -translate-y-1/2" />
+              <div className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${isRelief ? 'bg-orange-400/20' : 'bg-white/20'}`} />
+              <div className={`absolute inset-x-0 top-1/2 h-px -translate-y-1/2 ${isRelief ? 'bg-orange-400/20' : 'bg-white/20'}`} />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-white/55" />
+                <div className={`w-3.5 h-3.5 rounded-full border-2 ${isRelief ? 'border-orange-400/55' : 'border-white/55'}`} />
               </div>
               {/* Corner accents */}
               {(['top-0 left-0 border-t-2 border-l-2', 'top-0 right-0 border-t-2 border-r-2',
                 'bottom-0 left-0 border-b-2 border-l-2', 'bottom-0 right-0 border-b-2 border-r-2'] as const)
                 .map((cls, i) => (
-                  <div key={i} className={`absolute w-4 h-4 border-white/80 ${cls}`} />
+                  <div key={i} className={`absolute w-4 h-4 ${isRelief ? 'border-orange-400/80' : 'border-white/80'} ${cls}`} />
                 ))}
-              {/* Lock badge — only after baseline captured */}
-              {currentStep > 0 && (
+              {/* Lock badge — appears after baseline captured */}
+              {(isScan3d ? currentStep > 0 : reliefStep > 0) && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
+                  <span className={`text-[9px] font-mono tracking-[0.12em] ${isRelief ? 'text-orange-400/50' : 'text-white/50'}`}>BOX LOCKED</span>
                 </div>
               )}
             </div>
           </div>
-        )}
-
-        {/* Base texture silhouette overlay — relief steps 1–5 */}
-        {isRelief && reliefStep >= 1 && baseSilhouetteUrl && (
-          <img
-            src={baseSilhouetteUrl}
-            alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover opacity-30 z-10 pointer-events-none"
-          />
         )}
         {/* Dark fallback */}
         {!cameraReady && (
@@ -1387,9 +1388,18 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </svg>
         )}
 
-        {/* ── 5-column grid with side-profile phone icons for relief180 steps 1–5 ── */}
+        {/* ── 5-column grid constrained to guide box for relief180 steps 1–5 ── */}
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
-          <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
+          <div
+            className="absolute z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none"
+            style={{
+              width: `${guideBoxWidth}%`,
+              height: `${guideBoxHeight}%`,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
             {([
               { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
               { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
@@ -1590,8 +1600,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </div>
           </div>
 
-          {/* Width + Height sliders — STRICTLY: orbit mode AND step 0 (baseline) only */}
-          {isOrbitMode && currentStep === 0 && !allFramesCaptured && (
+          {/* Width + Height sliders — step 0 (baseline) for ALL 3D sub-modes */}
+          {currentStep === 0 && !allFramesCaptured && (
             <div className="w-full space-y-3 px-1">
               {/* Width slider */}
               <div>
@@ -1640,8 +1650,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
               {allFramesCaptured
                 ? 'Tap below to compile your 3D object'
-                : isOrbitMode && currentStep === 0
-                ? 'Use slider to frame subject, then capture baseline.'
+                : currentStep === 0
+                ? 'Use sliders to frame your subject, then capture the baseline.'
                 : isOrbitMode
                 ? 'Box locked. Step right and fit subject back inside frame.'
                 : (SCAN_STEPS[currentStep]?.sub ?? '')}
@@ -1710,6 +1720,44 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             )}
           </div>
 
+          {/* Width + Height sliders — relief baseline step only */}
+          {reliefStep === 0 && !allReliefCaptured && (
+            <div className="w-full space-y-3 px-1">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
+                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="95"
+                  step="1"
+                  value={guideBoxWidth}
+                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box width"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
+                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="95"
+                  step="1"
+                  value={guideBoxHeight}
+                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box height"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Step guidance */}
           <div className="text-center px-3">
             <p className="text-white/90 font-semibold text-sm leading-tight">
@@ -1718,6 +1766,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
               {allReliefCaptured
                 ? 'Tap below to finish and save your Relief'
+                : reliefStep === 0
+                ? 'Use sliders to frame your subject, then capture the base texture.'
                 : RELIEF_STEPS[reliefStep]?.sub}
             </p>
           </div>
