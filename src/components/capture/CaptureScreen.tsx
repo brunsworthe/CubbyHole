@@ -88,7 +88,7 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
 
   return (
     <svg viewBox="0 0 200 200" className={svgClassName} aria-hidden="true">
-      <circle cx={cx} cy={cy} r={ro + 9} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r={ro + 9} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
 
       {SCAN_STEPS.map((step, i) => {
         const isCaptured = capturedFrames[i] !== null
@@ -98,13 +98,13 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
 
         const fill   = isCaptured ? 'rgba(251,191,36,0.50)'
                      : isActive   ? 'rgba(251,191,36,0.88)'
-                     :               'rgba(251,191,36,0.07)'
+                     :               'rgba(251,191,36,0.18)'
         const stroke = isCaptured ? 'rgba(251,191,36,0.65)'
                      : isActive   ? 'rgba(251,191,36,1)'
-                     :               'rgba(251,191,36,0.20)'
+                     :               'rgba(251,191,36,0.40)'
         const labelFill = isCaptured ? 'rgba(251,191,36,0.70)'
                         : isActive   ? 'rgba(255,255,255,0.95)'
-                        :               'rgba(255,255,255,0.22)'
+                        :               'rgba(255,255,255,0.45)'
 
         return (
           <g key={i}>
@@ -130,7 +130,7 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
       })}
 
       <circle cx={cx} cy={cy} r={ri - 3} fill="rgba(0,0,0,0.55)" />
-      <circle cx={cx} cy={cy} r={ri - 3} fill="none" stroke="rgba(251,191,36,0.18)" strokeWidth="1" />
+      <circle cx={cx} cy={cy} r={ri - 3} fill="none" stroke="rgba(251,191,36,0.35)" strokeWidth="1" />
 
       {allCaptured ? (
         <>
@@ -356,17 +356,17 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
     <svg viewBox="0 0 200 96" className="w-52 h-16" aria-hidden="true">
       {/* Ground surface */}
       <line x1="14" y1={cy} x2="186" y2={cy}
-        stroke="rgba(255,255,255,0.28)" strokeWidth="1.5" strokeLinecap="round" />
+        stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" strokeLinecap="round" />
       {[28, 46, 64, 82, 100, 118, 136, 154, 172].map(x => (
         <line key={x} x1={x} y1={cy} x2={x - 4} y2={cy + 6}
-          stroke="rgba(255,255,255,0.13)" strokeWidth="1" />
+          stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
       ))}
       {/* Dashed arc */}
       <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-        fill="none" stroke="rgba(251,146,60,0.28)" strokeWidth="1.2" strokeDasharray="4 3" />
+        fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.2" strokeDasharray="4 3" />
       {/* Overhead guide */}
       <line x1={cx} y1={cy - r - 4} x2={cx} y2={cy}
-        stroke="rgba(255,255,255,0.11)" strokeWidth="0.8" strokeDasharray="2 2" />
+        stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" strokeDasharray="2 2" />
 
       {NODES.map(({ step, nodeAngle, label }) => {
         const { x, y } = nPos(nodeAngle)
@@ -385,7 +385,7 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
             )}
             <circle cx={x} cy={y}
               r={active ? 6 : captured ? 5 : 3.5}
-              fill={active ? 'rgba(251,146,60,0.95)' : captured ? 'rgba(251,146,60,0.58)' : 'rgba(255,255,255,0.26)'} />
+              fill={active ? 'rgba(251,146,60,0.95)' : captured ? 'rgba(251,146,60,0.58)' : 'rgba(255,255,255,0.50)'} />
             {captured && (
               <path d={`M ${x - 3} ${y} L ${x - 1} ${y + 2.5} L ${x + 3.5} ${y - 3}`}
                 fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.5"
@@ -399,7 +399,7 @@ function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
               </g>
             )}
             <text x={x} y={labelY} textAnchor="middle"
-              fill={active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.33)'}
+              fill={active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.60)'}
               fontSize="7" fontFamily="monospace" fontWeight={active ? 'bold' : 'normal'}>
               {label}
             </text>
@@ -1067,7 +1067,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-12 pb-2 flex-shrink-0">
+      <div className="flex items-center justify-between px-5 pb-2 flex-shrink-0" style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}>
         <button onClick={onClose} className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
@@ -1097,7 +1097,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       </div>
 
       {/* Mode switcher */}
-      <div className="flex justify-center px-5 pb-3 flex-shrink-0">
+      <div className="flex justify-center px-5 pb-2 flex-shrink-0">
         <div className="inline-flex p-1 rounded-full bg-white/8 backdrop-blur-md border border-white/10">
           {MODES.map(({ id, label, icon: Icon }) => (
             <button
@@ -1119,7 +1119,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className="relative max-h-[75vh] overflow-hidden w-full h-full">
+        <div ref={cropContainerRef} className="relative overflow-hidden w-full h-full">
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
@@ -1550,23 +1550,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* HUD: compass dial for scan3d — floats over the bottom of the camera feed */}
-        {isScan3d && !cropState && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
-              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode} />
-            </div>
-          </div>
-        )}
-
-        {/* HUD: cross-section arc for relief180 — floats over the bottom of the camera feed */}
-        {isRelief && !cropState && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-black/50 backdrop-blur-md rounded-2xl px-3 py-2">
-              <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
-            </div>
-          </div>
-        )}
         </div>
       </div>
 
@@ -1579,7 +1562,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* ── Crop confirmation controls ── */}
       {cropState ? (
-        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className="text-center px-3">
             <p className="text-white/90 font-semibold text-sm leading-tight">Adjust your crop</p>
             <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
@@ -1604,7 +1587,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
 
       ) : isScan3d ? (
-        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
 
           {/* Rotate / Orbit toggle — mirrors the Relief lighting toggle */}
           <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
@@ -1638,41 +1621,24 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Width + Height sliders — Step 1 only, both Rotate and Orbit modes. */}
           {currentStep === 0 && !allFramesCaptured && (
-            <div className="w-full px-1 grid grid-cols-2 gap-x-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">W</span>
-                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="25"
-                  max="95"
-                  step="1"
-                  value={guideBoxWidth}
-                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
-                  aria-label="Guide box width"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">H</span>
-                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="25"
-                  max="95"
-                  step="1"
-                  value={guideBoxHeight}
-                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
-                  aria-label="Guide box height"
-                />
-              </div>
+            <div className="w-full px-1 flex items-center gap-2">
+              <span className="text-white/35 text-[9px] font-mono flex-shrink-0">W</span>
+              <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
+                onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                className="flex-1 h-1 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                aria-label="Guide box width" />
+              <span className="text-amber-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
+              <span className="text-white/35 text-[9px] font-mono flex-shrink-0 ml-1">H</span>
+              <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
+                onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                className="flex-1 h-1 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                aria-label="Guide box height" />
+              <span className="text-amber-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
             </div>
           )}
+
+          {/* Positional HUD */}
+          <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-24 h-24" isOrbitMode={isOrbitMode} />
 
           {/* Step heading + contextual helper text */}
           <div className="text-center px-3">
@@ -1720,7 +1686,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       ) : isRelief ? (
         /* ── relief180: controls ── */
-        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
 
           {/* Lighting toggle */}
           <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
@@ -1756,41 +1722,24 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Width + Height sliders — Step 1 only */}
           {reliefStep === 0 && !allReliefCaptured && (
-            <div className="w-full px-1 grid grid-cols-2 gap-x-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">W</span>
-                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="25"
-                  max="95"
-                  step="1"
-                  value={guideBoxWidth}
-                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                  aria-label="Guide box width"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">H</span>
-                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="25"
-                  max="95"
-                  step="1"
-                  value={guideBoxHeight}
-                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                  className="w-full h-1.5 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                  aria-label="Guide box height"
-                />
-              </div>
+            <div className="w-full px-1 flex items-center gap-2">
+              <span className="text-white/35 text-[9px] font-mono flex-shrink-0">W</span>
+              <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
+                onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                className="flex-1 h-1 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                aria-label="Guide box width" />
+              <span className="text-orange-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
+              <span className="text-white/35 text-[9px] font-mono flex-shrink-0 ml-1">H</span>
+              <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
+                onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                className="flex-1 h-1 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                aria-label="Guide box height" />
+              <span className="text-orange-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
             </div>
           )}
+
+          {/* Positional HUD */}
+          <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
 
           {/* Step guidance */}
           <div className="text-center px-3">
@@ -1832,7 +1781,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       ) : (
         /* ── Standard bottom controls (artwork2d, document) ── */
-        <div className="flex-shrink-0 flex items-center justify-around px-10 pb-14 pt-2">
+        <div className="flex-shrink-0 flex items-center justify-around px-10 pt-2" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
 
           <button
             onClick={() => fileInputRef.current?.click()}
