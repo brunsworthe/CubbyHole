@@ -1119,12 +1119,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'w-full max-w-sm md:max-w-md h-auto aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
+        <div ref={cropContainerRef} className="relative max-h-[75vh] overflow-hidden w-full h-full">
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
           ref={setVideoRef}
-          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isRelief ? 'object-cover' : 'object-contain'} ${
+          className={`absolute inset-0 w-full h-full transition-opacity duration-500 object-contain ${
             cropState ? 'opacity-0' : cameraReady ? 'opacity-100' : 'opacity-0'
           }`}
           autoPlay playsInline muted
@@ -1154,8 +1154,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           />
         )}
 
-        {/* Guide box: dashed bounding box + crosshair, shown in both Rotate and Orbit modes */}
-        {isScan3d && (
+        {/* Guide box: dashed bounding box + crosshair, shown in scan3d and relief modes */}
+        {(isScan3d || isRelief) && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
             {/* Matches the rendered video content area so width/height % are bounded
                 by the feed edges, not the full container (which may include letterbox bars). */}
@@ -1165,7 +1165,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 style={{
                   width: `${guideBoxWidth}%`,
                   height: `${guideBoxHeight}%`,
-                  transition: currentStep === 0 ? 'width 60ms linear, height 60ms linear' : 'none',
+                  transition: (isScan3d ? currentStep : reliefStep) === 0 ? 'width 60ms linear, height 60ms linear' : 'none',
                 }}
               >
                 {/* Crosshair */}
@@ -1181,7 +1181,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <div key={i} className={`absolute w-4 h-4 border-white/80 ${cls}`} />
                   ))}
                 {/* Lock badge */}
-                {currentStep > 0 && (
+                {(isScan3d ? currentStep : reliefStep) > 0 && (
                   <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
                     <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
                   </div>
@@ -1196,7 +1196,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <img
             src={baseSilhouetteUrl}
             alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover opacity-30 z-10 pointer-events-none"
+            className="absolute inset-0 w-full h-full object-contain opacity-30 z-10 pointer-events-none"
           />
         )}
         {/* Dark fallback */}
@@ -1433,7 +1433,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
         {/* ── 5-column grid with side-profile phone icons for relief180 steps 1–5 ── */}
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
-          <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+          <div style={{ ...videoContentStyle }} className="grid grid-cols-5 divide-x-2 divide-white/40">
             {([
               { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
               { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
@@ -1456,6 +1457,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 </div>
               )
             })}
+          </div>
           </div>
         )}
 
@@ -1751,6 +1753,44 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <span className="text-[9px] text-orange-400/65 whitespace-nowrap">unsupported</span>
             )}
           </div>
+
+          {/* Width + Height sliders — Step 1 only */}
+          {reliefStep === 0 && !allReliefCaptured && (
+            <div className="w-full px-1 grid grid-cols-2 gap-x-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">W</span>
+                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="25"
+                  max="95"
+                  step="1"
+                  value={guideBoxWidth}
+                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                  className="w-full h-1.5 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box width"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">H</span>
+                  <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="25"
+                  max="95"
+                  step="1"
+                  value={guideBoxHeight}
+                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                  className="w-full h-1.5 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box height"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Step guidance */}
           <div className="text-center px-3">
