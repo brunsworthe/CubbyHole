@@ -1083,8 +1083,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       </div>
 
       {/* Viewfinder */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className="relative w-full h-full overflow-hidden">
+      <div className="flex-1 relative overflow-hidden min-h-0">
+        <div ref={cropContainerRef} className="absolute inset-0 overflow-hidden">
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
