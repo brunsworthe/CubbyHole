@@ -1154,8 +1154,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           />
         )}
 
-        {/* Orbit mode guide box: dashed bounding box + crosshair, locked after step 1 */}
-        {isScan3d && isOrbitMode && (
+        {/* Guide box: dashed bounding box + crosshair, shown in both Rotate and Orbit modes */}
+        {isScan3d && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
             {/* Matches the rendered video content area so width/height % are bounded
                 by the feed edges, not the full container (which may include letterbox bars). */}
@@ -1634,8 +1634,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </div>
           </div>
 
-          {/* Width + Height sliders — Orbit mode, Step 1 only. Must NOT render in Rotate mode. */}
-          {isOrbitMode === true && currentStep === 0 && !allFramesCaptured && (
+          {/* Width + Height sliders — Step 1 only, both Rotate and Orbit modes. */}
+          {currentStep === 0 && !allFramesCaptured && (
             <div className="w-full px-1 grid grid-cols-2 gap-x-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
