@@ -543,8 +543,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [currentStep, setCurrentStep] = useState(0)
   const [isOrbitMode, setIsOrbitMode] = useState(false)
   const [guideBoxWidth, setGuideBoxWidth] = useState(65)
-  const [guideBoxHeight, setGuideBoxHeight] = useState(80)
+  const [guideBoxHeight, setGuideBoxHeight] = useState(75)
   const [ghostUrl, setGhostUrl] = useState<string | null>(null)
+  const [videoAR, setVideoAR] = useState<number | null>(null)
+  const [containerSize, setContainerSize] = useState<{ w: number; h: number } | null>(null)
 
   // ── relief180 6-frame state ───────────────────────────────────────────────
   const [reliefFrames, setReliefFrames] = useState<(Blob | null)[]>(() => Array(6).fill(null))
@@ -599,11 +601,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                    : isRelief   ? 'rgb(251 146 60)'
                    :               'rgb(110 231 183)'
 
-  // Unified ghost URL: previous scan3d frame OR relief base silhouette
-  const ghostSilhouetteUrl: string | null = isScan3d
-    ? (currentStep > 0 ? ghostUrl : null)
-    : (isRelief && reliefStep > 0 ? baseSilhouetteUrl : null)
-
   const isLevel = is2D && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
   const bubbleX = Math.max(-11, Math.min(11, (levelGamma / 30) * 11))
   const bubbleY = Math.max(-11, Math.min(11, (levelBeta  / 30) * 11))
@@ -641,6 +638,34 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
   }, [initCamera])
 
+  // Capture the video's native aspect ratio so the guide box overlay can be
+  // constrained to the actual video content area (not the full container width).
+  useEffect(() => {
+    if (cameraStatus !== 'active') return
+    const video = videoRef.current
+    if (!video) return
+    const readAR = () => {
+      if (video.videoWidth && video.videoHeight) {
+        setVideoAR(video.videoWidth / video.videoHeight)
+      }
+    }
+    video.addEventListener('loadedmetadata', readAR)
+    readAR()
+    return () => video.removeEventListener('loadedmetadata', readAR)
+  }, [cameraStatus])
+
+  // Track the viewfinder container size so pixel-exact video content bounds can be computed.
+  useEffect(() => {
+    const el = cropContainerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      setContainerSize({ w: width, h: height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Reset all transient state when mode changes
   useEffect(() => {
     if (isRecording) {
@@ -657,7 +682,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setCurrentStep(0)
     setIsOrbitMode(false)
     setGuideBoxWidth(65)
-    setGuideBoxHeight(80)
+    setGuideBoxHeight(75)
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
 
@@ -868,7 +893,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setGhostUrl(null)
     }
     setGuideBoxWidth(65)
-    setGuideBoxHeight(80)
+    setGuideBoxHeight(75)
     setIsOrbitMode(orbit)
   }, [isOrbitMode, currentStep])
 
@@ -1027,6 +1052,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     : isRelief   ? 'bg-orange-500 hover:bg-orange-400'
     :               'bg-amber-500 hover:bg-amber-400'
 
+  // Pixel-exact dimensions of the video content area (replicates object-contain logic).
+  // Used to constrain the orbit guide box so slider % values reference the feed, not the container.
+  const videoContentStyle: React.CSSProperties = (() => {
+    if (videoAR == null || containerSize == null) return { width: '100%', height: '100%' }
+    const { w, h } = containerSize
+    return videoAR > w / h
+      ? { width: `${w}px`,           height: `${w / videoAR}px` }  // width-constrained
+      : { width: `${h * videoAR}px`, height: `${h}px` }            // height-constrained
+  })()
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
@@ -1083,13 +1118,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       </div>
 
       {/* Viewfinder */}
-      <div className="flex-1 relative overflow-hidden min-h-0">
-        <div ref={cropContainerRef} className="absolute inset-0 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
+        <div ref={cropContainerRef} className={`relative max-h-[75vh] overflow-hidden ${isRelief ? 'w-full max-w-sm md:max-w-md h-auto aspect-[3/4] md:aspect-[9/16] mx-auto rounded-xl' : 'w-full h-full'}`}>
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
           ref={setVideoRef}
-          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isFlat ? 'object-contain' : 'object-cover'} ${
+          className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${isRelief ? 'object-cover' : 'object-contain'} ${
             cropState ? 'opacity-0' : cameraReady ? 'opacity-100' : 'opacity-0'
           }`}
           autoPlay playsInline muted
@@ -1111,50 +1146,58 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </>
         )}
 
-        {/* Ghost / onion-skin: previous scan3d frame or relief base silhouette, clipped to guide box */}
-        {ghostSilhouetteUrl && (
-          <img src={ghostSilhouetteUrl} alt="" aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-            style={{
-              opacity: 0.25,
-              clipPath: `inset(${(100 - guideBoxHeight) / 2}% ${(100 - guideBoxWidth) / 2}%)`,
-            }}
+        {/* Ghost / onion-skin: previous frame at 25% opacity — rotate mode only */}
+        {isScan3d && !isOrbitMode && ghostUrl && (
+          <img src={ghostUrl} alt="" aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+            style={{ opacity: 0.25 }}
           />
         )}
 
-        {/* Universal guide box — 3D (both sub-modes) and Relief */}
-        {(isScan3d || isRelief) && (
+        {/* Orbit mode guide box: dashed bounding box + crosshair, locked after step 1 */}
+        {isScan3d && isOrbitMode && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
-            <div
-              className={`relative border-2 border-dashed ${isRelief ? 'border-orange-400/55' : 'border-white/55'}`}
-              style={{
-                width: `${guideBoxWidth}%`,
-                height: `${guideBoxHeight}%`,
-                transition: (isScan3d ? currentStep === 0 : reliefStep === 0)
-                  ? 'width 50ms linear, height 50ms linear'
-                  : 'none',
-              }}
-            >
-              {/* Crosshair */}
-              <div className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${isRelief ? 'bg-orange-400/20' : 'bg-white/20'}`} />
-              <div className={`absolute inset-x-0 top-1/2 h-px -translate-y-1/2 ${isRelief ? 'bg-orange-400/20' : 'bg-white/20'}`} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className={`w-3.5 h-3.5 rounded-full border-2 ${isRelief ? 'border-orange-400/55' : 'border-white/55'}`} />
-              </div>
-              {/* Corner accents */}
-              {(['top-0 left-0 border-t-2 border-l-2', 'top-0 right-0 border-t-2 border-r-2',
-                'bottom-0 left-0 border-b-2 border-l-2', 'bottom-0 right-0 border-b-2 border-r-2'] as const)
-                .map((cls, i) => (
-                  <div key={i} className={`absolute w-4 h-4 ${isRelief ? 'border-orange-400/80' : 'border-white/80'} ${cls}`} />
-                ))}
-              {/* Lock badge — appears after baseline captured */}
-              {(isScan3d ? currentStep > 0 : reliefStep > 0) && (
-                <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <span className={`text-[9px] font-mono tracking-[0.12em] ${isRelief ? 'text-orange-400/50' : 'text-white/50'}`}>BOX LOCKED</span>
+            {/* Matches the rendered video content area so width/height % are bounded
+                by the feed edges, not the full container (which may include letterbox bars). */}
+            <div style={{ ...videoContentStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                className="relative border-2 border-dashed border-white/55"
+                style={{
+                  width: `${guideBoxWidth}%`,
+                  height: `${guideBoxHeight}%`,
+                  transition: currentStep === 0 ? 'width 60ms linear, height 60ms linear' : 'none',
+                }}
+              >
+                {/* Crosshair */}
+                <div className="absolute inset-y-0 left-1/2 w-px bg-white/20 -translate-x-1/2" />
+                <div className="absolute inset-x-0 top-1/2 h-px bg-white/20 -translate-y-1/2" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-white/55" />
                 </div>
-              )}
+                {/* Corner accents */}
+                {(['top-0 left-0 border-t-2 border-l-2', 'top-0 right-0 border-t-2 border-r-2',
+                  'bottom-0 left-0 border-b-2 border-l-2', 'bottom-0 right-0 border-b-2 border-r-2'] as const)
+                  .map((cls, i) => (
+                    <div key={i} className={`absolute w-4 h-4 border-white/80 ${cls}`} />
+                  ))}
+                {/* Lock badge */}
+                {currentStep > 0 && (
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        )}
+
+        {/* Base texture silhouette overlay — relief steps 1–5 */}
+        {isRelief && reliefStep >= 1 && baseSilhouetteUrl && (
+          <img
+            src={baseSilhouetteUrl}
+            alt="" aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover opacity-30 z-10 pointer-events-none"
+          />
         )}
         {/* Dark fallback */}
         {!cameraReady && (
@@ -1388,18 +1431,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </svg>
         )}
 
-        {/* ── 5-column grid constrained to guide box for relief180 steps 1–5 ── */}
+        {/* ── 5-column grid with side-profile phone icons for relief180 steps 1–5 ── */}
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
-          <div
-            className="absolute z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none"
-            style={{
-              width: `${guideBoxWidth}%`,
-              height: `${guideBoxHeight}%`,
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-            }}
-          >
+          <div className="absolute inset-0 w-full h-full z-20 grid grid-cols-5 divide-x-2 divide-white/40 pointer-events-none">
             {([
               { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
               { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
@@ -1514,304 +1548,283 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        </div>
-
-        {/* ── Controls + HUD overlay — anchored to viewfinder bottom, never shrinks the feed ── */}
-        <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/85 via-black/55 to-transparent">
-
-          {/* Floating HUD dials at the top of the overlay strip */}
-          {isScan3d && !cropState && (
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
-                <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode} />
-              </div>
+        {/* HUD: compass dial for scan3d — floats over the bottom of the camera feed */}
+        {isScan3d && !cropState && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-black/40 backdrop-blur-md rounded-full p-2">
+              <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-32 h-32" isOrbitMode={isOrbitMode} />
             </div>
-          )}
-          {isRelief && !cropState && (
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="bg-black/50 backdrop-blur-md rounded-2xl px-3 py-2">
-                <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
-              </div>
+          </div>
+        )}
+
+        {/* HUD: cross-section arc for relief180 — floats over the bottom of the camera feed */}
+        {isRelief && !cropState && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+            <div className="bg-black/50 backdrop-blur-md rounded-2xl px-3 py-2">
+              <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
             </div>
-          )}
-
-          {/* Tip text (flat modes only, hidden during crop) */}
-          {isFlat && !cropState && (
-            <div className="px-6 py-2">
-              <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">{tipText}</p>
-            </div>
-          )}
-
-          {/* Mode-specific capture controls */}
-          {cropState ? (
-            <div className="flex flex-col items-center gap-3 px-5 pb-6 pt-3">
-              <div className="text-center px-3">
-                <p className="text-white/90 font-semibold text-sm leading-tight">Adjust your crop</p>
-                <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-                  Drag the corner handles to match the exact edges of your memory
-                </p>
-              </div>
-              <div className="flex w-full gap-3">
-                <button
-                  onClick={cancelCrop}
-                  className="flex-1 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white/70 text-sm font-medium transition-colors"
-                >
-                  Retake
-                </button>
-                <button
-                  onClick={confirmCrop}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors ${accentTailwind}`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Confirm Crop
-                </button>
-              </div>
-            </div>
-
-          ) : isScan3d ? (
-            <div className="flex flex-col items-center gap-3 px-5 pb-6 pt-3">
-
-              {/* Rotate / Orbit toggle */}
-              <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
-                <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-amber-400' : 'text-white/30'}`} />
-                <span className="text-white/50 text-xs flex-1 font-medium">3D Mode</span>
-                <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
-                  <button
-                    onClick={() => handleOrbitToggle(false)}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                      !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
-                    }`}
-                  >
-                    Rotate
-                  </button>
-                  <button
-                    onClick={() => handleOrbitToggle(true)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                      isOrbitMode
-                        ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
-                        : 'text-white/35 hover:text-white/60'
-                    }`}
-                  >
-                    <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-                      <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
-                      <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
-                    </svg>
-                    Orbit
-                  </button>
-                </div>
-              </div>
-
-              {/* Width + Height sliders — step 0 (baseline) for ALL 3D sub-modes */}
-              {currentStep === 0 && !allFramesCaptured && (
-                <div className="w-full space-y-3 px-1">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
-                      <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
-                    </div>
-                    <input
-                      type="range" min="20" max="95" step="1" value={guideBoxWidth}
-                      onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                      className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
-                      aria-label="Guide box width"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
-                      <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
-                    </div>
-                    <input
-                      type="range" min="20" max="95" step="1" value={guideBoxHeight}
-                      onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                      className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
-                      aria-label="Guide box height"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Step heading + contextual helper text */}
-              <div className="text-center px-3">
-                <p className="text-white/90 font-semibold text-sm leading-tight">
-                  {allFramesCaptured
-                    ? 'All 8 frames captured!'
-                    : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
-                </p>
-                <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-                  {allFramesCaptured
-                    ? 'Tap below to compile your 3D object'
-                    : currentStep === 0
-                    ? 'Use sliders to frame your subject, then capture the baseline.'
-                    : isOrbitMode
-                    ? 'Box locked. Step right and fit subject back inside frame.'
-                    : (SCAN_STEPS[currentStep]?.sub ?? '')}
-                </p>
-              </div>
-
-              {/* Compile CTA or shutter */}
-              {allFramesCaptured ? (
-                <button
-                  onClick={compileScan3D}
-                  className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
-                >
-                  <Box className="w-5 h-5" />
-                  Compile &amp; Save 3D Object
-                </button>
-              ) : (
-                <button
-                  onClick={handleShutter}
-                  disabled={!cameraReady || isCapturing}
-                  className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                  aria-label="Capture scan frame"
-                >
-                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                    isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
-                  }`} />
-                  {isCapturing && (
-                    <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
-                  )}
-                </button>
-              )}
-            </div>
-
-          ) : isRelief ? (
-            <div className="flex flex-col items-center gap-3 px-5 pb-6 pt-3">
-
-              {/* Lighting toggle */}
-              <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
-                <Lightbulb className={`w-4 h-4 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
-                <span className="text-white/50 text-xs flex-1 font-medium">Lighting</span>
-                <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
-                  <button
-                    onClick={() => setLightingMode('natural')}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                      lightingMode === 'natural' ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
-                    }`}
-                  >
-                    Natural
-                  </button>
-                  <button
-                    onClick={() => setLightingMode('torch')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                      lightingMode === 'torch'
-                        ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
-                        : 'text-white/35 hover:text-white/60'
-                    }`}
-                  >
-                    <Zap className="w-2.5 h-2.5" />
-                    Flashlight
-                  </button>
-                </div>
-                {torchUnsupported && (
-                  <span className="text-[9px] text-orange-400/65 whitespace-nowrap">unsupported</span>
-                )}
-              </div>
-
-              {/* Width + Height sliders — relief baseline step only */}
-              {reliefStep === 0 && !allReliefCaptured && (
-                <div className="w-full space-y-3 px-1">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
-                      <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
-                    </div>
-                    <input
-                      type="range" min="20" max="95" step="1" value={guideBoxWidth}
-                      onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                      className="w-full h-2 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                      aria-label="Guide box width"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
-                      <span className="text-orange-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
-                    </div>
-                    <input
-                      type="range" min="20" max="95" step="1" value={guideBoxHeight}
-                      onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                      className="w-full h-2 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                      aria-label="Guide box height"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Step guidance */}
-              <div className="text-center px-3">
-                <p className="text-white/90 font-semibold text-sm leading-tight">
-                  {allReliefCaptured ? 'All 6 frames captured!' : RELIEF_STEPS[reliefStep]?.heading}
-                </p>
-                <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-                  {allReliefCaptured
-                    ? 'Tap below to finish and save your Relief'
-                    : reliefStep === 0
-                    ? 'Use sliders to frame your subject, then capture the base texture.'
-                    : RELIEF_STEPS[reliefStep]?.sub}
-                </p>
-              </div>
-
-              {/* Compile CTA or shutter */}
-              {allReliefCaptured ? (
-                <button
-                  onClick={compileRelief}
-                  className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
-                >
-                  <Mountain className="w-5 h-5" />
-                  Finish &amp; Save Relief
-                </button>
-              ) : (
-                <button
-                  onClick={handleShutter}
-                  disabled={!cameraReady || isCapturing}
-                  className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                  aria-label="Capture relief frame"
-                >
-                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                    isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
-                  }`} />
-                  {isCapturing && (
-                    <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
-                  )}
-                </button>
-              )}
-            </div>
-
-          ) : (
-            /* ── Standard bottom controls (artwork2d, document) ── */
-            <div className="flex items-center justify-around px-10 pb-14 pt-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isCapturing || docOverlay}
-                className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
-                aria-label="Upload from gallery"
-              >
-                <Images className="w-5 h-5" />
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
-              <button
-                onClick={handleShutter}
-                disabled={!cameraReady || isCapturing || (isDocument && docOverlay)}
-                className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                aria-label={isDocument ? 'Capture page' : 'Take photo'}
-              >
-                <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                  isCapturing ? accentBtn.active : accentBtn.idle
-                }`} />
-                {isCapturing && (
-                  <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-                    is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
-                  }`} />
-                )}
-              </button>
-              <button className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors">
-                <Info className="w-5 h-5" />
-              </button>
-            </div>
-          )}
+          </div>
+        )}
         </div>
       </div>
+
+      {/* ── Tip text (flat modes only, hidden during crop) ── */}
+      {isFlat && !cropState && (
+        <div className="flex-shrink-0 px-6 py-2">
+          <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">{tipText}</p>
+        </div>
+      )}
+
+      {/* ── Crop confirmation controls ── */}
+      {cropState ? (
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+          <div className="text-center px-3">
+            <p className="text-white/90 font-semibold text-sm leading-tight">Adjust your crop</p>
+            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+              Drag the corner handles to match the exact edges of your memory
+            </p>
+          </div>
+          <div className="flex w-full gap-3">
+            <button
+              onClick={cancelCrop}
+              className="flex-1 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white/70 text-sm font-medium transition-colors"
+            >
+              Retake
+            </button>
+            <button
+              onClick={confirmCrop}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors ${accentTailwind}`}
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Confirm Crop
+            </button>
+          </div>
+        </div>
+
+      ) : isScan3d ? (
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+
+          {/* Rotate / Orbit toggle — mirrors the Relief lighting toggle */}
+          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
+            <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-amber-400' : 'text-white/30'}`} />
+            <span className="text-white/50 text-xs flex-1 font-medium">3D Mode</span>
+            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
+              <button
+                onClick={() => handleOrbitToggle(false)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                Rotate
+              </button>
+              <button
+                onClick={() => handleOrbitToggle(true)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  isOrbitMode
+                    ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                  <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                  <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
+                </svg>
+                Orbit
+              </button>
+            </div>
+          </div>
+
+          {/* Width + Height sliders — Orbit mode, Step 1 only. Must NOT render in Rotate mode. */}
+          {isOrbitMode === true && currentStep === 0 && !allFramesCaptured && (
+            <div className="w-full px-1 space-y-3">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
+                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="25"
+                  max="95"
+                  step="1"
+                  value={guideBoxWidth}
+                  onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box width"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
+                  <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="25"
+                  max="95"
+                  step="1"
+                  value={guideBoxHeight}
+                  onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  aria-label="Guide box height"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step heading + contextual helper text */}
+          <div className="text-center px-3">
+            <p className="text-white/90 font-semibold text-sm leading-tight">
+              {allFramesCaptured
+                ? 'All 8 frames captured!'
+                : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
+            </p>
+            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+              {allFramesCaptured
+                ? 'Tap below to compile your 3D object'
+                : isOrbitMode && currentStep === 0
+                ? 'Use slider to frame subject, then capture baseline.'
+                : isOrbitMode
+                ? 'Box locked. Step right and fit subject back inside frame.'
+                : (SCAN_STEPS[currentStep]?.sub ?? '')}
+            </p>
+          </div>
+
+          {/* Compile CTA or shutter */}
+          {allFramesCaptured ? (
+            <button
+              onClick={compileScan3D}
+              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
+            >
+              <Box className="w-5 h-5" />
+              Compile &amp; Save 3D Object
+            </button>
+          ) : (
+            <button
+              onClick={handleShutter}
+              disabled={!cameraReady || isCapturing}
+              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+              aria-label="Capture scan frame"
+            >
+              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+              }`} />
+              {isCapturing && (
+                <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
+              )}
+            </button>
+          )}
+        </div>
+
+      ) : isRelief ? (
+        /* ── relief180: controls ── */
+        <div className="flex-shrink-0 flex flex-col items-center gap-3 px-5 pb-6 pt-3">
+
+          {/* Lighting toggle */}
+          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
+            <Lightbulb className={`w-4 h-4 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
+            <span className="text-white/50 text-xs flex-1 font-medium">Lighting</span>
+            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
+              <button
+                onClick={() => setLightingMode('natural')}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  lightingMode === 'natural'
+                    ? 'bg-white/20 text-white shadow-sm'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                Natural
+              </button>
+              <button
+                onClick={() => setLightingMode('torch')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
+                  lightingMode === 'torch'
+                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
+                    : 'text-white/35 hover:text-white/60'
+                }`}
+              >
+                <Zap className="w-2.5 h-2.5" />
+                Flashlight
+              </button>
+            </div>
+            {torchUnsupported && (
+              <span className="text-[9px] text-orange-400/65 whitespace-nowrap">unsupported</span>
+            )}
+          </div>
+
+          {/* Step guidance */}
+          <div className="text-center px-3">
+            <p className="text-white/90 font-semibold text-sm leading-tight">
+              {allReliefCaptured ? 'All 6 frames captured!' : RELIEF_STEPS[reliefStep]?.heading}
+            </p>
+            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
+              {allReliefCaptured
+                ? 'Tap below to finish and save your Relief'
+                : RELIEF_STEPS[reliefStep]?.sub}
+            </p>
+          </div>
+
+          {/* Compile CTA or shutter */}
+          {allReliefCaptured ? (
+            <button
+              onClick={compileRelief}
+              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
+            >
+              <Mountain className="w-5 h-5" />
+              Finish &amp; Save Relief
+            </button>
+          ) : (
+            <button
+              onClick={handleShutter}
+              disabled={!cameraReady || isCapturing}
+              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+              aria-label="Capture relief frame"
+            >
+              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
+              }`} />
+              {isCapturing && (
+                <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
+              )}
+            </button>
+          )}
+        </div>
+
+      ) : (
+        /* ── Standard bottom controls (artwork2d, document) ── */
+        <div className="flex-shrink-0 flex items-center justify-around px-10 pb-14 pt-2">
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isCapturing || docOverlay}
+            className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
+            aria-label="Upload from gallery"
+          >
+            <Images className="w-5 h-5" />
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
+
+          <button
+            onClick={handleShutter}
+            disabled={!cameraReady || isCapturing || (isDocument && docOverlay)}
+            className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+            aria-label={isDocument ? 'Capture page' : 'Take photo'}
+          >
+            <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+              isCapturing ? accentBtn.active : accentBtn.idle
+            }`} />
+            {isCapturing && (
+              <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
+                is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
+              }`} />
+            )}
+          </button>
+
+          <button className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors">
+            <Info className="w-5 h-5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
