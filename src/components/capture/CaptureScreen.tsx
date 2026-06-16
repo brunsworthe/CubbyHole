@@ -1636,10 +1636,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Width + Height sliders — Orbit mode, Step 1 only. Must NOT render in Rotate mode. */}
           {isOrbitMode === true && currentStep === 0 && !allFramesCaptured && (
-            <div className="w-full px-1 space-y-3">
+            <div className="w-full px-1 grid grid-cols-2 gap-x-4">
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">WIDTH</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">W</span>
                   <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxWidth}%</span>
                 </div>
                 <input
@@ -1649,13 +1649,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   step="1"
                   value={guideBoxWidth}
                   onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  className="w-full h-1.5 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
                   aria-label="Guide box width"
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-white/45 text-[10px] font-mono tracking-wider">HEIGHT</span>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-white/45 text-[10px] font-mono tracking-wider">H</span>
                   <span className="text-amber-400/75 text-[10px] font-mono tabular-nums">{guideBoxHeight}%</span>
                 </div>
                 <input
@@ -1665,7 +1665,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   step="1"
                   value={guideBoxHeight}
                   onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                  className="w-full h-2 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                  className="w-full h-1.5 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
                   aria-label="Guide box height"
                 />
               </div>
