@@ -515,6 +515,7 @@ export default function CapsuleGalleryPage() {
         <CaptureFlow
           onClose={() => setShowCaptureFlow(false)}
           onAddToCapsule={handleCaptureComplete}
+          capsuleId={capsuleId}
         />
       )}
     </div>

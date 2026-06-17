@@ -8,6 +8,7 @@ import ScanResultViewer from './ScanResultViewer'
 import UploadSyncScreen from './UploadSyncScreen'
 import { saveCapture, clearCaptures } from '@/lib/captureDB'
 import { uploadCapture } from '@/lib/uploadManager'
+import { supabase } from '@/lib/supabase'
 
 export type CaptureMode = 'scan3d' | 'relief180' | 'artwork2d' | 'document'
 
@@ -36,14 +37,22 @@ const MODE_LABELS: Record<CaptureMode, string> = {
   document:  'Document Scanner',
 }
 
+const MODE_TO_TYPE: Record<CaptureMode, '2D' | '3D' | 'Relief' | 'Document'> = {
+  scan3d:    '3D',
+  relief180: 'Relief',
+  artwork2d: '2D',
+  document:  'Document',
+}
+
 type Step = 'capture' | 'naming' | 'uploading' | 'processing' | 'result'
 
 interface Props {
   onClose: () => void
   onAddToCapsule: () => void
+  capsuleId?: string
 }
 
-export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
+export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Props) {
   const [step, setStep] = useState<Step>('capture')
   const [mode, setMode] = useState<CaptureMode>('scan3d')
   const [capturedMedia, setCapturedMedia] = useState<CapturedMedia | null>(null)
@@ -60,7 +69,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
     setStep('naming')
   }, [])
 
-  // Stage 2: name confirmed → run cloud upload, then processing
+  // Stage 2: name confirmed → run cloud upload, then DB insert + close
   const runUpload = useCallback((metadata: CaptureMetadata) => {
     const media = capturedMediaRef.current
     if (!media) return
@@ -77,7 +86,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
       frames: media.frames,
       reliefFrames: media.reliefFrames,
     })
-      .then(result => {
+      .then(async result => {
         saveCapture({
           id: Date.now().toString(),
           mode,
@@ -94,12 +103,41 @@ export default function CaptureFlow({ onClose, onAddToCapsule }: Props) {
           cloudFrames: result.cloudFrames,
           cloudReliefFrames: result.cloudReliefFrames,
         }).catch(() => {})
-        setStep('processing')
+
+        if (capsuleId) {
+          try {
+            const now = new Date()
+            const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            const title = metadata.title?.trim() || `${MODE_TO_TYPE[mode]} Capture - ${dateStr}`
+
+            const { error: insertError } = await supabase
+              .from('captures')
+              .insert({
+                capsule_id: capsuleId,
+                title,
+                description: metadata.description?.trim() || null,
+                capture_date: metadata.captureDate || now.toISOString().split('T')[0],
+                location: metadata.location?.trim() || null,
+                creator: metadata.creator?.trim() || null,
+                cloud_url: result.cloudUrl,
+                type: MODE_TO_TYPE[mode],
+              })
+            if (insertError) throw insertError
+
+            onAddToCapsule()
+          } catch (dbErr) {
+            console.error('SUPABASE DB INSERT ERROR:', dbErr)
+            alert('Database Save Failed: ' + ((dbErr as Error).message || JSON.stringify(dbErr)))
+            setStep('processing')
+          }
+        } else {
+          setStep('processing')
+        }
       })
       .catch(() => {
         setUploadError(true)
       })
-  }, [mode])
+  }, [mode, capsuleId, onAddToCapsule])
 
   const retryUpload = useCallback(() => {
     runUpload(pendingMetadataRef.current)
