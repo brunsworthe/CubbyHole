@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Camera, Box, Palette, FileText, Mountain, Cloud } from 'lucide-react'
+import { Camera, Box, Palette, FileText, Mountain, Cloud, X, CalendarDays, User, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -53,12 +53,15 @@ function formatDate(isoDate: string) {
 
 // ── MemoryCard ────────────────────────────────────────────────────────────────
 
-function MemoryCard({ capture }: { capture: Capture }) {
+function MemoryCard({ capture, onClick }: { capture: Capture; onClick: () => void }) {
   const [imgError, setImgError] = useState(false)
   const { icon: Icon, badge, label } = getTypeConfig(capture.type)
 
   return (
-    <div className="group relative w-full overflow-hidden rounded-2xl bg-zinc-900 cursor-pointer hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 transition-all duration-300">
+    <button
+      onClick={onClick}
+      className="group relative w-full text-left overflow-hidden rounded-2xl bg-zinc-900 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 transition-all duration-300"
+    >
       <div className="relative aspect-[3/4] overflow-hidden">
         {imgError ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-800">
@@ -98,7 +101,7 @@ function MemoryCard({ capture }: { capture: Capture }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -159,6 +162,83 @@ function EmptyState({ onOpenCapture }: { onOpenCapture: () => void }) {
   )
 }
 
+// ── MemoryLightbox ────────────────────────────────────────────────────────────
+
+function MemoryLightbox({ capture, onClose }: { capture: Capture; onClose: () => void }) {
+  const { icon: Icon, badge, label } = getTypeConfig(capture.type)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handler)
+    }
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950" role="dialog" aria-modal="true">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${badge}`}>
+            <Icon className="w-3 h-3" />
+            {label}
+          </div>
+          <span className="text-sm font-semibold text-zinc-200 truncate">{capture.title}</span>
+        </div>
+        <button
+          onClick={onClose}
+          className="ml-4 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors flex-shrink-0"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Image */}
+      <div className="flex-1 min-h-0 flex items-center justify-center p-6 overflow-hidden">
+        <img
+          src={capture.cloud_url}
+          alt={capture.title}
+          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+          draggable={false}
+        />
+      </div>
+
+      {/* Footer metadata */}
+      <div className="flex-shrink-0 px-5 py-3.5 border-t border-zinc-800/60 bg-zinc-950/80">
+        <div className="flex items-center justify-center gap-5 flex-wrap">
+          {capture.capture_date && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {formatDate(capture.capture_date)}
+            </span>
+          )}
+          {capture.creator && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <User className="w-3.5 h-3.5" />
+              {capture.creator}
+            </span>
+          )}
+          {capture.location && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <MapPin className="w-3.5 h-3.5" />
+              {capture.location}
+            </span>
+          )}
+        </div>
+        {capture.description && (
+          <p className="text-xs text-zinc-600 text-center mt-2 max-w-sm mx-auto leading-relaxed">
+            {capture.description}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
@@ -169,6 +249,7 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
   const router = useRouter()
   const [memories, setMemories] = useState<Capture[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
 
   const fetchMemories = useCallback(async (uid: string) => {
     setIsLoading(true)
@@ -249,20 +330,26 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
   }
 
   return (
-    <section aria-label="My Memories">
-      {sectionHeader}
+    <>
+      <section aria-label="My Memories">
+        {sectionHeader}
 
-      {memories.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-          <EmptyState onOpenCapture={onOpenCapture} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {memories.map(capture => (
-            <MemoryCard key={capture.id} capture={capture} />
-          ))}
-        </div>
+        {memories.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+            <EmptyState onOpenCapture={onOpenCapture} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {memories.map(capture => (
+              <MemoryCard key={capture.id} capture={capture} onClick={() => setSelectedCapture(capture)} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {selectedCapture && (
+        <MemoryLightbox capture={selectedCapture} onClose={() => setSelectedCapture(null)} />
       )}
-    </section>
+    </>
   )
 }

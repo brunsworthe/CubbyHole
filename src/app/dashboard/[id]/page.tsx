@@ -78,16 +78,13 @@ function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className="group w-full text-left rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/50 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      className="group relative w-full text-left overflow-hidden rounded-2xl bg-zinc-900 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
     >
-      {/* Thumbnail */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-zinc-800">
+      <div className="relative aspect-[3/4] overflow-hidden">
         {imgError ? (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-            <Cloud className="w-7 h-7 text-slate-300 dark:text-zinc-600" />
-            <span className="text-[10px] font-mono text-slate-400 dark:text-zinc-600 tracking-widest">
-              CLOUD
-            </span>
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-800">
+            <Cloud className="w-8 h-8 text-zinc-600" />
+            <span className="text-[10px] font-mono text-zinc-600 tracking-widest">CLOUD</span>
           </div>
         ) : (
           <img
@@ -98,43 +95,27 @@ function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => vo
             onError={() => setImgError(true)}
           />
         )}
-        {/* Hover scrim */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200 pointer-events-none" />
-      </div>
 
-      {/* Footer */}
-      <div className="px-3.5 pt-2.5 pb-3.5 space-y-1.5">
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
 
-        {/* Type badge */}
-        <div className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge}`}>
-          <Icon className="w-2.5 h-2.5 flex-shrink-0" />
-          {label}
+        {/* Top-right mode badge */}
+        <div className="absolute top-2.5 right-2.5">
+          <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border backdrop-blur-sm ${badge}`}>
+            <Icon className="w-2.5 h-2.5 flex-shrink-0" />
+            {label}
+          </div>
         </div>
 
-        {/* Title */}
-        <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 leading-snug line-clamp-2">
-          {capture.title}
-        </p>
-
-        {/* Meta row */}
-        <div className="flex items-center gap-3 flex-wrap">
+        {/* Bottom-left title + date */}
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <p className="text-white text-sm font-semibold line-clamp-2 leading-snug mb-0.5 drop-shadow-sm">
+            {capture.title}
+          </p>
           {capture.capture_date && (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500">
-              <CalendarDays className="w-3 h-3 flex-shrink-0" />
+            <p className="text-white/55 text-[11px] leading-none">
               {formatDate(capture.capture_date)}
-            </span>
-          )}
-          {capture.creator && (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500 truncate max-w-[80px]">
-              <User className="w-3 h-3 flex-shrink-0" />
-              {capture.creator}
-            </span>
-          )}
-          {capture.location && (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-zinc-500 truncate max-w-[80px]">
-              <MapPin className="w-3 h-3 flex-shrink-0" />
-              {capture.location}
-            </span>
+            </p>
           )}
         </div>
       </div>
@@ -146,13 +127,8 @@ function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => vo
 
 function SkeletonCard() {
   return (
-    <div className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 animate-pulse">
-      <div className="aspect-[4/3] bg-slate-100 dark:bg-zinc-800" />
-      <div className="px-3.5 py-3 space-y-2">
-        <div className="h-2.5 w-20 bg-slate-100 dark:bg-zinc-800 rounded-full" />
-        <div className="h-3 w-32 bg-slate-100 dark:bg-zinc-800 rounded-full" />
-        <div className="h-2.5 w-16 bg-slate-100 dark:bg-zinc-800 rounded-full" />
-      </div>
+    <div className="rounded-2xl overflow-hidden bg-zinc-900 animate-pulse">
+      <div className="aspect-[3/4] bg-zinc-800" />
     </div>
   )
 }
