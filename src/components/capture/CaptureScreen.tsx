@@ -511,12 +511,17 @@ function CropOverlay({ corners, onCornersChange, accentColor }: {
   )
 }
 
-async function uploadCaptureToStorage(imageBlob: Blob): Promise<string> {
+async function uploadCaptureToStorage(imageData: Blob | string): Promise<string> {
   const supabase = createClient()
   const filePath = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
-  await supabase.storage.from('raw_captures').upload(filePath, imageBlob, { contentType: 'image/jpeg' })
-  const { data } = supabase.storage.from('raw_captures').getPublicUrl(filePath)
-  return data.publicUrl
+  const blobToUpload = typeof imageData === 'string'
+    ? await fetch(imageData).then(res => res.blob())
+    : imageData
+  const { data, error } = await supabase.storage.from('raw_captures').upload(filePath, blobToUpload, { contentType: 'image/jpeg' })
+  if (error) throw error
+  void data
+  const { data: urlData } = supabase.storage.from('raw_captures').getPublicUrl(filePath)
+  return urlData.publicUrl
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -855,8 +860,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setDocPages([])
       setDocOverlay(false)
       onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
-    } catch (err) {
-      console.error('Upload failed:', err)
+    } catch (error) {
+      console.error('SUPABASE UPLOAD ERROR:', error)
+      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
     } finally {
       setIsUploading(false)
     }
@@ -899,8 +905,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     try {
       const url = await uploadCaptureToStorage(primaryBlob)
       onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
-    } catch (err) {
-      console.error('Upload failed:', err)
+    } catch (error) {
+      console.error('SUPABASE UPLOAD ERROR:', error)
+      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
     } finally {
       setIsUploading(false)
     }
@@ -958,8 +965,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     try {
       const url = await uploadCaptureToStorage(primaryBlob)
       onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
-    } catch (err) {
-      console.error('Upload failed:', err)
+    } catch (error) {
+      console.error('SUPABASE UPLOAD ERROR:', error)
+      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
     } finally {
       setIsUploading(false)
     }
@@ -1018,8 +1026,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             const url = await uploadCaptureToStorage(croppedBlob)
             setCropState(null)
             onCapture({ blob: croppedBlob, url, mediaType: 'image' })
-          } catch (err) {
-            console.error('Upload failed:', err)
+          } catch (error) {
+            console.error('SUPABASE UPLOAD ERROR:', error)
+            alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
             setCropState(null)
           } finally {
             setIsUploading(false)
