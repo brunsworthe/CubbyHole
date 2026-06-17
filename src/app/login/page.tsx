@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, ArrowRight, Loader2, Inbox, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import BrandLink from '@/components/ui/BrandLink'
 
 type Message = { type: 'success' | 'error'; text: string }
 
@@ -106,7 +107,7 @@ export default function LoginPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-zinc-950 flex flex-col">
 
       {/* Ambient amber glow — matches the rest of the app */}
       <div
@@ -117,6 +118,15 @@ export default function LoginPage() {
         }}
       />
 
+      {/* ── Header ── */}
+      <header className="relative z-10 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-md flex-shrink-0">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center">
+          <BrandLink />
+        </div>
+      </header>
+
+      {/* ── Content ── */}
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
       <div className="relative w-full max-w-sm">
 
         {/* ── Wordmark ──────────────────────────────────────────────────────── */}
@@ -136,7 +146,7 @@ export default function LoginPage() {
               />
             </svg>
           </div>
-          <h1 className="text-white font-bold text-2xl tracking-tight">CubbyHole</h1>
+          <h1 className="text-white font-bold text-2xl tracking-tight lowercase">CubbyHole</h1>
           <p className="text-zinc-500 text-sm mt-1">Your family&apos;s 3D memory vault</p>
         </div>
 
@@ -308,6 +318,7 @@ export default function LoginPage() {
         </p>
 
       </div>
+      </main>
     </div>
   )
 }

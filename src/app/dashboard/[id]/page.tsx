@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
-  ArrowLeft, Plus, Box, Camera,
+  Plus, Box, Camera,
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2,
@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
 import CaptureViewerModal, { type ViewableCapture } from '@/components/capture/CaptureViewerModal'
 import ThemeToggle from '@/components/ui/ThemeToggle'
+import BrandLink from '@/components/ui/BrandLink'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -533,14 +534,8 @@ export default function CapsuleGalleryPage() {
       <header className="sticky top-0 z-10 border-b border-slate-200 dark:border-zinc-900 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
 
-          {/* Back to Dashboard */}
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-1.5 text-slate-400 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-zinc-300 text-sm font-medium transition-colors flex-shrink-0 -ml-1"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </button>
+          {/* Back to Dashboard — CubbyHole brand link */}
+          <BrandLink showBack />
 
           {/* Vertical divider */}
           <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800 flex-shrink-0" />

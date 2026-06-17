@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
+import BrandLink from '@/components/ui/BrandLink'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -589,12 +590,7 @@ export default function DashboardPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
 
           {/* Brand */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500/25 dark:border-amber-400/25 flex items-center justify-center">
-              <Box className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            </div>
-            <span className="font-bold text-base tracking-tight">CubbyHole</span>
-          </div>
+          <BrandLink />
 
           {/* Right controls */}
           <div className="flex items-center gap-2">
