@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Lightbulb, Info, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
+import { createClient } from '@/lib/supabase/client'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'scan3d',    label: '360° Object',    icon: Box      },
@@ -510,6 +511,14 @@ function CropOverlay({ corners, onCornersChange, accentColor }: {
   )
 }
 
+async function uploadCaptureToStorage(imageBlob: Blob): Promise<string> {
+  const supabase = createClient()
+  const filePath = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
+  await supabase.storage.from('raw_captures').upload(filePath, imageBlob, { contentType: 'image/jpeg' })
+  const { data } = supabase.storage.from('raw_captures').getPublicUrl(filePath)
+  return data.publicUrl
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   mode: CaptureMode
@@ -525,6 +534,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [scanProgress, setScanProgress] = useState(0)
   const [isCapturing, setIsCapturing] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
 
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
@@ -835,14 +845,21 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, docOverlay, cropState])
 
-  const finishDocument = useCallback(() => {
+  const finishDocument = useCallback(async () => {
     const allPages = docPages
     if (!allPages.length) return
     const primaryBlob = allPages[0]
-    const url = URL.createObjectURL(primaryBlob)
-    setDocPages([])
-    setDocOverlay(false)
-    onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
+    setIsUploading(true)
+    try {
+      const url = await uploadCaptureToStorage(primaryBlob)
+      setDocPages([])
+      setDocOverlay(false)
+      onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setIsUploading(false)
+    }
   }, [docPages, onCapture])
 
   const dismissDocOverlay = useCallback(() => {
@@ -874,12 +891,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, currentStep])
 
-  const compileScan3D = useCallback(() => {
+  const compileScan3D = useCallback(async () => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 8) return
     const primaryBlob = frames[0]
-    const url = URL.createObjectURL(primaryBlob)
-    onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
+    setIsUploading(true)
+    try {
+      const url = await uploadCaptureToStorage(primaryBlob)
+      onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setIsUploading(false)
+    }
   }, [onCapture])
 
   const handleOrbitToggle = useCallback((orbit: boolean) => {
@@ -921,18 +945,24 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, reliefStep])
 
-  const compileRelief = useCallback(() => {
+  const compileRelief = useCallback(async () => {
     const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 6) return
-    // Disable torch before handing off
     const track = streamRef.current?.getVideoTracks()[0]
     if (track) {
       track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
     }
     setTorchActive(false)
     const primaryBlob = frames[3]  // center (Top-Down) frame as primary thumbnail (index 3 of 6)
-    const url = URL.createObjectURL(primaryBlob)
-    onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
+    setIsUploading(true)
+    try {
+      const url = await uploadCaptureToStorage(primaryBlob)
+      onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setIsUploading(false)
+    }
   }, [onCapture])
 
   // ── Crop confirmation ─────────────────────────────────────────────────────
@@ -975,16 +1005,25 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         Math.round(cx), Math.round(cy), Math.round(cw), Math.round(ch),
         0, 0, Math.round(cw), Math.round(ch))
 
-      out.toBlob(croppedBlob => {
+      out.toBlob(async croppedBlob => {
         if (!croppedBlob) return
         URL.revokeObjectURL(objectUrl)
-        setCropState(null)
         if (pendingMode === 'document') {
+          setCropState(null)
           setDocPages(prev => [...prev, croppedBlob])
           setDocOverlay(true)
         } else {
-          const url = URL.createObjectURL(croppedBlob)
-          onCapture({ blob: croppedBlob, url, mediaType: 'image' })
+          setIsUploading(true)
+          try {
+            const url = await uploadCaptureToStorage(croppedBlob)
+            setCropState(null)
+            onCapture({ blob: croppedBlob, url, mediaType: 'image' })
+          } catch (err) {
+            console.error('Upload failed:', err)
+            setCropState(null)
+          } finally {
+            setIsUploading(false)
+          }
         }
       }, 'image/jpeg', 0.92)
     }
@@ -1506,10 +1545,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 </button>
                 <button
                   onClick={finishDocument}
-                  className="w-full flex items-center justify-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium text-sm py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 transition-colors"
+                  disabled={isUploading}
+                  className="w-full flex items-center justify-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium text-sm py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 transition-colors disabled:opacity-60"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  Finish & Save Document ({docPages.length} {docPages.length === 1 ? 'page' : 'pages'})
+                  {isUploading ? 'Uploading…' : `Finish & Save Document (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
                 </button>
               </div>
             </div>
@@ -1578,10 +1618,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </button>
             <button
               onClick={confirmCrop}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors ${accentTailwind}`}
+              disabled={isUploading}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors disabled:opacity-60 ${accentTailwind}`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              Confirm Crop
+              {isUploading ? 'Uploading…' : 'Confirm Crop'}
             </button>
           </div>
         </div>
@@ -1662,10 +1703,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {allFramesCaptured ? (
             <button
               onClick={compileScan3D}
-              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
+              disabled={isUploading}
+              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
             >
               <Box className="w-5 h-5" />
-              Compile &amp; Save 3D Object
+              {isUploading ? 'Uploading…' : 'Compile & Save 3D Object'}
             </button>
           ) : (
             <button
@@ -1757,10 +1799,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {allReliefCaptured ? (
             <button
               onClick={compileRelief}
-              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
+              disabled={isUploading}
+              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
             >
               <Mountain className="w-5 h-5" />
-              Finish &amp; Save Relief
+              {isUploading ? 'Uploading…' : 'Finish & Save Relief'}
             </button>
           ) : (
             <button
