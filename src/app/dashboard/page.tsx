@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 
@@ -477,10 +477,18 @@ export default function DashboardPage() {
   const [userId,            setUserId]            = useState<string | null>(null)
   const [capsules,          setCapsules]          = useState<Capsule[]>([])
   const [captureCounts,     setCaptureCounts]     = useState<Record<string, number>>({})
+  const [sortBy,            setSortBy]            = useState<'date' | 'name'>('date')
+  const [sortDir,           setSortDir]           = useState<'desc' | 'asc'>('desc')
   const [loading,           setLoading]           = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
+
+  const sortedCapsules = useMemo(() => {
+    if (sortBy === 'name') return [...capsules].sort((a, b) => a.name.localeCompare(b.name))
+    const diff = (a: Capsule, b: Capsule) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    return [...capsules].sort((a, b) => sortDir === 'desc' ? diff(a, b) : -diff(a, b))
+  }, [capsules, sortBy, sortDir])
 
   // ── Auth guard + data fetch ───────────────────────────────────────────────
 
@@ -619,15 +627,52 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Desktop CTA — only shown when there are existing capsules */}
+          {/* Sort toggle + desktop CTA — only shown when there are existing capsules */}
           {!loading && capsules.length > 0 && (
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/20 flex-shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              New Capsule
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Sort toggle */}
+              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium">
+                {/* Date button — re-clicking toggles asc/desc */}
+                <button
+                  onClick={() => {
+                    if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    else setSortBy('date')
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                    sortBy === 'date'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Date
+                  {sortBy === 'date' && (
+                    sortDir === 'desc'
+                      ? <ArrowDown className="w-3 h-3" />
+                      : <ArrowUp className="w-3 h-3" />
+                  )}
+                </button>
+
+                {/* Name button */}
+                <button
+                  onClick={() => setSortBy('name')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    sortBy === 'name'
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Name
+                </button>
+              </div>
+
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                New Capsule
+              </button>
+            </div>
           )}
         </div>
 
@@ -642,7 +687,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {capsules.map(capsule => (
+            {sortedCapsules.map(capsule => (
               <CapsuleCard
                 key={capsule.id}
                 capsule={capsule}
