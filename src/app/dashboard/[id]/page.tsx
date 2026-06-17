@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft, Plus, Box, Camera,
   FileText, Mountain, Palette, Cloud,
-  X,
+  X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -375,6 +375,14 @@ export default function CapsuleGalleryPage() {
   const [editTarget,      setEditTarget]      = useState<Capture | null>(null)
   const [deleteTarget,    setDeleteTarget]    = useState<Capture | null>(null)
   const [deletingIds,     setDeletingIds]     = useState<Set<string>>(new Set())
+  const [sortBy,          setSortBy]          = useState<'date' | 'name'>('date')
+  const [sortDir,         setSortDir]         = useState<'desc' | 'asc'>('desc')
+
+  const sortedCaptures = useMemo(() => {
+    if (sortBy === 'name') return [...captures].sort((a, b) => a.title.localeCompare(b.title))
+    const diff = (a: Capture, b: Capture) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    return [...captures].sort((a, b) => sortDir === 'desc' ? diff(a, b) : -diff(a, b))
+  }, [captures, sortBy, sortDir])
 
   // Lock body scroll while the full-screen capture flow is open
   useEffect(() => {
@@ -568,13 +576,53 @@ export default function CapsuleGalleryPage() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-        {/* Count line */}
+        {/* Count line + sort toggle */}
         {!loading && (
-          <p className="text-sm text-slate-500 dark:text-zinc-500 mb-6">
-            {captures.length === 0
-              ? 'No memories yet'
-              : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
-          </p>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <p className="text-sm text-slate-500 dark:text-zinc-500">
+              {captures.length === 0
+                ? 'No memories yet'
+                : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
+            </p>
+
+            {captures.length > 0 && (
+              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium flex-shrink-0">
+                {/* Date button — re-clicking toggles asc/desc */}
+                <button
+                  onClick={() => {
+                    if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    else setSortBy('date')
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                    sortBy === 'date'
+                      ? 'text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                  style={sortBy === 'date' ? { background: accent } : undefined}
+                >
+                  Date
+                  {sortBy === 'date' && (
+                    sortDir === 'desc'
+                      ? <ArrowDown className="w-3 h-3" />
+                      : <ArrowUp className="w-3 h-3" />
+                  )}
+                </button>
+
+                {/* Name button */}
+                <button
+                  onClick={() => setSortBy('name')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    sortBy === 'name'
+                      ? 'text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                  style={sortBy === 'name' ? { background: accent } : undefined}
+                >
+                  Name
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Content */}
@@ -591,7 +639,7 @@ export default function CapsuleGalleryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {captures.map(capture => (
+            {sortedCaptures.map(capture => (
               <CaptureCard
                 key={capture.id}
                 capture={capture}
