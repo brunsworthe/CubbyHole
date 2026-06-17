@@ -5,11 +5,12 @@ import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft, Plus, Box, Camera,
   FileText, Mountain, Palette, Cloud,
-  CalendarDays, MapPin, User, X,
+  X,
   MoreHorizontal, Pencil, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
+import CaptureViewerModal, { type ViewableCapture } from '@/components/capture/CaptureViewerModal'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,6 +32,9 @@ interface Capture {
   cloud_url: string
   type: '2D' | '3D' | 'Relief' | 'Document'
   created_at: string
+  cloud_frames: string[] | null
+  cloud_relief_frames: string[] | null
+  cloud_pages: string[] | null
 }
 
 // ── Type badge config ─────────────────────────────────────────────────────────
@@ -58,15 +62,32 @@ function getTypeConfig(type: string) {
   return TYPE_CONFIG[type as CaptureType] ?? FALLBACK_TYPE
 }
 
+const TYPE_TO_MODE: Record<string, string> = {
+  '3D': 'scan3d', 'Relief': 'relief180', '2D': 'artwork2d', 'Document': 'document',
+}
+
+function toViewable(c: Capture): ViewableCapture {
+  return {
+    id: c.id,
+    mode: TYPE_TO_MODE[c.type] ?? 'scan3d',
+    type: c.type,
+    mediaType: 'image',
+    timestamp: new Date(c.created_at).getTime(),
+    title: c.title,
+    cloudUrl: c.cloud_url,
+    cloudFrames: c.cloud_frames ?? undefined,
+    cloudReliefFrames: c.cloud_relief_frames ?? undefined,
+    cloudPages: c.cloud_pages ?? undefined,
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // Append T00:00:00 so the Date constructor treats the ISO date string as local,
 // not UTC — avoids the "one day off" shift on display.
-function formatDate(isoDate: string, style: 'short' | 'long' = 'short') {
+function formatDate(isoDate: string) {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-US', {
-    month: style === 'long' ? 'long' : 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: 'short', day: 'numeric', year: 'numeric',
   })
 }
 
@@ -339,89 +360,6 @@ function EmptyState({ capsuleName, onAddMemory }: { capsuleName: string; onAddMe
   )
 }
 
-// ── Lightbox ──────────────────────────────────────────────────────────────────
-
-function Lightbox({ capture, onClose }: { capture: Capture; onClose: () => void }) {
-  const { icon: Icon, badge, label } = getTypeConfig(capture.type)
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => {
-      document.body.style.overflow = ''
-      window.removeEventListener('keydown', handler)
-    }
-  }, [onClose])
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex flex-col bg-zinc-950"
-      role="dialog"
-      aria-modal="true"
-    >
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${badge}`}>
-            <Icon className="w-3 h-3" />
-            {label}
-          </div>
-          <span className="text-sm font-semibold text-zinc-200 truncate">
-            {capture.title}
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          className="ml-4 w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors flex-shrink-0"
-          aria-label="Close viewer"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Image fill */}
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6 overflow-hidden">
-        <img
-          src={capture.cloud_url}
-          alt={capture.title}
-          className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-          draggable={false}
-        />
-      </div>
-
-      {/* Footer metadata */}
-      <div className="flex-shrink-0 px-5 py-3.5 border-t border-zinc-800/60 bg-zinc-950/80">
-        <div className="flex items-center justify-center gap-5 flex-wrap">
-          {capture.capture_date && (
-            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-              <CalendarDays className="w-3.5 h-3.5" />
-              {formatDate(capture.capture_date, 'long')}
-            </span>
-          )}
-          {capture.creator && (
-            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-              <User className="w-3.5 h-3.5" />
-              {capture.creator}
-            </span>
-          )}
-          {capture.location && (
-            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-              <MapPin className="w-3.5 h-3.5" />
-              {capture.location}
-            </span>
-          )}
-        </div>
-        {capture.description && (
-          <p className="text-xs text-zinc-600 text-center mt-2 max-w-sm mx-auto leading-relaxed">
-            {capture.description}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CapsuleGalleryPage() {
@@ -665,10 +603,10 @@ export default function CapsuleGalleryPage() {
         </div>
       )}
 
-      {/* ── Image lightbox ── */}
+      {/* ── Capture viewer (spin / lenticular / document / 2D) ── */}
       {selectedCapture && (
-        <Lightbox
-          capture={selectedCapture}
+        <CaptureViewerModal
+          capture={toViewable(selectedCapture)}
           onClose={() => setSelectedCapture(null)}
         />
       )}

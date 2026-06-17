@@ -127,9 +127,16 @@ export default function CaptureViewerModal({ capture, onClose }: Props) {
                 : isDocument
                   ? <DocumentViewer imageUrls={docPageUrls} />
                   : (
-                    // Cloud placeholder — shown for scan3d/relief without multi-frame arrays
-                    // (older records or first-generation captures pre-Phase 4)
-                    <CloudAssetPlaceholder cloudUrl={capture.cloudUrl} />
+                    // Fallback for captures saved before migration 003 (no frame arrays).
+                    // Show the primary thumbnail so the viewer is never a blank screen.
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-950 p-6">
+                      <img
+                        src={capture.cloudUrl}
+                        alt={capture.title ?? ''}
+                        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                        draggable={false}
+                      />
+                    </div>
                   )
         }
       </div>

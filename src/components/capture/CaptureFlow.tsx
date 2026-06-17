@@ -110,24 +110,41 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
             const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             const title = metadata.title?.trim() || `${MODE_TO_TYPE[mode]} Capture - ${dateStr}`
 
-            const { error: insertError } = await supabase
+            const baseRow = {
+              capsule_id: capsuleId,
+              title,
+              description: metadata.description?.trim() || null,
+              capture_date: metadata.captureDate || now.toISOString().split('T')[0],
+              location: metadata.location?.trim() || null,
+              creator: metadata.creator?.trim() || null,
+              cloud_url: result.cloudUrl,
+              type: MODE_TO_TYPE[mode],
+            }
+
+            const frameFields = {
+              ...(result.cloudFrames?.length       ? { cloud_frames: result.cloudFrames }              : {}),
+              ...(result.cloudReliefFrames?.length ? { cloud_relief_frames: result.cloudReliefFrames } : {}),
+              ...(result.cloudPages?.length        ? { cloud_pages: result.cloudPages }                : {}),
+            }
+
+            let { error: insertError } = await supabase
               .from('captures')
-              .insert({
-                capsule_id: capsuleId,
-                title,
-                description: metadata.description?.trim() || null,
-                capture_date: metadata.captureDate || now.toISOString().split('T')[0],
-                location: metadata.location?.trim() || null,
-                creator: metadata.creator?.trim() || null,
-                cloud_url: result.cloudUrl,
-                type: MODE_TO_TYPE[mode],
-              })
+              .insert({ ...baseRow, ...frameFields })
+
+            // Frame columns missing from schema (migration 003 not run yet) — retry
+            // without them so the capture still saves. Frames can be added later.
+            if (insertError?.message?.includes('schema cache')) {
+              const retry = await supabase.from('captures').insert(baseRow)
+              insertError = retry.error
+            }
+
             if (insertError) throw insertError
 
-            onAddToCapsule()
+            setStep('processing')
           } catch (dbErr) {
-            console.error('SUPABASE DB INSERT ERROR:', dbErr)
-            alert('Database Save Failed: ' + ((dbErr as Error).message || JSON.stringify(dbErr)))
+            const e = dbErr as { message?: string; code?: string; details?: string }
+            console.error('SUPABASE DB INSERT ERROR:', e?.message ?? '(no message)', { code: e?.code, details: e?.details })
+            alert('Database Save Failed: ' + (e?.message || JSON.stringify(dbErr)))
             setStep('processing')
           }
         } else {
