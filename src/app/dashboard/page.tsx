@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2 } from 'lucide-react'
+import { Box, Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 
@@ -37,16 +37,37 @@ function resolveColor(hex: string | null): string {
 
 // ── CapsuleCard ───────────────────────────────────────────────────────────────
 
-function CapsuleCard({ capsule, onClick }: { capsule: Capsule; onClick: () => void }) {
+function CapsuleCard({
+  capsule, onClick, onRename, onDelete,
+}: {
+  capsule: Capsule
+  onClick: () => void
+  onRename: () => void
+  onDelete: () => void
+}) {
   const color = resolveColor(capsule.theme_color)
   const dateStr = new Date(capsule.created_at).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   return (
-    <button
+    <div
+      className={`group relative w-full rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/50 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden cursor-pointer ${menuOpen ? 'z-10 relative' : ''}`}
       onClick={onClick}
-      className="group w-full text-left rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/50 hover:-translate-y-0.5 transition-all duration-300 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
     >
       {/* Coloured band + folder icon */}
       <div
@@ -79,6 +100,40 @@ function CapsuleCard({ capsule, onClick }: { capsule: Capsule; onClick: () => vo
             View Gallery <ChevronRight className="w-3 h-3" />
           </div>
         </div>
+
+        {/* Ellipsis menu — top right */}
+        <div
+          ref={menuRef}
+          className="absolute top-2 right-2 z-20"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 rounded-lg bg-white/60 dark:bg-zinc-900/60 hover:bg-white dark:hover:bg-zinc-900 backdrop-blur-sm border border-slate-200/60 dark:border-zinc-700/60 flex items-center justify-center text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            aria-label="Capsule options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute top-8 right-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+              <button
+                onClick={() => { setMenuOpen(false); onRename() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Rename
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onDelete() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
@@ -88,7 +143,7 @@ function CapsuleCard({ capsule, onClick }: { capsule: Capsule; onClick: () => vo
         </p>
         <p className="text-xs text-slate-400 dark:text-zinc-500">Created {dateStr}</p>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -306,15 +361,116 @@ function CreateCapsuleModal({ profileId, onClose, onCreated }: ModalProps) {
   )
 }
 
+// ── RenameCapsuleModal ────────────────────────────────────────────────────────
+
+function RenameCapsuleModal({
+  capsule, onSave, onCancel,
+}: {
+  capsule: Capsule
+  onSave: (name: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(capsule.name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-950 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-bold text-slate-900 dark:text-zinc-100 text-base">Rename Capsule</h2>
+          <button onClick={onCancel} className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSave(value.trim()) }}
+          maxLength={60}
+          className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white text-sm outline-none transition-colors mb-5"
+        />
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (value.trim()) onSave(value.trim()) }}
+            disabled={!value.trim()}
+            className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── DeleteCapsuleModal ────────────────────────────────────────────────────────
+
+function DeleteCapsuleModal({
+  capsule, onConfirm, onCancel,
+}: {
+  capsule: Capsule
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-950 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-base leading-snug">Delete capsule?</h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5 truncate">{capsule.name}</p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600 dark:text-zinc-400 leading-relaxed mb-5">
+          This will permanently delete the capsule and all its memories. This cannot be undone.
+        </p>
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-sm font-semibold transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const router = useRouter()
 
-  const [userId,          setUserId]          = useState<string | null>(null)
-  const [capsules,        setCapsules]        = useState<Capsule[]>([])
-  const [loading,         setLoading]         = useState(true)
+  const [userId,            setUserId]            = useState<string | null>(null)
+  const [capsules,          setCapsules]          = useState<Capsule[]>([])
+  const [loading,           setLoading]           = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
+  const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
 
   // ── Auth guard + data fetch ───────────────────────────────────────────────
 
@@ -354,6 +510,31 @@ export default function DashboardPage() {
   const handleCreated = useCallback((capsule: Capsule) => {
     setCapsules(prev => [capsule, ...prev])
   }, [])
+
+  // ── Rename capsule ────────────────────────────────────────────────────────
+
+  const handleRenameSave = useCallback(async (name: string) => {
+    if (!renameTarget) return
+    const id = renameTarget.id
+    setRenameTarget(null)
+    setCapsules(prev => prev.map(c => c.id === id ? { ...c, name } : c))
+    const { error } = await supabase.from('capsules').update({ name }).eq('id', id)
+    if (error) console.error('RENAME ERROR:', error)
+  }, [renameTarget])
+
+  // ── Delete capsule ────────────────────────────────────────────────────────
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
+    setDeleteTarget(null)
+    setCapsules(prev => prev.filter(c => c.id !== id))
+    const { error } = await supabase.from('capsules').delete().eq('id', id)
+    if (error) {
+      console.error('DELETE ERROR:', error)
+      alert('Delete failed: ' + error.message)
+    }
+  }, [deleteTarget])
 
   // ── Sign out ──────────────────────────────────────────────────────────────
 
@@ -438,6 +619,8 @@ export default function DashboardPage() {
                 key={capsule.id}
                 capsule={capsule}
                 onClick={() => router.push(`/dashboard/${capsule.id}`)}
+                onRename={() => setRenameTarget(capsule)}
+                onDelete={() => setDeleteTarget(capsule)}
               />
             ))}
           </div>
@@ -463,6 +646,22 @@ export default function DashboardPage() {
           profileId={userId}
           onClose={() => setIsCreateModalOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {/* ── Rename / Delete modals ── */}
+      {renameTarget && (
+        <RenameCapsuleModal
+          capsule={renameTarget}
+          onSave={handleRenameSave}
+          onCancel={() => setRenameTarget(null)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCapsuleModal
+          capsule={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>

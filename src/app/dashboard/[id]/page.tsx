@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft, Plus, Box, Camera,
   FileText, Mountain, Palette, Cloud,
   CalendarDays, MapPin, User, X,
+  MoreHorizontal, Pencil, Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -71,14 +72,38 @@ function formatDate(isoDate: string, style: 'short' | 'long' = 'short') {
 
 // ── CaptureCard ───────────────────────────────────────────────────────────────
 
-function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => void }) {
+function CaptureCard({
+  capture, isDeleting, onClick, onEdit, onDelete,
+}: {
+  capture: Capture
+  isDeleting: boolean
+  onClick: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
   const [imgError, setImgError] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { icon: Icon, badge, label } = getTypeConfig(capture.type)
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
   return (
-    <button
+    <div
+      className={`group relative w-full overflow-hidden rounded-2xl bg-zinc-900 cursor-pointer hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 transition-all duration-300 ${
+        menuOpen ? 'z-10 relative' : ''
+      } ${isDeleting ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
       onClick={onClick}
-      className="group relative w-full text-left overflow-hidden rounded-2xl bg-zinc-900 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
     >
       <div className="relative aspect-[3/4] overflow-hidden">
         {imgError ? (
@@ -107,6 +132,40 @@ function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => vo
           </div>
         </div>
 
+        {/* Top-left ellipsis menu */}
+        <div
+          ref={menuRef}
+          className="absolute top-2.5 left-2.5 z-20"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/65 backdrop-blur-sm flex items-center justify-center text-white/65 hover:text-white transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            aria-label="Options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute top-8 left-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+              <button
+                onClick={() => { setMenuOpen(false); onEdit() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Rename
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onDelete() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Bottom-left title + date */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <p className="text-white text-sm font-semibold line-clamp-2 leading-snug mb-0.5 drop-shadow-sm">
@@ -119,7 +178,106 @@ function CaptureCard({ capture, onClick }: { capture: Capture; onClick: () => vo
           )}
         </div>
       </div>
-    </button>
+    </div>
+  )
+}
+
+// ── EditCaptureModal ──────────────────────────────────────────────────────────
+
+function EditCaptureModal({
+  capture, onSave, onCancel,
+}: {
+  capture: Capture
+  onSave: (title: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(capture.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-base">Rename memory</h3>
+          <button onClick={onCancel} className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSave(value.trim()) }}
+          maxLength={60}
+          className="w-full bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 focus:border-amber-400 dark:focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-zinc-100 text-sm outline-none transition-colors mb-5"
+        />
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (value.trim()) onSave(value.trim()) }}
+            disabled={!value.trim()}
+            className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── DeleteCaptureModal ────────────────────────────────────────────────────────
+
+function DeleteCaptureModal({
+  capture, onConfirm, onCancel,
+}: {
+  capture: Capture
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-base leading-snug">Delete memory?</h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5 truncate">{capture.title}</p>
+          </div>
+        </div>
+        <p className="text-sm text-slate-600 dark:text-zinc-400 leading-relaxed mb-5">
+          This will permanently remove this memory from the capsule. This cannot be undone.
+        </p>
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-sm font-semibold transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -276,6 +434,9 @@ export default function CapsuleGalleryPage() {
   const [notFound,        setNotFound]        = useState(false)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
   const [showCaptureFlow, setShowCaptureFlow] = useState(false)
+  const [editTarget,      setEditTarget]      = useState<Capture | null>(null)
+  const [deleteTarget,    setDeleteTarget]    = useState<Capture | null>(null)
+  const [deletingIds,     setDeletingIds]     = useState<Set<string>>(new Set())
 
   // Lock body scroll while the full-screen capture flow is open
   useEffect(() => {
@@ -326,6 +487,32 @@ export default function CapsuleGalleryPage() {
 
     return () => subscription.unsubscribe()
   }, [router, fetchData])
+
+  // ── Rename capture ────────────────────────────────────────────────────────
+
+  const handleEditSave = useCallback(async (title: string) => {
+    if (!editTarget) return
+    const id = editTarget.id
+    setEditTarget(null)
+    setCaptures(prev => prev.map(c => c.id === id ? { ...c, title } : c))
+    const { error } = await supabase.from('captures').update({ title }).eq('id', id)
+    if (error) console.error('RENAME ERROR:', error)
+  }, [editTarget])
+
+  // ── Delete capture ────────────────────────────────────────────────────────
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
+    setDeleteTarget(null)
+    setDeletingIds(prev => new Set(prev).add(id))
+    setTimeout(() => {
+      setCaptures(prev => prev.filter(c => c.id !== id))
+      setDeletingIds(prev => { const n = new Set(prev); n.delete(id); return n })
+    }, 300)
+    const { error } = await supabase.from('captures').delete().eq('id', id)
+    if (error) console.error('DELETE ERROR:', error)
+  }, [deleteTarget])
 
   // ── Capture flow callbacks ────────────────────────────────────────────────
 
@@ -451,7 +638,10 @@ export default function CapsuleGalleryPage() {
               <CaptureCard
                 key={capture.id}
                 capture={capture}
+                isDeleting={deletingIds.has(capture.id)}
                 onClick={() => setSelectedCapture(capture)}
+                onEdit={() => setEditTarget(capture)}
+                onDelete={() => setDeleteTarget(capture)}
               />
             ))}
           </div>
@@ -480,6 +670,22 @@ export default function CapsuleGalleryPage() {
         <Lightbox
           capture={selectedCapture}
           onClose={() => setSelectedCapture(null)}
+        />
+      )}
+
+      {/* ── Edit / Delete modals ── */}
+      {editTarget && (
+        <EditCaptureModal
+          capture={editTarget}
+          onSave={handleEditSave}
+          onCancel={() => setEditTarget(null)}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteCaptureModal
+          capture={deleteTarget}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
 
