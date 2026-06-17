@@ -452,6 +452,25 @@ export default function CapsuleGalleryPage() {
     if (error) console.error('DELETE ERROR:', error)
   }, [deleteTarget])
 
+  // ── Viewer rename / delete (from within the open viewer) ─────────────────
+
+  const handleViewerRename = useCallback(async (id: string, title: string) => {
+    setCaptures(prev => prev.map(c => c.id === id ? { ...c, title } : c))
+    const { error } = await supabase.from('captures').update({ title }).eq('id', id)
+    if (error) console.error('RENAME ERROR:', error)
+  }, [])
+
+  const handleViewerDelete = useCallback(async (id: string) => {
+    setSelectedCapture(null)
+    setDeletingIds(prev => new Set(prev).add(id))
+    setTimeout(() => {
+      setCaptures(prev => prev.filter(c => c.id !== id))
+      setDeletingIds(prev => { const n = new Set(prev); n.delete(id); return n })
+    }, 300)
+    const { error } = await supabase.from('captures').delete().eq('id', id)
+    if (error) console.error('DELETE ERROR:', error)
+  }, [])
+
   // ── Capture flow callbacks ────────────────────────────────────────────────
 
   const handleCaptureComplete = useCallback(() => {
@@ -608,6 +627,8 @@ export default function CapsuleGalleryPage() {
         <CaptureViewerModal
           capture={toViewable(selectedCapture)}
           onClose={() => setSelectedCapture(null)}
+          onRename={handleViewerRename}
+          onDelete={handleViewerDelete}
         />
       )}
 
