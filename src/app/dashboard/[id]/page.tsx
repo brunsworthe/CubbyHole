@@ -43,18 +43,18 @@ type CaptureType = '2D' | '3D' | 'Relief' | 'Document'
 
 const TYPE_CONFIG: Record<CaptureType, {
   icon: React.ComponentType<{ className?: string }>
-  badge: string
+  color: string
   label: string
 }> = {
-  '3D':       { icon: Box,      badge: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',    label: '360° Object'     },
-  'Relief':   { icon: Mountain, badge: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30', label: 'Textured Relief' },
-  '2D':       { icon: Palette,  badge: 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30', label: '2D Artwork'      },
-  'Document': { icon: FileText, badge: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30',            label: 'Document'        },
+  '3D':       { icon: Box,      color: '#f59e0b', label: '360° Object'     },
+  'Relief':   { icon: Mountain, color: '#fb923c', label: 'Textured Relief' },
+  '2D':       { icon: Palette,  color: '#a78bfa', label: '2D Artwork'      },
+  'Document': { icon: FileText, color: '#38bdf8', label: 'Document'        },
 }
 
 const FALLBACK_TYPE = {
   icon: Cloud,
-  badge: 'bg-zinc-500/15 text-zinc-500 border-zinc-500/30',
+  color: '#71717a',
   label: 'Capture',
 }
 
@@ -105,7 +105,7 @@ function CaptureCard({
   const [imgError, setImgError] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { icon: Icon, badge, label } = getTypeConfig(capture.type)
+  const { icon: Icon, color, label } = getTypeConfig(capture.type)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -147,8 +147,8 @@ function CaptureCard({
 
         {/* Top-right mode badge */}
         <div className="absolute top-2.5 right-2.5">
-          <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border backdrop-blur-sm ${badge}`}>
-            <Icon className="w-2.5 h-2.5 flex-shrink-0" />
+          <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/10 bg-zinc-900/75 backdrop-blur-md text-white">
+            <Icon className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
             {label}
           </div>
         </div>
@@ -345,10 +345,11 @@ function EmptyState({ capsuleName, onAddMemory }: { capsuleName: string; onAddMe
       {/* Capture type pills */}
       <div className="mt-8 flex items-center gap-2 flex-wrap justify-center">
         {(Object.entries(TYPE_CONFIG) as [CaptureType, typeof TYPE_CONFIG[CaptureType]][]).map(
-          ([type, { icon: Icon, badge, label }]) => (
+          ([type, { icon: Icon, color, label }]) => (
             <div
               key={type}
-              className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border ${badge}`}
+              className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border"
+              style={{ background: `${color}18`, borderColor: `${color}45`, color }}
             >
               <Icon className="w-3 h-3" />
               {label}
@@ -377,12 +378,21 @@ export default function CapsuleGalleryPage() {
   const [deletingIds,     setDeletingIds]     = useState<Set<string>>(new Set())
   const [sortBy,          setSortBy]          = useState<'date' | 'name'>('date')
   const [sortDir,         setSortDir]         = useState<'desc' | 'asc'>('desc')
+  const [filterType,      setFilterType]      = useState<CaptureType | null>(null)
+
+  const availableTypes = useMemo(() =>
+    (Object.keys(TYPE_CONFIG) as CaptureType[]).filter(t => captures.some(c => c.type === t)),
+  [captures])
 
   const sortedCaptures = useMemo(() => {
     if (sortBy === 'name') return [...captures].sort((a, b) => a.title.localeCompare(b.title))
     const diff = (a: Capture, b: Capture) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     return [...captures].sort((a, b) => sortDir === 'desc' ? diff(a, b) : -diff(a, b))
   }, [captures, sortBy, sortDir])
+
+  const displayedCaptures = useMemo(() =>
+    filterType ? sortedCaptures.filter(c => c.type === filterType) : sortedCaptures,
+  [sortedCaptures, filterType])
 
   // Lock body scroll while the full-screen capture flow is open
   useEffect(() => {
@@ -578,11 +588,13 @@ export default function CapsuleGalleryPage() {
 
         {/* Count line + sort toggle */}
         {!loading && (
-          <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <p className="text-sm text-slate-500 dark:text-zinc-500">
               {captures.length === 0
                 ? 'No memories yet'
-                : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
+                : filterType
+                  ? `${displayedCaptures.length} of ${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`
+                  : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
             </p>
 
             {captures.length > 0 && (
@@ -625,6 +637,42 @@ export default function CapsuleGalleryPage() {
           </div>
         )}
 
+        {/* Type filter chips — only shown when 2+ types exist */}
+        {!loading && availableTypes.length >= 2 && (
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            <button
+              onClick={() => setFilterType(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                filterType === null
+                  ? 'text-white border-transparent'
+                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+              }`}
+              style={filterType === null ? { background: accent, borderColor: accent } : undefined}
+            >
+              All
+            </button>
+            {availableTypes.map(type => {
+              const { icon: Icon, label } = TYPE_CONFIG[type]
+              const active = filterType === type
+              return (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(active ? null : type)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                    active
+                      ? 'text-white border-transparent'
+                      : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                  }`}
+                  style={active ? { background: accent, borderColor: accent } : undefined}
+                >
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Content */}
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -637,9 +685,22 @@ export default function CapsuleGalleryPage() {
               onAddMemory={() => setShowCaptureFlow(true)}
             />
           </div>
+        ) : displayedCaptures.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-3">
+              No {filterType && TYPE_CONFIG[filterType]?.label} captures in this capsule.
+            </p>
+            <button
+              onClick={() => setFilterType(null)}
+              className="text-xs font-medium transition-colors hover:opacity-80"
+              style={{ color: accent }}
+            >
+              Clear filter
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {sortedCaptures.map(capture => (
+            {displayedCaptures.map(capture => (
               <CaptureCard
                 key={capture.id}
                 capture={capture}
