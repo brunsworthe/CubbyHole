@@ -38,9 +38,10 @@ function resolveColor(hex: string | null): string {
 // ── CapsuleCard ───────────────────────────────────────────────────────────────
 
 function CapsuleCard({
-  capsule, onClick, onRename, onDelete,
+  capsule, captureCount = 0, onClick, onRename, onDelete,
 }: {
   capsule: Capsule
+  captureCount?: number
   onClick: () => void
   onRename: () => void
   onDelete: () => void
@@ -99,6 +100,14 @@ function CapsuleCard({
           >
             View Gallery <ChevronRight className="w-3 h-3" />
           </div>
+        </div>
+
+        {/* Capture count badge — top left */}
+        <div
+          className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums leading-none flex items-center"
+          style={{ background: `${color}25`, border: `1px solid ${color}45`, color }}
+        >
+          {captureCount}
         </div>
 
         {/* Ellipsis menu — top right */}
@@ -467,6 +476,7 @@ export default function DashboardPage() {
 
   const [userId,            setUserId]            = useState<string | null>(null)
   const [capsules,          setCapsules]          = useState<Capsule[]>([])
+  const [captureCounts,     setCaptureCounts]     = useState<Record<string, number>>({})
   const [loading,           setLoading]           = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
@@ -482,7 +492,24 @@ export default function DashboardPage() {
       .eq('profile_id', uid)
       .order('created_at', { ascending: false })
 
-    if (!error && data) setCapsules(data as Capsule[])
+    if (!error && data) {
+      const rows = data as Capsule[]
+      setCapsules(rows)
+
+      // Fetch capture counts for all capsules in one query
+      if (rows.length > 0) {
+        const ids = rows.map(c => c.id)
+        const { data: countRows } = await supabase
+          .from('captures')
+          .select('capsule_id')
+          .in('capsule_id', ids)
+
+        const counts: Record<string, number> = {}
+        ids.forEach(id => { counts[id] = 0 })
+        countRows?.forEach(r => { counts[r.capsule_id] = (counts[r.capsule_id] ?? 0) + 1 })
+        setCaptureCounts(counts)
+      }
+    }
     setLoading(false)
   }, [])
 
@@ -509,6 +536,7 @@ export default function DashboardPage() {
 
   const handleCreated = useCallback((capsule: Capsule) => {
     setCapsules(prev => [capsule, ...prev])
+    setCaptureCounts(prev => ({ ...prev, [capsule.id]: 0 }))
   }, [])
 
   // ── Rename capsule ────────────────────────────────────────────────────────
@@ -618,6 +646,7 @@ export default function DashboardPage() {
               <CapsuleCard
                 key={capsule.id}
                 capsule={capsule}
+                captureCount={captureCounts[capsule.id] ?? 0}
                 onClick={() => router.push(`/dashboard/${capsule.id}`)}
                 onRename={() => setRenameTarget(capsule)}
                 onDelete={() => setDeleteTarget(capsule)}
