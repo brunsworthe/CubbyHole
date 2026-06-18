@@ -535,7 +535,9 @@ export default function DashboardPage() {
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
 
   const sortedCapsules = useMemo(() => {
-    if (sortBy === 'name') return [...capsules].sort((a, b) => a.name.localeCompare(b.name))
+    if (sortBy === 'name') {
+      return [...capsules].sort((a, b) => sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name))
+    }
     const diff = (a: Capsule, b: Capsule) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     return [...capsules].sort((a, b) => sortDir === 'desc' ? diff(a, b) : -diff(a, b))
   }, [capsules, sortBy, sortDir])
@@ -708,16 +710,24 @@ export default function DashboardPage() {
                   )}
                 </button>
 
-                {/* Name button */}
+                {/* Name button — re-clicking toggles asc/desc */}
                 <button
-                  onClick={() => setSortBy('name')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  onClick={() => {
+                    if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    else setSortBy('name')
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                     sortBy === 'name'
                       ? 'bg-slate-500 text-white shadow-sm'
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
                   }`}
                 >
                   name
+                  {sortBy === 'name' && (
+                    sortDir === 'desc'
+                      ? <ArrowDown className="w-3 h-3" />
+                      : <ArrowUp className="w-3 h-3" />
+                  )}
                 </button>
               </div>
 

@@ -386,7 +386,9 @@ export default function CapsuleGalleryPage() {
   [captures])
 
   const sortedCaptures = useMemo(() => {
-    if (sortBy === 'name') return [...captures].sort((a, b) => a.title.localeCompare(b.title))
+    if (sortBy === 'name') {
+      return [...captures].sort((a, b) => sortDir === 'asc' ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title))
+    }
     const diff = (a: Capture, b: Capture) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     return [...captures].sort((a, b) => sortDir === 'desc' ? diff(a, b) : -diff(a, b))
   }, [captures, sortBy, sortDir])
@@ -615,10 +617,13 @@ export default function CapsuleGalleryPage() {
                   )}
                 </button>
 
-                {/* Name button */}
+                {/* Name button — re-clicking toggles asc/desc */}
                 <button
-                  onClick={() => setSortBy('name')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                  onClick={() => {
+                    if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    else setSortBy('name')
+                  }}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                     sortBy === 'name'
                       ? 'text-white shadow-sm'
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
@@ -626,6 +631,11 @@ export default function CapsuleGalleryPage() {
                   style={sortBy === 'name' ? { background: accent } : undefined}
                 >
                   name
+                  {sortBy === 'name' && (
+                    sortDir === 'desc'
+                      ? <ArrowDown className="w-3 h-3" />
+                      : <ArrowUp className="w-3 h-3" />
+                  )}
                 </button>
               </div>
             )}
