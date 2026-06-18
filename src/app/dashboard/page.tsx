@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette } from 'lucide-react'
+import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
@@ -78,16 +78,6 @@ function CapsuleCard({
         {/* Cubby shelf icon */}
         <div className="relative z-10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
           <CubbyShelfIcon color={color} className="w-[52px] h-[77px] transition-colors duration-300" />
-        </div>
-
-        {/* "View Gallery" pill — appears on hover */}
-        <div className="absolute bottom-2.5 right-3 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
-          <div
-            className="flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full text-white"
-            style={{ background: color }}
-          >
-            View Gallery <ChevronRight className="w-3 h-3" />
-          </div>
         </div>
 
         {/* Capture count badge — top left */}
