@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
@@ -20,14 +20,11 @@ interface Capsule {
 // ── Color swatches ────────────────────────────────────────────────────────────
 
 const SWATCHES = [
-  { label: 'Amber',   hex: '#f59e0b' },
-  { label: 'Sky',     hex: '#0ea5e9' },
-  { label: 'Emerald', hex: '#10b981' },
-  { label: 'Violet',  hex: '#8b5cf6' },
-  { label: 'Rose',    hex: '#f43f5e' },
-  { label: 'Coral',   hex: '#f97316' },
-  { label: 'Teal',    hex: '#14b8a6' },
-  { label: 'Indigo',  hex: '#6366f1' },
+  { label: 'Red',    hex: '#f87171' },
+  { label: 'Sky',    hex: '#38bdf8' },
+  { label: 'Yellow', hex: '#fef08a' },
+  { label: 'Green',  hex: '#86efac' },
+  { label: 'Violet', hex: '#a78bfa' },
 ]
 
 const DEFAULT_COLOR = SWATCHES[0].hex
@@ -39,12 +36,13 @@ function resolveColor(hex: string | null): string {
 // ── CapsuleCard ───────────────────────────────────────────────────────────────
 
 function CapsuleCard({
-  capsule, captureCount = 0, onClick, onRename, onDelete,
+  capsule, captureCount = 0, onClick, onRename, onChangeColor, onDelete,
 }: {
   capsule: Capsule
   captureCount?: number
   onClick: () => void
   onRename: () => void
+  onChangeColor: () => void
   onDelete: () => void
 }) {
   const color = resolveColor(capsule.theme_color)
@@ -132,6 +130,14 @@ function CapsuleCard({
               >
                 <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
                 Rename
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onChangeColor() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Palette className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Change Colour
               </button>
               <div className="border-t border-slate-100 dark:border-zinc-800" />
               <button
@@ -426,6 +432,69 @@ function RenameCapsuleModal({
   )
 }
 
+// ── ChangeColorModal ──────────────────────────────────────────────────────────
+
+function ChangeColorModal({
+  capsule, onSave, onCancel,
+}: {
+  capsule: Capsule
+  onSave: (hex: string) => void
+  onCancel: () => void
+}) {
+  const [selectedColor, setSelectedColor] = useState(resolveColor(capsule.theme_color))
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white dark:bg-zinc-950 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-bold text-slate-900 dark:text-zinc-100 text-base">Change Colour</h2>
+          <button onClick={onCancel} className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 flex items-center justify-center text-slate-500 dark:text-zinc-400 transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-wrap mb-5">
+          {SWATCHES.map(({ hex, label }) => (
+            <button
+              key={hex}
+              onClick={() => setSelectedColor(hex)}
+              title={label}
+              className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400 shadow-sm"
+              style={{ background: hex }}
+              aria-label={label}
+              aria-pressed={selectedColor === hex}
+            >
+              {selectedColor === hex && (
+                <Check className="absolute inset-0 m-auto w-4 h-4 text-white drop-shadow-sm" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2.5">
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(selectedColor)}
+            className="flex-1 py-3 rounded-xl text-white text-sm font-semibold transition-colors shadow-sm"
+            style={{ background: selectedColor, boxShadow: `0 2px 12px ${selectedColor}40` }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── DeleteCapsuleModal ────────────────────────────────────────────────────────
 
 function DeleteCapsuleModal({
@@ -483,6 +552,7 @@ export default function DashboardPage() {
   const [loading,           setLoading]           = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
+  const [colorTarget,       setColorTarget]       = useState<Capsule | null>(null)
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
 
   const sortedCapsules = useMemo(() => {
@@ -558,6 +628,17 @@ export default function DashboardPage() {
     const { error } = await supabase.from('capsules').update({ name }).eq('id', id)
     if (error) console.error('RENAME ERROR:', error)
   }, [renameTarget])
+
+  // ── Change capsule colour ─────────────────────────────────────────────────
+
+  const handleColorSave = useCallback(async (theme_color: string) => {
+    if (!colorTarget) return
+    const id = colorTarget.id
+    setColorTarget(null)
+    setCapsules(prev => prev.map(c => c.id === id ? { ...c, theme_color } : c))
+    const { error } = await supabase.from('capsules').update({ theme_color }).eq('id', id)
+    if (error) console.error('COLOUR ERROR:', error)
+  }, [colorTarget])
 
   // ── Delete capsule ────────────────────────────────────────────────────────
 
@@ -666,7 +747,7 @@ export default function DashboardPage() {
                 className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/20"
               >
                 <Plus className="w-4 h-4" />
-                New Capsule
+                New Cubby
               </button>
             </div>
           )}
@@ -690,6 +771,7 @@ export default function DashboardPage() {
                 captureCount={captureCounts[capsule.id] ?? 0}
                 onClick={() => router.push(`/dashboard/${capsule.id}`)}
                 onRename={() => setRenameTarget(capsule)}
+                onChangeColor={() => setColorTarget(capsule)}
                 onDelete={() => setDeleteTarget(capsule)}
               />
             ))}
@@ -705,7 +787,7 @@ export default function DashboardPage() {
             className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold shadow-xl shadow-amber-500/35 transition-colors"
           >
             <Plus className="w-5 h-5" />
-            New Capsule
+            New Cubby
           </button>
         </div>
       )}
@@ -725,6 +807,13 @@ export default function DashboardPage() {
           capsule={renameTarget}
           onSave={handleRenameSave}
           onCancel={() => setRenameTarget(null)}
+        />
+      )}
+      {colorTarget && (
+        <ChangeColorModal
+          capsule={colorTarget}
+          onSave={handleColorSave}
+          onCancel={() => setColorTarget(null)}
         />
       )}
       {deleteTarget && (
