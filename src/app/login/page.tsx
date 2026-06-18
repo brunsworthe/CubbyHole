@@ -218,7 +218,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-slate-900 dark:text-white font-bold text-2xl tracking-tight lowercase">CubbyHole</h1>
-          <p className="text-slate-500 dark:text-zinc-500 text-sm mt-1">A home for your family&apos;s memories</p>
+          <p className="text-slate-500 dark:text-zinc-500 text-sm mt-1">A place to keep memories</p>
         </div>
 
         {/* ── Card ──────────────────────────────────────────────────────────── */}
