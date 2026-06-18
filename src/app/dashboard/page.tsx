@@ -613,7 +613,7 @@ export default function DashboardPage() {
         {/* Section heading */}
         <div className="flex items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">My Capsules</h1>
+            <h1 className="text-2xl font-bold tracking-tight">My Cubbies</h1>
             {!loading && (
               <p className="text-sm text-slate-500 dark:text-zinc-500 mt-0.5">
                 {capsules.length === 0
