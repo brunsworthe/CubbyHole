@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, ArrowRight, Loader2, Inbox, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import BrandLink from '@/components/ui/BrandLink'
 
 type Message = { type: 'success' | 'error'; text: string }
 
@@ -118,13 +117,6 @@ export default function LoginPage() {
         }}
       />
 
-      {/* ── Header ── */}
-      <header className="relative z-10 border-b border-slate-200 dark:border-zinc-800/60 bg-white/90 dark:bg-zinc-950/80 backdrop-blur-md flex-shrink-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center">
-          <BrandLink />
-        </div>
-      </header>
-
       {/* ── Content ── */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
       <div className="relative w-full max-w-sm">
@@ -132,7 +124,7 @@ export default function LoginPage() {
         {/* ── Wordmark ──────────────────────────────────────────────────────── */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center mb-4">
-            <div className="w-14 h-[33.6px] rounded-sm overflow-hidden">
+            <div className="w-28 h-[67.2px] rounded-sm overflow-hidden">
               <svg
                 viewBox="0 0 40 24"
                 fill="none"
