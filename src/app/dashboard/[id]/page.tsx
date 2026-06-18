@@ -571,7 +571,7 @@ export default function CapsuleGalleryPage() {
                 }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add Memory
+                add memory
               </button>
             )}
           </div>
@@ -607,7 +607,7 @@ export default function CapsuleGalleryPage() {
                   }`}
                   style={sortBy === 'date' ? { background: accent } : undefined}
                 >
-                  Date
+                  date
                   {sortBy === 'date' && (
                     sortDir === 'desc'
                       ? <ArrowDown className="w-3 h-3" />
@@ -625,7 +625,7 @@ export default function CapsuleGalleryPage() {
                   }`}
                   style={sortBy === 'name' ? { background: accent } : undefined}
                 >
-                  Name
+                  name
                 </button>
               </div>
             )}
@@ -721,7 +721,7 @@ export default function CapsuleGalleryPage() {
             }}
           >
             <Plus className="w-5 h-5" />
-            Add Memory
+            add memory
           </button>
         </div>
       )}
