@@ -683,7 +683,7 @@ export default function DashboardPage() {
         {/* Section heading */}
         <div className="flex items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">My Cubbies</h1>
+            <h1 className="text-2xl font-bold tracking-tight">cubbyhole gallery</h1>
             {!loading && (
               <p className="text-sm text-slate-500 dark:text-zinc-500 mt-0.5">
                 {capsules.length === 0
@@ -710,7 +710,7 @@ export default function DashboardPage() {
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
                   }`}
                 >
-                  Date
+                  date
                   {sortBy === 'date' && (
                     sortDir === 'desc'
                       ? <ArrowDown className="w-3 h-3" />
@@ -727,7 +727,7 @@ export default function DashboardPage() {
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
                   }`}
                 >
-                  Name
+                  name
                 </button>
               </div>
 
@@ -736,7 +736,7 @@ export default function DashboardPage() {
                 className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-slate-500/20"
               >
                 <Plus className="w-4 h-4" />
-                New Cubby
+                new cubbyhole
               </button>
             </div>
           )}
@@ -776,7 +776,7 @@ export default function DashboardPage() {
             className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold shadow-xl shadow-slate-500/35 transition-colors"
           >
             <Plus className="w-5 h-5" />
-            New Cubby
+            new cubbyhole
           </button>
         </div>
       )}
