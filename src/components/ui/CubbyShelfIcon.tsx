@@ -16,9 +16,9 @@ export default function CubbyShelfIcon({ color, className }: Props) {
     <svg viewBox="0 0 8.667 11.667" className={className} aria-hidden="true">
       <defs>
         <pattern id={grainId} width="2.2" height="11.667" patternUnits="userSpaceOnUse">
-          <rect width="2.2" height="11.667" fill="#b45309" />
-          <path d="M0.3 0 Q1.1 2 0.5 4 Q0 6 0.9 8 Q1.4 10 0.6 11.667" stroke="#92400e" strokeWidth="0.18" fill="none" opacity="0.55" />
-          <path d="M1.6 0 Q0.9 2.5 1.7 5 Q2.2 7.2 1.3 9.2 Q0.8 10.8 1.6 11.667" stroke="#d97706" strokeWidth="0.14" fill="none" opacity="0.4" />
+          <rect width="2.2" height="11.667" fill="#8b5e3c" />
+          <path d="M0.3 0 Q1.1 2 0.5 4 Q0 6 0.9 8 Q1.4 10 0.6 11.667" stroke="#6b4226" strokeWidth="0.18" fill="none" opacity="0.55" />
+          <path d="M1.6 0 Q0.9 2.5 1.7 5 Q2.2 7.2 1.3 9.2 Q0.8 10.8 1.6 11.667" stroke="#a87b52" strokeWidth="0.14" fill="none" opacity="0.4" />
         </pattern>
       </defs>
       <rect x="0"     y="0"     width="8.667" height="11.667" rx="1" fill={`url(#${grainId})`} />

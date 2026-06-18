@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export default function BrandLink({ showBack = false }: Props) {
+  const grainId = useId()
+
   return (
     <Link
       href="/dashboard"
@@ -26,7 +29,15 @@ export default function BrandLink({ showBack = false }: Props) {
           aria-hidden="true"
         >
           {/* wood frame — rounded corners clipped by container */}
-          <rect width="40" height="24" fill="#b45309" />
+          <defs>
+            <pattern id={grainId} width="8" height="24" patternUnits="userSpaceOnUse">
+              <rect width="8" height="24" fill="#8b5e3c" />
+              <path d="M1   0 Q2.5 4  1.5 8  Q0.5 12 2   16 Q3   20 1.2 24" stroke="#6b4226" strokeWidth="0.4"  fill="none" opacity="0.5" />
+              <path d="M4.5 0 Q3   5  4.8 9  Q6   13 4.2 17 Q3   21 4.8 24" stroke="#a87b52" strokeWidth="0.35" fill="none" opacity="0.4" />
+              <path d="M6.8 0 Q7.6 4  6.5 9  Q5.8 14 7.2 18 Q7.8 21 6.6 24" stroke="#6b4226" strokeWidth="0.3"  fill="none" opacity="0.35" />
+            </pattern>
+          </defs>
+          <rect width="40" height="24" fill={`url(#${grainId})`} />
           {/* red column — leftmost — nested rects fade rectangularly to match the box shape */}
           <rect x="2"   y="2"    width="6"   height="9"   fill="#ef4444" />
           <rect x="2.6" y="2.9"  width="4.8" height="7.2" fill="#f87171" />
