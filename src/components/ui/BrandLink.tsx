@@ -38,8 +38,8 @@ export default function BrandLink({ showBack = false }: Props) {
             </radialGradient>
             <radialGradient id="cubbyFadeAmber" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#fbbf24" />
-              <stop offset="100%" stopColor="#f59e0b" />
+              <stop offset="85%" stopColor="#fef08a" />
+              <stop offset="100%" stopColor="#fde047" />
             </radialGradient>
             <radialGradient id="cubbyFadeGreen" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#fefefe" />
