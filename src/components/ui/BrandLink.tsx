@@ -25,50 +25,43 @@ export default function BrandLink({ showBack = false }: Props) {
           className="w-full h-full"
           aria-hidden="true"
         >
-          <defs>
-            <radialGradient id="cubbyFadeRed" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#f87171" />
-              <stop offset="100%" stopColor="#ef4444" />
-            </radialGradient>
-            <radialGradient id="cubbyFadeSky" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#0ea5e9" />
-            </radialGradient>
-            <radialGradient id="cubbyFadeAmber" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#fef08a" />
-              <stop offset="100%" stopColor="#fde047" />
-            </radialGradient>
-            <radialGradient id="cubbyFadeGreen" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#86efac" />
-              <stop offset="100%" stopColor="#4ade80" />
-            </radialGradient>
-            <radialGradient id="cubbyFadeViolet" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fefefe" />
-              <stop offset="85%" stopColor="#a78bfa" />
-              <stop offset="100%" stopColor="#8b5cf6" />
-            </radialGradient>
-          </defs>
           {/* wood frame — rounded corners clipped by container */}
           <rect width="40" height="24" fill="#b45309" />
-          {/* red column — leftmost */}
-          <rect x="2"    y="2"  width="6" height="9" fill="url(#cubbyFadeRed)" />
-          <rect x="2"    y="13" width="6" height="9" fill="url(#cubbyFadeRed)" />
+          {/* red column — leftmost — nested rects fade rectangularly to match the box shape */}
+          <rect x="2"   y="2"    width="6"   height="9"   fill="#ef4444" />
+          <rect x="2.6" y="2.9"  width="4.8" height="7.2" fill="#f87171" />
+          <rect x="3.5" y="4.25" width="3"   height="4.5" fill="#fefefe" />
+          <rect x="2"   y="13"   width="6"   height="9"   fill="#ef4444" />
+          <rect x="2.6" y="13.9" width="4.8" height="7.2" fill="#f87171" />
+          <rect x="3.5" y="15.25" width="3"  height="4.5" fill="#fefefe" />
           {/* sky-blue column */}
-          <rect x="9.5"  y="2"  width="6" height="9" fill="url(#cubbyFadeSky)" />
-          <rect x="9.5"  y="13" width="6" height="9" fill="url(#cubbyFadeSky)" />
+          <rect x="9.5"  y="2"    width="6"   height="9"   fill="#0ea5e9" />
+          <rect x="10.1" y="2.9"  width="4.8" height="7.2" fill="#38bdf8" />
+          <rect x="11"   y="4.25" width="3"   height="4.5" fill="#fefefe" />
+          <rect x="9.5"  y="13"   width="6"   height="9"   fill="#0ea5e9" />
+          <rect x="10.1" y="13.9" width="4.8" height="7.2" fill="#38bdf8" />
+          <rect x="11"   y="15.25" width="3"  height="4.5" fill="#fefefe" />
           {/* amber column */}
-          <rect x="17"   y="2"  width="6" height="9" fill="url(#cubbyFadeAmber)" />
-          <rect x="17"   y="13" width="6" height="9" fill="url(#cubbyFadeAmber)" />
+          <rect x="17"   y="2"    width="6"   height="9"   fill="#fde047" />
+          <rect x="17.6" y="2.9"  width="4.8" height="7.2" fill="#fef08a" />
+          <rect x="18.5" y="4.25" width="3"   height="4.5" fill="#fefefe" />
+          <rect x="17"   y="13"   width="6"   height="9"   fill="#fde047" />
+          <rect x="17.6" y="13.9" width="4.8" height="7.2" fill="#fef08a" />
+          <rect x="18.5" y="15.25" width="3"  height="4.5" fill="#fefefe" />
           {/* light green column */}
-          <rect x="24.5" y="2"  width="6" height="9" fill="url(#cubbyFadeGreen)" />
-          <rect x="24.5" y="13" width="6" height="9" fill="url(#cubbyFadeGreen)" />
+          <rect x="24.5" y="2"    width="6"   height="9"   fill="#4ade80" />
+          <rect x="25.1" y="2.9"  width="4.8" height="7.2" fill="#86efac" />
+          <rect x="26"   y="4.25" width="3"   height="4.5" fill="#fefefe" />
+          <rect x="24.5" y="13"   width="6"   height="9"   fill="#4ade80" />
+          <rect x="25.1" y="13.9" width="4.8" height="7.2" fill="#86efac" />
+          <rect x="26"   y="15.25" width="3"  height="4.5" fill="#fefefe" />
           {/* violet column — rightmost */}
-          <rect x="32"   y="2"  width="6" height="9" fill="url(#cubbyFadeViolet)" />
-          <rect x="32"   y="13" width="6" height="9" fill="url(#cubbyFadeViolet)" />
+          <rect x="32"   y="2"    width="6"   height="9"   fill="#8b5cf6" />
+          <rect x="32.6" y="2.9"  width="4.8" height="7.2" fill="#a78bfa" />
+          <rect x="33.5" y="4.25" width="3"   height="4.5" fill="#fefefe" />
+          <rect x="32"   y="13"   width="6"   height="9"   fill="#8b5cf6" />
+          <rect x="32.6" y="13.9" width="4.8" height="7.2" fill="#a78bfa" />
+          <rect x="33.5" y="15.25" width="3"  height="4.5" fill="#fefefe" />
         </svg>
       </div>
       <span className="font-bold text-base tracking-tight lowercase text-slate-900 dark:text-zinc-100 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors">
