@@ -16,6 +16,7 @@ export type CaptureMetadata = {
   title?: string
   creator?: string
   captureDate?: string
+  captureTime?: string
   location?: string
   description?: string
 }
@@ -94,6 +95,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
           title: metadata.title,
           creator: metadata.creator,
           captureDate: metadata.captureDate,
+          captureTime: metadata.captureTime,
           location: metadata.location,
           description: metadata.description,
           mediaType: media.mediaType,
@@ -127,12 +129,16 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
               ...(result.cloudPages?.length        ? { cloud_pages: result.cloudPages }                : {}),
             }
 
+            const timeField = {
+              ...(metadata.captureTime ? { capture_time: metadata.captureTime } : {}),
+            }
+
             let { error: insertError } = await supabase
               .from('captures')
-              .insert({ ...baseRow, ...frameFields })
+              .insert({ ...baseRow, ...frameFields, ...timeField })
 
-            // Frame columns missing from schema (migration 003 not run yet) — retry
-            // without them so the capture still saves. Frames can be added later.
+            // Frame/time columns missing from schema (migration not run yet) — retry
+            // without them so the capture still saves. They can be added later.
             if (insertError?.message?.includes('schema cache')) {
               const retry = await supabase.from('captures').insert(baseRow)
               insertError = retry.error

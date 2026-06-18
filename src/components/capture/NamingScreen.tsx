@@ -26,11 +26,14 @@ interface Props {
 }
 
 export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }: Props) {
-  const todayISO = new Date().toISOString().split('T')[0]
+  const now = new Date()
+  const todayISO = now.toISOString().split('T')[0]
+  const nowHHMM  = now.toTimeString().slice(0, 5)
 
   const [title, setTitle]           = useState('')
   const [creator, setCreator]       = useState('')
   const [captureDate, setCaptureDate] = useState(todayISO)
+  const [captureTime, setCaptureTime] = useState(nowHHMM)
   const [location, setLocation]     = useState('')
   const [description, setDescription] = useState('')
 
@@ -43,12 +46,13 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
 
   const handleConfirm = () => {
     const resolvedTitle = title.trim() ||
-      `${MODE_DESCRIPTIONS[mode]} — ${captureDate}`
+      `${MODE_DESCRIPTIONS[mode]} — ${captureDate}${captureTime ? ` ${captureTime}` : ''}`
 
     onConfirm({
       title:       resolvedTitle,
       creator:     creator.trim()     || undefined,
       captureDate: captureDate        || undefined,
+      captureTime: captureTime        || undefined,
       location:    location.trim()    || undefined,
       description: description.trim() || undefined,
     })
@@ -132,6 +136,19 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
               type="date"
               value={captureDate}
               onChange={e => setCaptureDate(e.target.value)}
+              className={`${inputClass} [color-scheme:dark]`}
+            />
+          </div>
+
+          {/* Time */}
+          <div>
+            <label className={labelClass}>
+              Time
+            </label>
+            <input
+              type="time"
+              value={captureTime}
+              onChange={e => setCaptureTime(e.target.value)}
               className={`${inputClass} [color-scheme:dark]`}
             />
           </div>

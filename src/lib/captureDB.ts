@@ -9,6 +9,7 @@ export type CaptureRecord = {
   title?: string
   creator?: string
   captureDate?: string
+  captureTime?: string
   location?: string
   description?: string
   mediaType: 'image' | 'video'
@@ -82,7 +83,7 @@ export async function deleteCapture(id: string): Promise<void> {
 
 export async function updateCapture(
   id: string,
-  updates: Partial<Pick<CaptureRecord, 'title' | 'creator' | 'captureDate' | 'location' | 'description'>>,
+  updates: Partial<Pick<CaptureRecord, 'title' | 'creator' | 'captureDate' | 'captureTime' | 'location' | 'description'>>,
 ): Promise<void> {
   const db = await openDB()
   return new Promise((resolve, reject) => {
