@@ -6,6 +6,7 @@ import { Plus, FolderOpen, LogOut, ChevronRight, X, Check, Loader2, MoreHorizont
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
+import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,21 +75,9 @@ function CapsuleCard({
         className="relative h-32 flex items-center justify-center"
         style={{ background: `${color}14` }}
       >
-        {/* Dot-grid texture */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(circle, ${color}35 1px, transparent 1px)`,
-            backgroundSize: '16px 16px',
-          }}
-        />
-
-        {/* Folder icon */}
-        <div
-          className="relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
-          style={{ background: `${color}22`, border: `1.5px solid ${color}50` }}
-        >
-          <FolderOpen className="w-8 h-8 transition-colors duration-300" style={{ color }} />
+        {/* Cubby shelf icon */}
+        <div className="relative z-10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+          <CubbyShelfIcon color={color} className="w-[52px] h-[77px] transition-colors duration-300" />
         </div>
 
         {/* "View Gallery" pill — appears on hover */}
