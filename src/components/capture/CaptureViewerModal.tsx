@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { X, Sparkles, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
-import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
 import SpinSequenceViewer from './SpinSequenceViewer'
@@ -129,8 +128,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
   if (isScan3d && hasSpinFrames) hintText = 'Drag left/right to rotate · ← → keys also work'
   else if (isRelief && hasReliefFrames) hintText = 'Drag left/right to shift the light · feel the depth'
   else if (isVideo) hintText = 'Drag to orbit · Pinch to zoom'
-  else if (is2D) hintText = 'Move your phone or drag to feel the depth'
-  else if (isDocument) hintText = 'Drag to tilt · Pinch or scroll to zoom'
+  else if (is2D || isDocument) hintText = 'Drag to tilt · Pinch or scroll to zoom'
   else hintText = ''
 
   return (
@@ -212,11 +210,9 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
             ? <LenticularViewer imageUrls={reliefFrameUrls} />
             : isVideo
               ? <VideoCaptureViewer videoUrl={capture.cloudUrl} mode={mode} />
-              : is2D
-                ? <FloatingCanvas2D imageUrl={capture.cloudUrl} />
-                : isDocument
-                  ? <DocumentViewer imageUrls={docPageUrls} />
-                  : (
+              : (is2D || isDocument)
+                ? <DocumentViewer imageUrls={docPageUrls} />
+                : (
                     <div className="w-full h-full flex items-center justify-center bg-zinc-950 p-6">
                       <img
                         src={capture.cloudUrl}

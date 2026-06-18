@@ -546,7 +546,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [docOverlay, setDocOverlay] = useState(false)
 
   // ── Crop state (artwork2d + document) ────────────────────────────────────
-  type CropState = { blob: Blob; objectUrl: string; pendingMode: 'artwork2d' | 'document' }
+  type CropState = { blob: Blob; objectUrl: string }
   const [cropState, setCropState] = useState<CropState | null>(null)
   const [cropCorners, setCropCorners] = useState<CropCorners>({
     tl: { x: 8, y: 8 }, tr: { x: 92, y: 8 },
@@ -812,26 +812,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return () => URL.revokeObjectURL(url)
   }, [isRelief, reliefStep, reliefFrames])
 
-  // ── Image capture (artwork2d) → enters crop state ────────────────────────
-  const captureImage = useCallback(() => {
-    if (isCapturing || cropState) return
-    const video = videoRef.current
-    if (!video || video.readyState < 2) return
-    setIsCapturing(true)
-    const canvas = document.createElement('canvas')
-    canvas.width  = video.videoWidth  || 1280
-    canvas.height = video.videoHeight || 720
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
-    canvas.toBlob(blob => {
-      if (!blob) { setIsCapturing(false); return }
-      const objectUrl = URL.createObjectURL(blob)
-      setCropCorners({ tl: { x: 8, y: 8 }, tr: { x: 92, y: 8 }, bl: { x: 8, y: 92 }, br: { x: 92, y: 92 } })
-      setCropState({ blob, objectUrl, pendingMode: 'artwork2d' })
-      setIsCapturing(false)
-    }, 'image/jpeg', 0.92)
-  }, [isCapturing, cropState])
-
-  // ── Document page capture → enters crop state ─────────────────────────────
+  // ── Flat-page capture (artwork2d + document) → enters crop state ─────────
   const captureDocPage = useCallback(() => {
     if (isCapturing || docOverlay || cropState) return
     const video = videoRef.current
@@ -845,7 +826,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       if (!blob) { setIsCapturing(false); return }
       const objectUrl = URL.createObjectURL(blob)
       setCropCorners({ tl: { x: 8, y: 8 }, tr: { x: 92, y: 8 }, bl: { x: 8, y: 92 }, br: { x: 92, y: 92 } })
-      setCropState({ blob, objectUrl, pendingMode: 'document' })
+      setCropState({ blob, objectUrl })
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
   }, [isCapturing, docOverlay, cropState])
@@ -979,7 +960,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     const container = cropContainerRef.current
     const containerW = container.clientWidth
     const containerH = container.clientHeight
-    const { objectUrl, pendingMode } = cropState
+    const { objectUrl } = cropState
 
     const img = new Image()
     img.onload = () => {
@@ -1013,31 +994,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         Math.round(cx), Math.round(cy), Math.round(cw), Math.round(ch),
         0, 0, Math.round(cw), Math.round(ch))
 
-      out.toBlob(async croppedBlob => {
+      out.toBlob(croppedBlob => {
         if (!croppedBlob) return
         URL.revokeObjectURL(objectUrl)
-        if (pendingMode === 'document') {
-          setCropState(null)
-          setDocPages(prev => [...prev, croppedBlob])
-          setDocOverlay(true)
-        } else {
-          setIsUploading(true)
-          try {
-            const url = await uploadCaptureToStorage(croppedBlob)
-            setCropState(null)
-            onCapture({ blob: croppedBlob, url, mediaType: 'image' })
-          } catch (error) {
-            console.error('SUPABASE UPLOAD ERROR:', error)
-            alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
-            setCropState(null)
-          } finally {
-            setIsUploading(false)
-          }
-        }
+        setCropState(null)
+        setDocPages(prev => [...prev, croppedBlob])
+        setDocOverlay(true)
       }, 'image/jpeg', 0.92)
     }
     img.src = objectUrl
-  }, [cropState, cropCorners, onCapture])
+  }, [cropState, cropCorners])
 
   const cancelCrop = useCallback(() => {
     if (!cropState) return
@@ -1060,9 +1026,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     if (cropState) return
     if (isScan3d)      captureFrame3D()
     else if (isRelief) captureReliefFrame()
-    else if (isDocument) { if (!docOverlay && !isCapturing) captureDocPage() }
-    else                 captureImage()
-  }, [cropState, isScan3d, captureFrame3D, isRelief, captureReliefFrame, isDocument, docOverlay, isCapturing, captureDocPage, captureImage])
+    else if (isFlat)   { if (!docOverlay && !isCapturing) captureDocPage() }
+  }, [cropState, isScan3d, captureFrame3D, isRelief, captureReliefFrame, isFlat, docOverlay, isCapturing, captureDocPage])
 
   // ── SVG calculations (flat/2D modes) ─────────────────────────────────────
   const ringOffset = RING_CIRC * (1 - scanProgress / 100)
@@ -1079,7 +1044,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   const tipText = docOverlay
     ? ''
-    : isDocument && docPages.length > 0
+    : isFlat && docPages.length > 0
     ? `Page ${docPages.length} saved — tap shutter to add another`
     : isCapturing
     ? is2D ? 'Hold steady — capturing every brushstroke and texture' : 'Hold steady — scanning'
@@ -1509,15 +1474,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* ── Document between-pages overlay ── */}
-        {isDocument && docOverlay && (
+        {/* ── Between-pages overlay (artwork2d + document) ── */}
+        {isFlat && docOverlay && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/65 backdrop-blur-sm">
             <div className="mx-5 w-full max-w-sm bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-800">
 
               <div className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-zinc-800">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-full bg-sky-500/15 dark:bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-sky-500" />
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    is2D ? 'bg-violet-500/15 dark:bg-violet-500/20' : 'bg-sky-500/15 dark:bg-sky-500/20'
+                  }`}>
+                    <CheckCircle2 className={`w-5 h-5 ${is2D ? 'text-violet-500' : 'text-sky-500'}`} />
                   </div>
                   <div>
                     <p className="font-semibold text-slate-900 dark:text-zinc-100 text-sm leading-snug">
@@ -1526,16 +1493,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
                       {docPages.length === 1
                         ? 'Position the next page, or save now.'
-                        : `${docPages.length} pages in this document.`}
+                        : `${docPages.length} pages captured so far.`}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
                   {docPages.map((_, i) => (
-                    <div key={i} className="flex items-center gap-1 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-900/50 rounded-full px-2 py-0.5">
-                      <CheckCircle2 className="w-2.5 h-2.5 text-sky-500 flex-shrink-0" />
-                      <span className="text-sky-700 dark:text-sky-400 text-[10px] font-semibold">p.{i + 1}</span>
+                    <div key={i} className={`flex items-center gap-1 border rounded-full px-2 py-0.5 ${
+                      is2D
+                        ? 'bg-violet-50 dark:bg-violet-950/40 border-violet-200 dark:border-violet-900/50'
+                        : 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-900/50'
+                    }`}>
+                      <CheckCircle2 className={`w-2.5 h-2.5 flex-shrink-0 ${is2D ? 'text-violet-500' : 'text-sky-500'}`} />
+                      <span className={`text-[10px] font-semibold ${is2D ? 'text-violet-700 dark:text-violet-400' : 'text-sky-700 dark:text-sky-400'}`}>p.{i + 1}</span>
                     </div>
                   ))}
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 border border-dashed border-slate-300 dark:border-zinc-700 rounded-full px-2 py-0.5">
@@ -1547,9 +1518,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="p-3 space-y-2">
                 <button
                   onClick={dismissDocOverlay}
-                  className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-white font-semibold text-sm py-3 rounded-2xl transition-colors"
+                  className={`w-full flex items-center justify-center gap-2 text-white font-semibold text-sm py-3 rounded-2xl transition-colors ${
+                    is2D ? 'bg-violet-500 hover:bg-violet-400 active:bg-violet-600' : 'bg-sky-500 hover:bg-sky-400 active:bg-sky-600'
+                  }`}
                 >
-                  <FileText className="w-4 h-4" />
+                  {is2D ? <Palette className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                   Capture Page {docPages.length + 1}
                 </button>
                 <button
@@ -1558,7 +1531,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   className="w-full flex items-center justify-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium text-sm py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 transition-colors disabled:opacity-60"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  {isUploading ? 'Uploading…' : `Finish & Save Document (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
+                  {isUploading ? 'Uploading…' : `Finish & Save (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
                 </button>
               </div>
             </div>
@@ -1847,9 +1820,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           <button
             onClick={handleShutter}
-            disabled={!cameraReady || isCapturing || (isDocument && docOverlay)}
+            disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
             className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-            aria-label={isDocument ? 'Capture page' : 'Take photo'}
+            aria-label={isFlat ? 'Capture page' : 'Take photo'}
           >
             <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
               isCapturing ? accentBtn.active : accentBtn.idle

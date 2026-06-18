@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
 import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2, Trash2 } from 'lucide-react'
-import FloatingCanvas2D from './FloatingCanvas2D'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
 import LenticularViewer from './LenticularViewer'
@@ -111,7 +110,9 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
             </h2>
             <p className="text-white/48 text-xs mt-1">
               {is2D
-                ? 'Move your phone or drag to feel the depth'
+                ? docPageUrls.length >= 2
+                  ? 'Drag to inspect · Use the arrows to flip pages'
+                  : 'Move your phone or drag to feel the depth'
                 : isDocument
                   ? 'Drag to inspect · Use the arrows to flip pages'
                   : isRelief
@@ -148,13 +149,11 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
             ? <LenticularViewer imageUrls={reliefFrameUrls} />
             : isVideoCapture
               ? <VideoCaptureViewer videoUrl={capturedUrl!} mode={mode} />
-              : is2D
-                ? <FloatingCanvas2D imageUrl={capturedUrl} />
-                : isDocument
-                  ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
-                  : isRelief
-                    ? <ReliefViewer />
-                    : <TimeCapsuleViewer modelUrl={MODEL_URL} />
+              : (is2D || isDocument)
+                ? <DocumentViewer imageUrls={docPageUrls.length > 0 ? docPageUrls : capturedUrl ? [capturedUrl] : undefined} />
+                : isRelief
+                  ? <ReliefViewer />
+                  : <TimeCapsuleViewer modelUrl={MODEL_URL} />
         }
 
         {/* Pedestal warm glow */}

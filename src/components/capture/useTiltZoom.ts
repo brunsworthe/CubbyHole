@@ -15,8 +15,8 @@ const pointDistance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y)
  * Shared pedestal-viewer interaction: pointer-tracked tilt/parallax, mouse-wheel
  * and simulated pinch-to-zoom (via multi-pointer distance tracking), and the
  * derived pedestal/ambient scales used to keep the stage feeling grounded at
- * any zoom level. Used by both FloatingCanvas2D and DocumentViewer so the two
- * pedestal experiences stay perfectly in sync.
+ * any zoom level. Used by DocumentViewer (artwork2d + document) so pedestal
+ * experiences stay perfectly in sync.
  */
 export function useTiltZoom() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
