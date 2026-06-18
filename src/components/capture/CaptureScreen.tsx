@@ -1098,7 +1098,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const accentTailwind = is2D ? 'bg-violet-500 hover:bg-violet-400'
     : isDocument ? 'bg-sky-500 hover:bg-sky-400'
     : isRelief   ? 'bg-orange-500 hover:bg-orange-400'
-    :               'bg-amber-500 hover:bg-amber-400'
+    :               'bg-slate-500 hover:bg-slate-400'
 
   // Pixel-exact dimensions of the video content area (replicates object-contain logic).
   // Used to constrain the orbit guide box so slider % values reference the feed, not the container.
@@ -1121,7 +1121,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </button>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${cameraReady ? 'animate-pulse' : 'opacity-40'} ${
-            is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : isRelief ? 'bg-orange-400' : 'bg-amber-400'
+            is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : isRelief ? 'bg-orange-400' : 'bg-slate-400'
           }`} />
           <span className="text-white/75 text-xs font-mono tracking-[0.15em] uppercase">
             {cameraStatus === 'requesting'  ? 'Connecting…'
@@ -1641,7 +1641,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Rotate / Orbit toggle — mirrors the Relief lighting toggle */}
           <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
-            <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-amber-400' : 'text-white/30'}`} />
+            <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
             <span className="text-white/50 text-xs flex-1 font-medium">3D Mode</span>
             <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
               <button
@@ -1656,7 +1656,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 onClick={() => handleOrbitToggle(true)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
                   isOrbitMode
-                    ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/30'
+                    ? 'bg-slate-500 text-white shadow-sm shadow-slate-500/30'
                     : 'text-white/35 hover:text-white/60'
                 }`}
               >
@@ -1675,15 +1675,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <span className="text-white/35 text-[9px] font-mono flex-shrink-0">W</span>
               <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
                 onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                className="flex-1 h-1 rounded-full accent-slate-400 cursor-pointer touch-manipulation"
                 aria-label="Guide box width" />
-              <span className="text-amber-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
+              <span className="text-slate-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
               <span className="text-white/35 text-[9px] font-mono flex-shrink-0 ml-1">H</span>
               <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
                 onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-amber-400 cursor-pointer touch-manipulation"
+                className="flex-1 h-1 rounded-full accent-slate-400 cursor-pointer touch-manipulation"
                 aria-label="Guide box height" />
-              <span className="text-amber-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
+              <span className="text-slate-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
             </div>
           )}
 
@@ -1713,7 +1713,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <button
               onClick={compileScan3D}
               disabled={isUploading}
-              className="w-full flex items-center justify-center gap-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-amber-500/20"
+              className="w-full flex items-center justify-center gap-2.5 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-slate-500/20"
             >
               <Box className="w-5 h-5" />
               {isUploading ? 'Uploading…' : 'Compile & Save 3D Object'}
@@ -1726,10 +1726,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               aria-label="Capture scan frame"
             >
               <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                isCapturing ? 'bg-amber-500' : 'bg-amber-400 hover:bg-amber-300'
+                isCapturing ? 'bg-slate-500' : 'bg-slate-400 hover:bg-slate-300'
               }`} />
               {isCapturing && (
-                <div className="absolute inset-0 rounded-full border-4 border-amber-400 animate-ping opacity-20" />
+                <div className="absolute inset-0 rounded-full border-4 border-slate-400 animate-ping opacity-20" />
               )}
             </button>
           )}
@@ -1856,7 +1856,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             }`} />
             {isCapturing && (
               <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-                is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-amber-400'
+                is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-slate-400'
               }`} />
             )}
           </button>

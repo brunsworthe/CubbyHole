@@ -29,7 +29,7 @@ export type ViewableCapture = {
 }
 
 const BADGE: Record<string, string> = {
-  scan3d:    'bg-amber-500/15 text-amber-500 border-amber-500/30',
+  scan3d:    'bg-slate-500/15 text-slate-500 border-slate-500/30',
   relief180: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
   artwork2d: 'bg-violet-500/15 text-violet-400 border-violet-500/30',
   document:  'bg-sky-500/15 text-sky-400 border-sky-500/30',
@@ -258,7 +258,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
                 if (e.key === 'Enter' && renameValue.trim()) handleRenameConfirm()
               }}
               maxLength={60}
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-zinc-100 text-sm outline-none transition-colors mb-5"
+              className="w-full bg-zinc-800 border border-zinc-700 focus:border-slate-500 rounded-xl px-3.5 py-2.5 text-zinc-100 text-sm outline-none transition-colors mb-5"
             />
             <div className="flex gap-2.5">
               <button
@@ -270,7 +270,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
               <button
                 onClick={handleRenameConfirm}
                 disabled={!renameValue.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                className="flex-1 py-2.5 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
               >
                 Save
               </button>

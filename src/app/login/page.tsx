@@ -99,7 +99,7 @@ export default function LoginPage() {
   // ── Shared class strings (match NamingScreen conventions) ────────────────────
 
   const inputClass =
-    'w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-600 text-sm outline-none transition-colors'
+    'w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-slate-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-600 text-sm outline-none transition-colors'
 
   const labelClass =
     'block text-slate-500 dark:text-zinc-400 text-xs font-medium mb-1.5 tracking-wider uppercase'
@@ -197,8 +197,8 @@ export default function LoginPage() {
           {/* Magic link sent confirmation */}
           {magicLinkSent ? (
             <div className="text-center py-4">
-              <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-500/10 rounded-2xl ring-1 ring-amber-500/20 mb-5">
-                <Inbox className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-500/10 rounded-2xl ring-1 ring-slate-500/20 mb-5">
+                <Inbox className="w-7 h-7 text-slate-600 dark:text-slate-400" />
               </div>
               <h2 className="text-slate-900 dark:text-white font-semibold text-lg mb-2">Check your inbox</h2>
               <p className="text-slate-500 dark:text-zinc-400 text-sm leading-relaxed mb-6">
@@ -207,7 +207,7 @@ export default function LoginPage() {
               </p>
               <button
                 onClick={switchMode}
-                className="text-amber-600 dark:text-amber-400 hover:text-amber-500 dark:hover:text-amber-300 text-sm transition-colors"
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 text-sm transition-colors"
               >
                 Back to sign in
               </button>
@@ -296,7 +296,7 @@ export default function LoginPage() {
                   <button
                     onClick={handleMagicLink}
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-amber-500/20"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-slate-500/20"
                   >
                     {loading
                       ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending link…</>
@@ -310,7 +310,7 @@ export default function LoginPage() {
                     <button
                       onClick={handleSignIn}
                       disabled={loading}
-                      className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-amber-500/20"
+                      className="w-full flex items-center justify-center gap-2 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-slate-500/20"
                     >
                       {loading
                         ? <><Loader2    className="w-4 h-4 animate-spin" /> Signing in…</>

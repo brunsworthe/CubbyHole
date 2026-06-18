@@ -15,9 +15,9 @@ export default function BrandLink({ showBack = false }: Props) {
       aria-label="CubbyHole — back to dashboard"
     >
       {showBack && (
-        <ArrowLeft className="w-4 h-4 text-slate-400 dark:text-zinc-500 group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors flex-shrink-0" />
+        <ArrowLeft className="w-4 h-4 text-slate-400 dark:text-zinc-500 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors flex-shrink-0" />
       )}
-      <div className="w-10 h-6 rounded-sm bg-amber-500/15 dark:bg-amber-400/15 flex items-center justify-center group-hover:bg-amber-500/25 dark:group-hover:bg-amber-400/20 transition-colors overflow-hidden">
+      <div className="w-10 h-6 rounded-sm bg-slate-500/15 dark:bg-slate-400/15 flex items-center justify-center group-hover:bg-slate-500/25 dark:group-hover:bg-slate-400/20 transition-colors overflow-hidden">
         <svg
           viewBox="0 0 40 24"
           fill="none"
@@ -71,7 +71,7 @@ export default function BrandLink({ showBack = false }: Props) {
           <rect x="32"   y="13" width="6" height="9" fill="url(#cubbyFadeViolet)" />
         </svg>
       </div>
-      <span className="font-bold text-base tracking-tight lowercase text-slate-900 dark:text-zinc-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+      <span className="font-bold text-base tracking-tight lowercase text-slate-900 dark:text-zinc-100 group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors">
         CubbyHole
       </span>
     </Link>

@@ -51,7 +51,7 @@ export default function UploadSyncScreen({ hasError, onRetry, onCancel }: Props)
             </button>
             <button
               onClick={onRetry}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
               Retry
@@ -61,9 +61,9 @@ export default function UploadSyncScreen({ hasError, onRetry, onCancel }: Props)
       ) : (
         <>
           {/* Animated cloud icon */}
-          <div className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-amber-950/40 border border-amber-900/50">
-            <Cloud className="w-9 h-9 text-amber-400 animate-pulse" />
-            <div className="absolute inset-[-4px] rounded-[20px] border-2 border-amber-500/15 animate-ping" />
+          <div className="relative flex items-center justify-center w-20 h-20 rounded-3xl bg-slate-950/40 border border-slate-900/50">
+            <Cloud className="w-9 h-9 text-slate-400 animate-pulse" />
+            <div className="absolute inset-[-4px] rounded-[20px] border-2 border-slate-500/15 animate-ping" />
           </div>
 
           <div className="text-center space-y-1.5">
@@ -77,7 +77,7 @@ export default function UploadSyncScreen({ hasError, onRetry, onCancel }: Props)
           <div className="w-full max-w-xs space-y-2">
             <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-amber-600 via-amber-400 to-orange-400"
+                className="h-full rounded-full bg-gradient-to-r from-slate-600 via-slate-400 to-slate-300"
                 style={{
                   width: `${progress}%`,
                   transition: 'width 1.9s cubic-bezier(0.25, 0.46, 0.45, 0.94)',

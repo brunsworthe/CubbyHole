@@ -183,9 +183,9 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
       <div className="relative mb-6">
-        <div className="absolute inset-0 rounded-full bg-amber-400/15 dark:bg-amber-400/10 blur-3xl scale-150" />
-        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
-          <FolderOpen className="w-11 h-11 text-amber-500 dark:text-amber-400" />
+        <div className="absolute inset-0 rounded-full bg-slate-400/15 dark:bg-slate-400/10 blur-3xl scale-150" />
+        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-950/60 dark:to-slate-800/40 border border-slate-200/80 dark:border-slate-800/40 flex items-center justify-center shadow-inner">
+          <FolderOpen className="w-11 h-11 text-slate-500 dark:text-slate-400" />
         </div>
       </div>
 
@@ -201,7 +201,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
 
       <button
         onClick={onCreateClick}
-        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-md shadow-amber-500/25"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors shadow-md shadow-slate-500/25"
       >
         <Plus className="w-4 h-4" />
         Create your first capsule
@@ -262,7 +262,7 @@ function CreateCapsuleModal({ profileId, onClose, onCreated }: ModalProps) {
   const labelClass =
     'block text-slate-500 dark:text-zinc-400 text-xs font-medium mb-1.5 tracking-wider uppercase'
   const inputClass =
-    'w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-600 text-sm outline-none transition-colors'
+    'w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-slate-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-600 text-sm outline-none transition-colors'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -305,7 +305,7 @@ function CreateCapsuleModal({ profileId, onClose, onCreated }: ModalProps) {
           {/* Name field */}
           <div>
             <label className={labelClass}>
-              Name <span className="text-amber-500">*</span>
+              Name <span className="text-slate-500">*</span>
             </label>
             <input
               ref={inputRef}
@@ -328,7 +328,7 @@ function CreateCapsuleModal({ profileId, onClose, onCreated }: ModalProps) {
                   key={hex}
                   onClick={() => setSelectedColor(hex)}
                   title={label}
-                  className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400 shadow-sm"
+                  className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400 shadow-sm"
                   style={{ background: hex }}
                   aria-label={label}
                   aria-pressed={selectedColor === hex}
@@ -413,7 +413,7 @@ function RenameCapsuleModal({
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSave(value.trim()) }}
           maxLength={60}
-          className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white text-sm outline-none transition-colors mb-5"
+          className="w-full bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 focus:border-slate-500/70 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white text-sm outline-none transition-colors mb-5"
         />
         <div className="flex gap-2.5">
           <button onClick={onCancel} className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-zinc-700 transition-colors">
@@ -422,7 +422,7 @@ function RenameCapsuleModal({
           <button
             onClick={() => { if (value.trim()) onSave(value.trim()) }}
             disabled={!value.trim()}
-            className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            className="flex-1 py-3 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
           >
             Save
           </button>
@@ -466,7 +466,7 @@ function ChangeColorModal({
               key={hex}
               onClick={() => setSelectedColor(hex)}
               title={label}
-              className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400 shadow-sm"
+              className="relative w-9 h-9 rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-400 shadow-sm"
               style={{ background: hex }}
               aria-label={label}
               aria-pressed={selectedColor === hex}
@@ -717,7 +717,7 @@ export default function DashboardPage() {
                   }}
                   className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
                     sortBy === 'date'
-                      ? 'bg-amber-500 text-white shadow-sm'
+                      ? 'bg-slate-500 text-white shadow-sm'
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
                   }`}
                 >
@@ -734,7 +734,7 @@ export default function DashboardPage() {
                   onClick={() => setSortBy('name')}
                   className={`px-3 py-1.5 rounded-lg transition-colors ${
                     sortBy === 'name'
-                      ? 'bg-amber-500 text-white shadow-sm'
+                      ? 'bg-slate-500 text-white shadow-sm'
                       : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
                   }`}
                 >
@@ -744,7 +744,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-amber-500/20"
+                className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-slate-500/20"
               >
                 <Plus className="w-4 h-4" />
                 New Cubby
@@ -784,7 +784,7 @@ export default function DashboardPage() {
         <div className="sm:hidden fixed bottom-6 right-5 z-30">
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold shadow-xl shadow-amber-500/35 transition-colors"
+            className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold shadow-xl shadow-slate-500/35 transition-colors"
           >
             <Plus className="w-5 h-5" />
             New Cubby

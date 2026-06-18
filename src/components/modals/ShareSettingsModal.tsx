@@ -17,10 +17,10 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       onClick={onChange}
       className={`
         relative rounded-full transition-colors duration-200
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400
         focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900
         ${checked
-          ? 'bg-amber-500 dark:bg-amber-400'
+          ? 'bg-slate-500 dark:bg-slate-400'
           : 'bg-slate-200 dark:bg-zinc-700'
         }
       `}
@@ -146,7 +146,7 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
                   className={`
                     w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150
                     ${tier === id
-                      ? 'bg-amber-50 dark:bg-amber-400/8 border-amber-300 dark:border-amber-400/30 ring-1 ring-amber-300/60 dark:ring-amber-400/20'
+                      ? 'bg-slate-50 dark:bg-slate-400/8 border-slate-300 dark:border-slate-400/30 ring-1 ring-slate-300/60 dark:ring-slate-400/20'
                       : 'bg-slate-50 dark:bg-zinc-800/50 border-slate-200 dark:border-zinc-800 hover:bg-white dark:hover:bg-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700'
                     }
                   `}
@@ -154,7 +154,7 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
                   <div className={`
                     w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors
                     ${tier === id
-                      ? 'bg-amber-500/15 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400'
+                      ? 'bg-slate-500/15 dark:bg-slate-400/20 text-slate-600 dark:text-slate-400'
                       : 'bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400'
                     }
                   `}>
@@ -169,7 +169,7 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
                   <div className={`
                     w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors
                     ${tier === id
-                      ? 'border-amber-500 dark:border-amber-400 bg-amber-500 dark:bg-amber-400'
+                      ? 'border-slate-500 dark:border-slate-400 bg-slate-500 dark:bg-slate-400'
                       : 'border-slate-300 dark:border-zinc-600 bg-transparent'
                     }
                   `}>
@@ -255,7 +255,7 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
                         border border-slate-300 dark:border-zinc-700
                         text-slate-700 dark:text-zinc-300
                         text-xs rounded-lg px-3 py-2 pr-8
-                        focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400/50
+                        focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400/50
                       "
                     >
                       <option value={24}>Expires in 24 hours</option>
@@ -280,10 +280,10 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-amber-300/60 dark:border-amber-400/20 bg-amber-50 dark:bg-amber-400/5 p-4 space-y-3">
+              <div className="rounded-xl border border-slate-300/60 dark:border-slate-400/20 bg-slate-50 dark:bg-slate-400/5 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400 animate-pulse" />
                     Link active
                   </span>
                   <span className="text-xs text-slate-400 dark:text-zinc-500">
@@ -342,7 +342,7 @@ export default function ShareSettingsModal({ capsule, linkedFamilies, onClose, o
           </button>
           <button
             onClick={() => { onSave(capsule.id, tier, Array.from(grants)); onClose() }}
-            className="px-5 py-2 rounded-lg text-sm font-semibold bg-amber-500 hover:bg-amber-400 dark:bg-amber-400 dark:hover:bg-amber-300 text-white dark:text-zinc-950 transition-colors shadow-sm"
+            className="px-5 py-2 rounded-lg text-sm font-semibold bg-slate-500 hover:bg-slate-400 dark:bg-slate-400 dark:hover:bg-slate-300 text-white dark:text-zinc-950 transition-colors shadow-sm"
           >
             Save Changes
           </button>

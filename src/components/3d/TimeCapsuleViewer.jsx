@@ -22,10 +22,10 @@ function LoadingFallback() {
     <div className="flex flex-col items-center justify-center w-full h-full bg-zinc-950">
       <div className="relative w-16 h-16 mb-6">
         <div className="absolute inset-0 rounded-full border-2 border-zinc-800" />
-        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-amber-400 animate-spin" />
+        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-slate-400 animate-spin" />
         <div className="absolute inset-[5px] rounded-full border border-zinc-800" />
         <div
-          className="absolute inset-[5px] rounded-full border border-transparent border-b-amber-600 animate-spin"
+          className="absolute inset-[5px] rounded-full border border-transparent border-b-slate-600 animate-spin"
           style={{ animationDuration: '1.4s', animationDirection: 'reverse' }}
         />
       </div>

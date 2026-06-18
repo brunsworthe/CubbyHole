@@ -205,7 +205,7 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
               ? 'bg-orange-500 hover:bg-orange-400 text-white'
               : isDocument
               ? 'bg-sky-500 hover:bg-sky-400 text-white'
-              : 'bg-amber-500 hover:bg-amber-400 text-white'
+              : 'bg-slate-500 hover:bg-slate-400 text-white'
           }`}
         >
           {added

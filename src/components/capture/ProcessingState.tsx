@@ -47,9 +47,9 @@ const STAGES_3D: Stage[] = [
     sublabel: 'Building watertight surface geometry',
     icon: Layers,
     duration: 2400,
-    activeColor: 'text-amber-500 dark:text-amber-400',
-    barColor: 'bg-amber-500',
-    iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+    activeColor: 'text-slate-500 dark:text-slate-400',
+    barColor: 'bg-slate-500',
+    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
   {
     id: 'textures',
@@ -100,9 +100,9 @@ const STAGES_2D: Stage[] = [
     sublabel: 'Adding light that responds to every tilt',
     icon: Sun,
     duration: 1800,
-    activeColor: 'text-amber-500 dark:text-amber-400',
-    barColor: 'bg-amber-500',
-    iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+    activeColor: 'text-slate-500 dark:text-slate-400',
+    barColor: 'bg-slate-500',
+    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
 ]
 
@@ -166,9 +166,9 @@ const STAGES_RELIEF: Stage[] = [
     sublabel: 'Sweeping the front hemisphere for full depth coverage',
     icon: Scan,
     duration: 2600,
-    activeColor: 'text-amber-500 dark:text-amber-400',
-    barColor: 'bg-amber-500',
-    iconBg: 'bg-amber-50 dark:bg-amber-950/50',
+    activeColor: 'text-slate-500 dark:text-slate-400',
+    barColor: 'bg-slate-500',
+    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
   {
     id: 'extrude',
@@ -252,12 +252,12 @@ export default function ProcessingState({ mode, onComplete }: Props) {
         <div className={`inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 transition-colors duration-500 ${
           isDone
             ? 'bg-emerald-50 dark:bg-emerald-950/50'
-            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : isDocument ? 'bg-sky-50 dark:bg-sky-950/40' : isRelief ? 'bg-orange-50 dark:bg-orange-950/40' : 'bg-amber-50 dark:bg-amber-950/40'
+            : is2D ? 'bg-violet-50 dark:bg-violet-950/40' : isDocument ? 'bg-sky-50 dark:bg-sky-950/40' : isRelief ? 'bg-orange-50 dark:bg-orange-950/40' : 'bg-slate-50 dark:bg-slate-950/40'
         }`}>
           {isDone
             ? <CheckCircle2 className="w-7 h-7 text-emerald-500" />
             : <div className={`w-6 h-6 border-[3px] border-slate-200 dark:border-zinc-700 rounded-full animate-spin ${
-                is2D ? 'border-t-violet-500' : isDocument ? 'border-t-sky-500' : isRelief ? 'border-t-orange-500' : 'border-t-amber-500'
+                is2D ? 'border-t-violet-500' : isDocument ? 'border-t-sky-500' : isRelief ? 'border-t-orange-500' : 'border-t-slate-500'
               }`} />
           }
         </div>

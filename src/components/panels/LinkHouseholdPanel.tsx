@@ -58,7 +58,7 @@ export default function LinkHouseholdPanel({ connections, onAddConnection, onClo
     border border-slate-300 dark:border-zinc-700
     text-slate-900 dark:text-zinc-100
     placeholder:text-slate-400 dark:placeholder:text-zinc-600
-    focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400/50
+    focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400/50
   `
 
   return (
@@ -127,9 +127,9 @@ export default function LinkHouseholdPanel({ connections, onAddConnection, onClo
                 className="
                   w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200
                   disabled:opacity-40 disabled:cursor-not-allowed
-                  bg-amber-500 hover:bg-amber-400 dark:bg-amber-400 dark:hover:bg-amber-300
+                  bg-slate-500 hover:bg-slate-400 dark:bg-slate-400 dark:hover:bg-slate-300
                   text-white dark:text-zinc-950
-                  disabled:hover:bg-amber-500 dark:disabled:hover:bg-amber-400
+                  disabled:hover:bg-slate-500 dark:disabled:hover:bg-slate-400
                 "
               >
                 {justSent ? (
@@ -193,7 +193,7 @@ export default function LinkHouseholdPanel({ connections, onAddConnection, onClo
                       <p className="text-sm font-medium text-slate-600 dark:text-zinc-400 truncate">{c.familyName}</p>
                       <p className="text-xs text-slate-400 dark:text-zinc-600 truncate">{c.email}</p>
                     </div>
-                    <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900/50 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-900/50 px-1.5 py-0.5 rounded-full">
                       Pending
                     </span>
                   </div>
@@ -207,7 +207,7 @@ export default function LinkHouseholdPanel({ connections, onAddConnection, onClo
                       <p className="text-sm font-medium text-slate-600 dark:text-zinc-400 truncate">{inv.familyName}</p>
                       <p className="text-xs text-slate-400 dark:text-zinc-600 truncate">{inv.email}</p>
                     </div>
-                    <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900/50 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-900/50 px-1.5 py-0.5 rounded-full">
                       Invited
                     </span>
                   </div>

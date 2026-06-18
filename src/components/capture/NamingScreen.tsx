@@ -55,7 +55,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
   }
 
   const inputClass =
-    'w-full bg-zinc-900 border border-zinc-700 focus:border-amber-500/70 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm outline-none transition-colors'
+    'w-full bg-zinc-900 border border-zinc-700 focus:border-slate-500/70 rounded-xl px-4 py-3.5 text-white placeholder-zinc-600 text-sm outline-none transition-colors'
 
   const labelClass =
     'block text-zinc-400 text-xs font-medium mb-1.5 tracking-wider uppercase'
@@ -94,7 +94,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
           {/* Title */}
           <div>
             <label className={labelClass}>
-              Title <span className="text-amber-500">*</span>
+              Title <span className="text-slate-500">*</span>
             </label>
             <input
               ref={inputRef}
@@ -174,7 +174,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
         <div className="w-full max-w-sm mx-auto space-y-3">
           <button
             onClick={handleConfirm}
-            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-amber-500/20"
+            className="w-full flex items-center justify-center gap-2 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-slate-500/20"
           >
             <Check className="w-4 h-4" />
             {title.trim() ? 'Save & Continue' : 'Continue'}

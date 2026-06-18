@@ -116,7 +116,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
       {/* Loading overlay */}
       {!allLoaded && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/90">
-          <div className="w-12 h-12 rounded-full border-4 border-zinc-800 border-t-amber-400 animate-spin mb-4" />
+          <div className="w-12 h-12 rounded-full border-4 border-zinc-800 border-t-slate-400 animate-spin mb-4" />
           <p className="text-white/40 text-xs font-mono tracking-widest">
             {loadedCount} / {totalFrames} frames
           </p>
@@ -127,7 +127,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
       {allLoaded && !hintDismissed && (
         <div className="absolute inset-x-0 bottom-20 flex justify-center z-10 pointer-events-none">
           <div className="flex items-center gap-2 bg-black/55 backdrop-blur-sm border border-white/10 rounded-full px-3.5 py-1.5 animate-pulse">
-            <ArrowLeftRight className="w-3.5 h-3.5 text-amber-400/60" />
+            <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400/60" />
             <span className="text-white/50 text-[11px] font-medium tracking-wide">
               Drag left or right to rotate
             </span>
@@ -145,7 +145,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
                   key={i}
                   className={`rounded-full transition-all duration-150 ${
                     i === frameIndex
-                      ? 'w-2.5 h-2.5 bg-amber-400'
+                      ? 'w-2.5 h-2.5 bg-slate-400'
                       : 'w-1.5 h-1.5 bg-white/20'
                   }`}
                 />

@@ -22,8 +22,8 @@ const TIER_CONFIG: Record<
   custom: {
     label: 'Custom',
     Icon: SlidersHorizontal,
-    light: 'bg-amber-50 text-amber-600 border-amber-200',
-    dark:  'dark:bg-amber-950/80 dark:text-amber-400 dark:border-amber-900/50',
+    light: 'bg-slate-50 text-slate-600 border-slate-200',
+    dark:  'dark:bg-slate-950/80 dark:text-slate-400 dark:border-slate-900/50',
   },
 }
 

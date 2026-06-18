@@ -89,10 +89,10 @@ export default function CapsuleCard({ capsule, isOwnProfile, onView, onShare, on
               onClick={(e) => { e.stopPropagation(); onShare(capsule) }}
               className="
                 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold tracking-wide
-                bg-amber-500/15 dark:bg-amber-400/15
-                border border-amber-500/30 dark:border-amber-400/25
-                hover:bg-amber-500/25 dark:hover:bg-amber-400/25
-                text-amber-700 dark:text-amber-300
+                bg-slate-500/15 dark:bg-slate-400/15
+                border border-slate-500/30 dark:border-slate-400/25
+                hover:bg-slate-500/25 dark:hover:bg-slate-400/25
+                text-slate-700 dark:text-slate-300
                 transition-all backdrop-blur-sm
               "
             >
@@ -126,10 +126,10 @@ export default function CapsuleCard({ capsule, isOwnProfile, onView, onShare, on
               className="
                 w-7 h-7 rounded-lg flex items-center justify-center
                 text-slate-400 dark:text-zinc-600
-                hover:text-amber-600 dark:hover:text-amber-400
-                hover:bg-amber-50 dark:hover:bg-zinc-800
+                hover:text-slate-600 dark:hover:text-slate-400
+                hover:bg-slate-50 dark:hover:bg-zinc-800
                 transition-all duration-150
-                focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400
+                focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-400
               "
               title="Share settings"
             >

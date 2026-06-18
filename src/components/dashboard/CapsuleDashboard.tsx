@@ -29,7 +29,7 @@ const TYPE_CONFIG: Record<CaptureType, {
   badge: string
   label: string
 }> = {
-  '3D':       { icon: Box,      badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',    label: '3D'      },
+  '3D':       { icon: Box,      badge: 'bg-slate-500/20 text-slate-300 border-slate-500/40',    label: '3D'      },
   'Relief':   { icon: Mountain, badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40', label: 'Relief'  },
   '2D':       { icon: Palette,  badge: 'bg-violet-500/20 text-violet-300 border-violet-500/40', label: '2D Art'  },
   'Document': { icon: FileText, badge: 'bg-sky-500/20 text-sky-300 border-sky-500/40',          label: 'Doc'     },
@@ -60,7 +60,7 @@ function MemoryCard({ capture, onClick }: { capture: Capture; onClick: () => voi
   return (
     <button
       onClick={onClick}
-      className="group relative w-full text-left overflow-hidden rounded-2xl bg-zinc-900 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 transition-all duration-300"
+      className="group relative w-full text-left overflow-hidden rounded-2xl bg-zinc-900 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 transition-all duration-300"
     >
       <div className="relative aspect-[3/4] overflow-hidden">
         {imgError ? (
@@ -121,9 +121,9 @@ function EmptyState({ onOpenCapture }: { onOpenCapture: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
       <div className="relative mb-6">
-        <div className="absolute inset-0 rounded-full bg-amber-400/15 dark:bg-amber-400/10 blur-3xl scale-150" />
-        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/60 dark:to-orange-950/40 border border-amber-200/80 dark:border-amber-800/40 flex items-center justify-center shadow-inner">
-          <Camera className="w-10 h-10 text-amber-500 dark:text-amber-400" />
+        <div className="absolute inset-0 rounded-full bg-slate-400/15 dark:bg-slate-400/10 blur-3xl scale-150" />
+        <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-slate-50 to-slate-200 dark:from-slate-950/60 dark:to-slate-800/40 border border-slate-200/80 dark:border-slate-800/40 flex items-center justify-center shadow-inner">
+          <Camera className="w-10 h-10 text-slate-500 dark:text-slate-400" />
         </div>
       </div>
 
@@ -139,7 +139,7 @@ function EmptyState({ onOpenCapture }: { onOpenCapture: () => void }) {
 
       <button
         onClick={onOpenCapture}
-        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-sm font-semibold transition-colors shadow-md shadow-amber-500/25"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors shadow-md shadow-slate-500/25"
       >
         <Camera className="w-4 h-4" />
         Capture your first memory
@@ -308,7 +308,7 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
       </div>
       <button
         onClick={onOpenCapture}
-        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-xs font-semibold transition-colors shadow-sm shadow-amber-500/20 flex-shrink-0"
+        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-xs font-semibold transition-colors shadow-sm shadow-slate-500/20 flex-shrink-0"
       >
         <Camera className="w-3.5 h-3.5" />
         Capture New

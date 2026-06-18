@@ -16,7 +16,7 @@ export default function ProfileSelector({ activeProfileId, linkedFamilies, onSel
   const tabBase = `
     flex-shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-medium
     transition-all duration-200 focus-visible:outline-none focus-visible:ring-2
-    focus-visible:ring-amber-400
+    focus-visible:ring-slate-400
   `
   const tabActive = `
     bg-white dark:bg-zinc-800
@@ -44,14 +44,14 @@ export default function ProfileSelector({ activeProfileId, linkedFamilies, onSel
           w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
           transition-colors
           ${activeProfileId === 'own'
-            ? 'bg-amber-500 dark:bg-amber-400 text-white dark:text-zinc-950'
+            ? 'bg-slate-500 dark:bg-slate-400 text-white dark:text-zinc-950'
             : 'bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400'}
         `}>
           H
         </span>
         <span>My Family</span>
         {activeProfileId === 'own' && (
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 ml-0.5" />
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400 ml-0.5" />
         )}
       </button>
 
@@ -67,7 +67,7 @@ export default function ProfileSelector({ activeProfileId, linkedFamilies, onSel
           </span>
           <span className="max-w-[120px] truncate">{family.familyName}</span>
           {activeProfileId === family.id && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 ml-0.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-500 dark:bg-slate-400 ml-0.5" />
           )}
         </button>
       ))}
@@ -84,7 +84,7 @@ export default function ProfileSelector({ activeProfileId, linkedFamilies, onSel
           hover:text-slate-600 dark:hover:text-zinc-400
           hover:border-slate-400 dark:hover:border-zinc-600
           hover:bg-slate-50 dark:hover:bg-zinc-900
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400
         `}
       >
         <Plus className="w-3.5 h-3.5" />

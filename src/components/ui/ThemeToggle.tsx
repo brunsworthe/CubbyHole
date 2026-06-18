@@ -19,7 +19,7 @@ export default function ThemeToggle() {
       className={`
         relative w-9 h-9 rounded-xl flex items-center justify-center
         border transition-all duration-200
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2
         focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950
         bg-slate-100 hover:bg-slate-200 border-slate-200 hover:border-slate-300
         dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:border-zinc-700 dark:hover:border-zinc-600
