@@ -1167,6 +1167,28 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           />
         )}
 
+        {/* ── Relief alignment grid + stage indicator pill ──
+             The grid is constrained to videoContentStyle (the same dynamically-computed
+             width/height already used by the guide box below) rather than the full
+             cropContainerRef footprint, so it tracks the actual letterboxed video pixels
+             instead of stretching into any empty bars around the feed. ── */}
+        {isRelief && (
+          <>
+            <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+              <div style={videoContentStyle} className="relative overflow-hidden">
+                <div className="absolute inset-0 grid grid-cols-5 divide-x divide-white/50">
+                  {Array.from({ length: 5 }).map((_, i) => <div key={i} />)}
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+              <span className="bg-black/60 backdrop-blur-sm text-white text-xs font-mono font-semibold px-3 py-1 rounded-full border border-white/20">
+                Frame {Math.min(reliefStep + 1, 6)} of 6
+              </span>
+            </div>
+          </>
+        )}
+
         {/* Guide box: dashed bounding box + crosshair, shown in scan3d and relief modes */}
         {(isScan3d || isRelief) && (
           <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
@@ -1444,10 +1466,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </svg>
         )}
 
-        {/* ── 5-column grid with side-profile phone icons for relief180 steps 1–5 ── */}
+        {/* ── Side-profile phone tilt icons for relief180 steps 1–5 (no grid lines —
+             the grid-cols-6 alignment grid below is the only divider overlay in Relief mode) ── */}
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
           <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-          <div style={{ ...videoContentStyle }} className="grid grid-cols-5 divide-x-2 divide-white/40">
+          <div style={{ ...videoContentStyle }} className="flex">
             {([
               { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
               { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
@@ -1458,7 +1481,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               const isActive   = step === reliefStep
               const isCaptured = reliefFrames[step] !== null
               return (
-                <div key={step} className="relative flex flex-col items-center justify-center">
+                <div key={step} className="relative flex-1 flex flex-col items-center justify-center">
                   {isActive && (
                     <div className={`w-12 h-2.5 bg-orange-400/90 rounded-full ${rotation}`} />
                   )}
@@ -1472,20 +1495,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             })}
           </div>
           </div>
-        )}
-
-        {/* ── Relief alignment grid + stage indicator pill ── */}
-        {isRelief && (
-          <>
-            <div className="absolute inset-0 z-10 grid grid-cols-6 divide-x divide-white/50 pointer-events-none">
-              {Array.from({ length: 6 }).map((_, i) => <div key={i} />)}
-            </div>
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-              <span className="bg-black/60 backdrop-blur-sm text-white text-xs font-mono font-semibold px-3 py-1 rounded-full border border-white/20">
-                Frame {Math.min(reliefStep + 1, 6)} of 6
-              </span>
-            </div>
-          </>
         )}
 
         {/* ── Between-pages overlay (artwork2d + document) ── */}
