@@ -6,7 +6,7 @@ import {
   Plus, Box, Camera,
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
-  MoreHorizontal, Pencil, Trash2,
+  MoreHorizontal, Pencil, Trash2, Check,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -95,13 +95,15 @@ function formatDate(isoDate: string) {
 // ── CaptureCard ───────────────────────────────────────────────────────────────
 
 function CaptureCard({
-  capture, isDeleting, onClick, onEdit, onDelete,
+  capture, isDeleting, onClick, onEdit, onDelete, isSelectMode, isSelected,
 }: {
   capture: Capture
   isDeleting: boolean
   onClick: () => void
   onEdit: () => void
   onDelete: () => void
+  isSelectMode: boolean
+  isSelected: boolean
 }) {
   const [imgError, setImgError] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -121,13 +123,24 @@ function CaptureCard({
     <div
       className={`group relative w-full overflow-hidden rounded-2xl bg-zinc-900 cursor-pointer hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 transition-all duration-300 ${
         menuOpen ? 'z-10 relative' : ''
-      } ${isDeleting ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}
+      } ${isDeleting ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'} ${
+        isSelected ? 'ring-2 ring-blue-500' : ''
+      }`}
       onClick={onClick}
       role="button"
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
     >
-      <div className="relative aspect-[3/4] overflow-hidden">
+      <div className={`relative aspect-[3/4] overflow-hidden transition-all duration-200 ${
+        isSelected ? 'scale-95 opacity-80' : ''
+      }`}>
+        {isSelectMode && (
+          <div className={`absolute top-2.5 left-2.5 z-30 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+            isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/70 backdrop-blur-sm'
+          }`}>
+            {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+          </div>
+        )}
         {imgError ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-800">
             <Cloud className="w-8 h-8 text-zinc-600" />
@@ -154,10 +167,10 @@ function CaptureCard({
           </div>
         </div>
 
-        {/* Top-left ellipsis menu */}
+        {/* Top-left ellipsis menu — hidden during selection mode so it doesn't collide with the checkmark */}
         <div
           ref={menuRef}
-          className="absolute top-2.5 left-2.5 z-20"
+          className={`absolute top-2.5 left-2.5 z-20 ${isSelectMode ? 'hidden' : ''}`}
           onClick={e => e.stopPropagation()}
         >
           <button
@@ -381,6 +394,24 @@ export default function CapsuleGalleryPage() {
   const [sortDir,         setSortDir]         = useState<'desc' | 'asc'>('desc')
   const [filterType,      setFilterType]      = useState<CaptureType | null>(null)
 
+  // ── Selection mode (bulk actions) ──────────────────────────────────────────
+  const [isSelectMode,       setIsSelectMode]       = useState(false)
+  const [selectedCaptureIds, setSelectedCaptureIds] = useState<string[]>([])
+
+  const handleToggleSelectMode = useCallback(() => {
+    setIsSelectMode(prev => {
+      const next = !prev
+      if (!next) setSelectedCaptureIds([])
+      return next
+    })
+  }, [])
+
+  const handleToggleCaptureSelected = useCallback((id: string) => {
+    setSelectedCaptureIds(prev =>
+      prev.includes(id) ? prev.filter(existingId => existingId !== id) : [...prev, id]
+    )
+  }, [])
+
   const availableTypes = useMemo(() =>
     (Object.keys(TYPE_CONFIG) as CaptureType[]).filter(t => captures.some(c => c.type === t)),
   [captures])
@@ -562,6 +593,18 @@ export default function CapsuleGalleryPage() {
 
           {/* Right: theme toggle + desktop CTA */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {!loading && captures.length > 0 && (
+              <button
+                onClick={handleToggleSelectMode}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                  isSelectMode
+                    ? 'bg-slate-500 hover:bg-slate-400 border-slate-400 text-white'
+                    : 'bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                {isSelectMode ? 'Done' : 'Select'}
+              </button>
+            )}
             <ThemeToggle />
             {!loading && (
               <button
@@ -710,7 +753,15 @@ export default function CapsuleGalleryPage() {
                 key={capture.id}
                 capture={capture}
                 isDeleting={deletingIds.has(capture.id)}
-                onClick={() => setSelectedCapture(capture)}
+                isSelectMode={isSelectMode}
+                isSelected={selectedCaptureIds.includes(capture.id)}
+                onClick={() => {
+                  if (isSelectMode) {
+                    handleToggleCaptureSelected(capture.id)
+                  } else {
+                    setSelectedCapture(capture)
+                  }
+                }}
                 onEdit={() => setEditTarget(capture)}
                 onDelete={() => setDeleteTarget(capture)}
               />
