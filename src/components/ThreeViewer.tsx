@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
-import { LinearFilter, type Group, type Mesh } from 'three'
+import { LinearFilter, SRGBColorSpace, DoubleSide, type Group, type Mesh } from 'three'
 
 interface ThreeViewerProps {
   imageUrls: string[]
@@ -29,6 +29,7 @@ function SpinSequenceStack({ imageUrls }: { imageUrls: string[] }) {
     textures.forEach(texture => {
       texture.minFilter = LinearFilter
       texture.generateMipmaps = false
+      texture.colorSpace = SRGBColorSpace
       texture.needsUpdate = true
       gl.initTexture(texture)
     })
@@ -74,7 +75,7 @@ function SpinSequenceStack({ imageUrls }: { imageUrls: string[] }) {
           ref={el => { meshRefs.current[i] = el }}
         >
           <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial map={texture} side={2} />
+          <meshBasicMaterial map={texture} toneMapped={false} side={DoubleSide} />
         </mesh>
       ))}
     </group>
@@ -101,9 +102,6 @@ export default function ThreeViewer({ imageUrls }: ThreeViewerProps) {
   return (
     <div className="absolute inset-0 w-full h-full bg-zinc-950">
       <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[3, 3, 3]} intensity={1} />
-
         <Suspense fallback={<Html center>Loading 3D Engine...</Html>}>
           {imageUrls.length > 0 && <SpinSequenceStack imageUrls={imageUrls} />}
         </Suspense>
