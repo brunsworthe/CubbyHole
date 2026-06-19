@@ -45,6 +45,22 @@ const MODE_TO_TYPE: Record<CaptureMode, '2D' | '3D' | 'Relief' | 'Document'> = {
   document:  'Document',
 }
 
+// Defensive fallback for a blank/whitespace-only title: "[Capture Mode] Capture - [Formatted Date/Time]"
+function isBlankTitle(value?: string): boolean {
+  return !value || value.trim().length === 0
+}
+
+function buildFallbackTitle(mode: CaptureMode, date: Date): string {
+  const formatted = date.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  return `${MODE_TO_TYPE[mode]} Capture - ${formatted}`
+}
+
 type Step = 'capture' | 'naming' | 'uploading' | 'processing' | 'result'
 
 interface Props {
@@ -109,8 +125,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
         if (capsuleId) {
           try {
             const now = new Date()
-            const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            const title = metadata.title?.trim() || `${MODE_TO_TYPE[mode]} Capture - ${dateStr}`
+            const title = isBlankTitle(metadata.title) ? buildFallbackTitle(mode, now) : metadata.title!.trim()
 
             const baseRow = {
               capsule_id: capsuleId,
