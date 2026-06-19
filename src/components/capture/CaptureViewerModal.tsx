@@ -232,7 +232,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
       </div>
 
       {/* Viewer */}
-      <div className="flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0">
         {canThreeView && showThreeViewer
           ? <ThreeViewer imageUrls={threeViewerImageUrls} />
           : isScan3d && hasSpinFrames

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls, useTexture } from '@react-three/drei'
-import { LinearFilter, type Mesh, type MeshStandardMaterial } from 'three'
+import { LinearFilter, type Group, type Mesh } from 'three'
 
 interface ThreeViewerProps {
   imageUrls: string[]
@@ -16,15 +16,15 @@ function angleToFrameIndex(angle: number, frameCount: number): number {
   return Math.floor((normalized / (Math.PI * 2)) * frameCount) % frameCount
 }
 
-function SpinSequencePlane({ imageUrls }: { imageUrls: string[] }) {
+function SpinSequenceStack({ imageUrls }: { imageUrls: string[] }) {
   const textures = useTexture(imageUrls)
-  const meshRef = useRef<Mesh>(null)
-  const materialRef = useRef<MeshStandardMaterial>(null)
-  const { camera, gl } = useThree()
+  const groupRef = useRef<Group>(null)
+  const meshRefs = useRef<(Mesh | null)[]>([])
+  const { camera, gl, viewport } = useThree()
 
   // Pre-upload every frame to the GPU up front (and use cheap linear filtering
-  // instead of mipmaps) so swapping textures during the orbit doesn't blink
-  // while WebGL lazily compiles/uploads a texture for the first time.
+  // instead of mipmaps) so every mesh's material is already compiled before
+  // the orbit starts swapping which one is visible — eliminates the blink.
   useEffect(() => {
     textures.forEach(texture => {
       texture.minFilter = LinearFilter
@@ -34,33 +34,50 @@ function SpinSequencePlane({ imageUrls }: { imageUrls: string[] }) {
     })
   }, [textures, gl])
 
-  // Match the plane's proportions to the source images so frames never squish/stretch.
+  // Match the stack's proportions to the source images so frames never squish/stretch.
   const aspect = useMemo(() => {
     const image = textures[0]?.image as { width?: number; height?: number } | undefined
     return image?.width && image?.height ? image.width / image.height : 1
   }, [textures])
 
-  useFrame(() => {
-    if (!meshRef.current || !materialRef.current) return
-
-    // Billboard: keep the plane facing the camera as it orbits
-    meshRef.current.quaternion.copy(camera.quaternion)
-
-    // Dynamic Angle Swap: pick the frame matching the camera's current orbit angle
-    const angle = Math.atan2(camera.position.x, camera.position.z)
-    const index = angleToFrameIndex(angle, textures.length)
-
-    if (materialRef.current.map !== textures[index]) {
-      materialRef.current.map = textures[index]
-      materialRef.current.needsUpdate = true
+  // Fit-contain scale: fill as much of the camera's viewport as possible without cropping.
+  const [scaleX, scaleY] = useMemo(() => {
+    if (viewport.width / viewport.height > aspect) {
+      return [viewport.height * aspect, viewport.height]
     }
+    return [viewport.width, viewport.width / aspect]
+  }, [viewport.width, viewport.height, aspect])
+
+  useFrame(() => {
+    if (!groupRef.current) return
+
+    // Billboard: keep the stack facing the camera as it orbits
+    groupRef.current.quaternion.copy(camera.quaternion)
+
+    // Dynamic Angle Swap: toggle which pre-compiled mesh is visible based on
+    // the camera's current orbit angle. Nothing needs to compile mid-swap.
+    const angle = Math.atan2(camera.position.x, camera.position.z)
+    const activeIndex = angleToFrameIndex(angle, textures.length)
+
+    meshRefs.current.forEach((mesh, i) => {
+      if (mesh) mesh.visible = i === activeIndex
+    })
   })
 
   return (
-    <mesh ref={meshRef} scale={[aspect, 1, 1]}>
-      <planeGeometry args={[2, 2]} />
-      <meshStandardMaterial ref={materialRef} map={textures[0]} side={2} />
-    </mesh>
+    <group ref={groupRef} scale={[scaleX, scaleY, 1]}>
+      {textures.map((texture, i) => (
+        <mesh
+          key={i}
+          position={[0, 0, 0]}
+          visible={i === 0}
+          ref={el => { meshRefs.current[i] = el }}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshStandardMaterial map={texture} side={2} />
+        </mesh>
+      ))}
+    </group>
   )
 }
 
@@ -82,13 +99,13 @@ export default function ThreeViewer({ imageUrls }: ThreeViewerProps) {
   }
 
   return (
-    <div className="w-full h-full bg-zinc-950">
+    <div className="absolute inset-0 w-full h-full bg-zinc-950">
       <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[3, 3, 3]} intensity={1} />
 
         <Suspense fallback={<Html center>Loading 3D Engine...</Html>}>
-          {imageUrls.length > 0 && <SpinSequencePlane imageUrls={imageUrls} />}
+          {imageUrls.length > 0 && <SpinSequenceStack imageUrls={imageUrls} />}
         </Suspense>
 
         <OrbitControls
@@ -97,6 +114,8 @@ export default function ThreeViewer({ imageUrls }: ThreeViewerProps) {
           enablePan
           enableZoom
           enableRotate
+          enableDamping
+          rotateSpeed={2.5}
           minDistance={2.5}
           maxDistance={8}
         />
