@@ -11,12 +11,15 @@ function fileExt(file: File, defaultExt: '.jpg' | '.mp4' = '.jpg'): string {
   return defaultExt
 }
 
-async function uploadBlob(file: File, path: string): Promise<string> {
+async function uploadBlob(file: File, path: string, label: string): Promise<string> {
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
     contentType: file.type || 'application/octet-stream',
     upsert: false,
   })
-  if (error) throw new Error(`Storage upload failed: ${error.message}`)
+  if (error) {
+    console.error(`[/api/upload] frame upload failed: ${label} (path=${path})`, error.message)
+    throw new Error(`Storage upload failed for ${label}: ${error.message}`)
+  }
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
   return data.publicUrl
 }
@@ -49,12 +52,13 @@ export async function POST(req: NextRequest) {
       reliefFiles.push(data.get(`reliefFrames[${i}]`) as File)
     }
 
-    // Upload everything to Supabase in parallel
+    // Upload everything to Supabase in parallel. Promise.all rejects (and halts) on the
+    // first failed frame, so partial/corrupted asset sets never reach the DB insert step.
     const [cloudUrl, cloudPages, cloudFrames, cloudReliefFrames] = await Promise.all([
-      uploadBlob(asset, `${prefix}-asset${assetExt}`),
-      Promise.all(pageFiles.map((f, i) => uploadBlob(f, `${prefix}-page-${i}${fileExt(f)}`))),
-      Promise.all(frameFiles.map((f, i) => uploadBlob(f, `${prefix}-frame-${i}${fileExt(f)}`))),
-      Promise.all(reliefFiles.map((f, i) => uploadBlob(f, `${prefix}-relief-${i}${fileExt(f)}`))),
+      uploadBlob(asset, `${prefix}-asset${assetExt}`, 'asset'),
+      Promise.all(pageFiles.map((f, i) => uploadBlob(f, `${prefix}-page-${i}${fileExt(f)}`, `page[${i}]`))),
+      Promise.all(frameFiles.map((f, i) => uploadBlob(f, `${prefix}-frame-${i}${fileExt(f)}`, `frame[${i}]`))),
+      Promise.all(reliefFiles.map((f, i) => uploadBlob(f, `${prefix}-relief-${i}${fileExt(f)}`, `reliefFrame[${i}]`))),
     ])
 
     return NextResponse.json({
