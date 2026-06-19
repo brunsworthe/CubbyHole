@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { X, Sparkles, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { X, Sparkles, MoreHorizontal, Pencil, Trash2, Boxes } from 'lucide-react'
 import DocumentViewer from './DocumentViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
 import SpinSequenceViewer from './SpinSequenceViewer'
@@ -11,6 +11,13 @@ import type { CaptureMode } from './CaptureFlow'
 
 const TimeCapsuleViewer = dynamic(
   () => import('@/components/3d/TimeCapsuleViewer'),
+  { ssr: false }
+)
+
+// Experimental WebGL alt-view, opt-in via a toggle so the default
+// SpinSequenceViewer/LenticularViewer experience is untouched.
+const ThreeViewer = dynamic(
+  () => import('@/components/ThreeViewer'),
   { ssr: false }
 )
 
@@ -56,6 +63,12 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
 
   const hasSpinFrames = spinFrameUrls.length >= 2
   const hasReliefFrames = reliefFrameUrls.length >= 2
+
+  // Experimental WebGL alt-view: only offered where multi-frame data exists,
+  // and only swapped in when the user explicitly toggles it on.
+  const canThreeView = (isScan3d && hasSpinFrames) || (isRelief && hasReliefFrames)
+  const threeViewerImageUrls = isScan3d ? spinFrameUrls : reliefFrameUrls
+  const [showThreeViewer, setShowThreeViewer] = useState(false)
 
   const dateStr = new Date(capture.timestamp).toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
@@ -153,6 +166,22 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+          {/* Experimental WebGL alt-view toggle */}
+          {canThreeView && (
+            <button
+              onClick={() => setShowThreeViewer(v => !v)}
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                showThreeViewer
+                  ? 'bg-slate-500 border-slate-400 text-white'
+                  : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-400 hover:text-zinc-100'
+              }`}
+              aria-label="Toggle 3D WebGL view"
+              title="Toggle experimental 3D view"
+            >
+              <Boxes className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Management menu */}
           {canManage && (
             <div ref={menuRef} className="relative">
@@ -204,7 +233,9 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
 
       {/* Viewer */}
       <div className="flex-1 min-h-0">
-        {isScan3d && hasSpinFrames
+        {canThreeView && showThreeViewer
+          ? <ThreeViewer imageUrls={threeViewerImageUrls} />
+          : isScan3d && hasSpinFrames
           ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
           : isRelief && hasReliefFrames
             ? <LenticularViewer imageUrls={reliefFrameUrls} />
