@@ -1474,6 +1474,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
+        {/* ── Relief alignment grid + stage indicator pill ── */}
+        {isRelief && (
+          <>
+            <div className="absolute inset-0 z-10 grid grid-cols-6 divide-x divide-white/50 pointer-events-none">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} />)}
+            </div>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+              <span className="bg-black/60 backdrop-blur-sm text-white text-xs font-mono font-semibold px-3 py-1 rounded-full border border-white/20">
+                Frame {Math.min(reliefStep + 1, 6)} of 6
+              </span>
+            </div>
+          </>
+        )}
+
         {/* ── Between-pages overlay (artwork2d + document) ── */}
         {isFlat && docOverlay && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/65 backdrop-blur-sm">
