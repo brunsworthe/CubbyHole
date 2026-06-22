@@ -7,6 +7,7 @@ import {
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2, Check,
+  FolderOpen,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -272,6 +273,103 @@ function EditCaptureModal({
   )
 }
 
+// ── MoveToCapsuleModal ────────────────────────────────────────────────────────
+
+const dummyCapsules = [
+  { id: '1', name: 'Concept 0004' },
+  { id: '2', name: 'Vintage Restorations' },
+]
+
+function MoveToCapsuleModal({
+  selectedCount, targetCapsuleId, newCapsuleName,
+  onSelectTarget, onChangeNewName, onConfirm, onCancel,
+}: {
+  selectedCount: number
+  targetCapsuleId: string | null
+  newCapsuleName: string
+  onSelectTarget: (id: string) => void
+  onChangeNewName: (name: string) => void
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  const canConfirm = !!targetCapsuleId || newCapsuleName.trim().length > 0
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="font-bold text-zinc-100 text-base">
+            Move {selectedCount} Capture{selectedCount !== 1 ? 's' : ''}
+          </h3>
+          <button
+            onClick={onCancel}
+            className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Existing capsules */}
+        <div className="space-y-1.5 mb-4">
+          {dummyCapsules.map(c => (
+            <button
+              key={c.id}
+              onClick={() => onSelectTarget(c.id)}
+              className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium text-left border transition-colors ${
+                targetCapsuleId === c.id
+                  ? 'bg-blue-500/15 border-blue-500/50 text-blue-300'
+                  : 'bg-zinc-800/60 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="flex-1 h-px bg-zinc-800" />
+          <span className="text-[11px] font-semibold text-zinc-500 tracking-wider">OR</span>
+          <div className="flex-1 h-px bg-zinc-800" />
+        </div>
+
+        {/* New capsule name */}
+        <input
+          type="text"
+          value={newCapsuleName}
+          onChange={e => onChangeNewName(e.target.value)}
+          placeholder="Create a new capsule…"
+          maxLength={60}
+          className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl px-3.5 py-2.5 text-zinc-100 placeholder-zinc-500 text-sm outline-none transition-colors mb-5"
+        />
+
+        <div className="flex gap-2.5">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 text-sm font-medium hover:bg-zinc-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 active:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+          >
+            Confirm Move
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── DeleteCaptureModal ────────────────────────────────────────────────────────
 
 function DeleteCaptureModal({
@@ -411,6 +509,22 @@ export default function CapsuleGalleryPage() {
       prev.includes(id) ? prev.filter(existingId => existingId !== id) : [...prev, id]
     )
   }, [])
+
+  // ── Move-to-capsule modal ──────────────────────────────────────────────────
+  const [isCapsuleModalOpen, setIsCapsuleModalOpen] = useState(false)
+  const [targetCapsuleId,    setTargetCapsuleId]    = useState<string | null>(null)
+  const [newCapsuleName,     setNewCapsuleName]     = useState('')
+
+  const handleCloseCapsuleModal = useCallback(() => {
+    setIsCapsuleModalOpen(false)
+    setTargetCapsuleId(null)
+    setNewCapsuleName('')
+  }, [])
+
+  const handleConfirmMove = useCallback(() => {
+    console.log('READY TO MOVE:', { selectedCaptureIds, targetCapsuleId, newCapsuleName })
+    handleCloseCapsuleModal()
+  }, [selectedCaptureIds, targetCapsuleId, newCapsuleName, handleCloseCapsuleModal])
 
   const availableTypes = useMemo(() =>
     (Object.keys(TYPE_CONFIG) as CaptureType[]).filter(t => captures.some(c => c.type === t)),
@@ -787,6 +901,33 @@ export default function CapsuleGalleryPage() {
         </div>
       )}
 
+      {/* ── Bulk action bar — appears while items are checked in Select mode ── */}
+      {selectedCaptureIds.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-t border-white/10 pb-[env(safe-area-inset-bottom)]">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-white/90">
+              {selectedCaptureIds.length} selected
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsCapsuleModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/15 border border-white/15 text-white transition-colors"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                Move to Capsule
+              </button>
+              <button
+                onClick={() => console.log('Deleting IDs:', selectedCaptureIds)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Capture viewer (spin / lenticular / document / 2D) ── */}
       {selectedCapture && (
         <CaptureViewerModal
@@ -794,6 +935,19 @@ export default function CapsuleGalleryPage() {
           onClose={() => setSelectedCapture(null)}
           onRename={handleViewerRename}
           onDelete={handleViewerDelete}
+        />
+      )}
+
+      {/* ── Move to capsule modal ── */}
+      {isCapsuleModalOpen && (
+        <MoveToCapsuleModal
+          selectedCount={selectedCaptureIds.length}
+          targetCapsuleId={targetCapsuleId}
+          newCapsuleName={newCapsuleName}
+          onSelectTarget={id => { setTargetCapsuleId(id); setNewCapsuleName('') }}
+          onChangeNewName={name => { setNewCapsuleName(name); setTargetCapsuleId(null) }}
+          onConfirm={handleConfirmMove}
+          onCancel={handleCloseCapsuleModal}
         />
       )}
 
