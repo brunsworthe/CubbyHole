@@ -2,7 +2,7 @@
 
 import { useState, useId } from 'react'
 import { useRouter } from 'next/navigation'
-import { Mail, Lock, ArrowRight, Loader2, Inbox, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, ArrowRight, Loader2, Inbox, Eye, EyeOff, KeyRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 type Message = { type: 'success' | 'error'; text: string }
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [isMagicLinkMode, setIsMagicLinkMode] = useState(false)
   const [email,           setEmail]           = useState('')
   const [password,        setPassword]        = useState('')
+  const [accessCode,      setAccessCode]      = useState('')
   const [showPassword,    setShowPassword]    = useState(false)
   const [loading,         setLoading]         = useState(false)
   const [message,         setMessage]         = useState<Message | null>(null)
@@ -41,25 +42,62 @@ export default function LoginPage() {
   }
 
   const handleSignUp = async () => {
-    if (!email)    return setMessage({ type: 'error', text: 'Please enter your email address.' })
-    if (!password) return setMessage({ type: 'error', text: 'Please choose a password.' })
+    if (!email)      return setMessage({ type: 'error', text: 'Please enter your email address.' })
+    if (!password)   return setMessage({ type: 'error', text: 'Please choose a password.' })
     if (password.length < 6)
       return setMessage({ type: 'error', text: 'Password must be at least 6 characters.' })
+    if (!accessCode) return setMessage({ type: 'error', text: 'Please enter your beta access code.' })
 
     setLoading(true)
     setMessage(null)
 
-    const { error } = await supabase.auth.signUp({ email, password })
+    // Step A: pre-flight check — never call Supabase auth for an invalid code
+    try {
+      const checkRes = await fetch('/api/check-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode }),
+      })
+      const checkResult = await checkRes.json()
 
-    setLoading(false)
+      if (!checkRes.ok || !checkResult.isValid) {
+        setMessage({ type: 'error', text: 'Invalid or expired access code' })
+        setLoading(false)
+        return
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Could not verify access code. Please try again.' })
+      setLoading(false)
+      return
+    }
+
+    // Step C: code is valid — proceed with account creation
+    const { data, error } = await supabase.auth.signUp({ email, password })
+
     if (error) {
       setMessage({ type: 'error', text: error.message })
-    } else {
-      setMessage({
-        type: 'success',
-        text: 'Account created! Check your email to confirm your address, then sign in.',
-      })
+      setLoading(false)
+      return
     }
+
+    // Step D: consume the code and unlock storage on the new profile
+    if (data.user) {
+      try {
+        await fetch('/api/verify-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessCode, userId: data.user.id }),
+        })
+      } catch (err) {
+        console.error('[handleSignUp] verify-code consumption failed:', err)
+      }
+    }
+
+    setLoading(false)
+    setMessage({
+      type: 'success',
+      text: 'Account created! Check your email to confirm your address, then sign in.',
+    })
   }
 
   // ── Magic link flow ──────────────────────────────────────────────────────────
@@ -302,6 +340,25 @@ export default function LoginPage() {
                           ? <EyeOff className="w-4 h-4" />
                           : <Eye    className="w-4 h-4" />}
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Beta access code field — sign-up only */}
+                {!isMagicLinkMode && (
+                  <div>
+                    <label className={labelClass}>Beta Access Code</label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-zinc-600 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={accessCode}
+                        onChange={e => setAccessCode(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSignUp() }}
+                        placeholder="Required to create an account"
+                        autoComplete="off"
+                        className={`${inputClass} pl-10`}
+                      />
                     </div>
                   </div>
                 )}
