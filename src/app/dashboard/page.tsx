@@ -76,23 +76,36 @@ function StorageQuotaMeter() {
       ? 'bg-yellow-500'
       : 'bg-slate-400 dark:bg-zinc-500'
 
-  const estimateText =
-    `Space for approx: ${remaining3D} 3D Objects | ${remainingRelief} Reliefs | ${remaining2D} 2D Masterpieces | ${remainingDocs} Documents`
+  const estimates = [
+    { label: '3D Objects',       value: remaining3D },
+    { label: 'Reliefs',          value: remainingRelief },
+    { label: '2D Masterpieces',  value: remaining2D },
+    { label: 'Documents',        value: remainingDocs },
+  ]
 
   return (
-    <div
-      className="hidden md:flex flex-col gap-1 w-56"
-      title={estimateText}
-    >
-      <span className={`text-[11px] font-medium leading-none ${textClass}`}>
-        {formatGB(usedBytes)} GB / {formatGB(STORAGE_LIMIT_BYTES)} GB Used
-      </span>
-      <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
+    <div className="hidden md:block group relative mr-2" tabIndex={0}>
+      <div className="flex flex-col gap-1 w-36 cursor-default outline-none">
+        <span className={`text-[11px] font-medium leading-none ${textClass}`}>
+          {formatGB(usedBytes)} GB / {formatGB(STORAGE_LIMIT_BYTES)} GB Used
+        </span>
+        <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
+        </div>
       </div>
-      <span className="text-[10px] leading-snug text-slate-400 dark:text-zinc-600 truncate">
-        {estimateText}
-      </span>
+
+      {/* Tooltip — progressive disclosure of the per-mode estimates */}
+      <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 absolute top-full mt-2 right-0 bg-black/90 text-white p-3 rounded-md shadow-lg border border-white/10 z-[100] transition-all w-64">
+        <p className="text-[11px] font-semibold text-white/90 mb-2">Available Space Estimates:</p>
+        <ul className="space-y-1">
+          {estimates.map(({ label, value }) => (
+            <li key={label} className="flex items-center justify-between text-[11px] text-white/70">
+              <span>{label}</span>
+              <span className="font-semibold text-white">{value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
