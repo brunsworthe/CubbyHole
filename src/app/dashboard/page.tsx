@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette } from 'lucide-react'
+import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
 import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
+
+// ── Storage quota (free tier) ───────────────────────────────────────────────
+
+const FREE_TIER_LIMIT = 10
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +36,35 @@ const DEFAULT_COLOR = SWATCHES[0].hex
 
 function resolveColor(hex: string | null): string {
   return hex ?? DEFAULT_COLOR
+}
+
+// ── StorageQuotaMeter ─────────────────────────────────────────────────────────
+
+function StorageQuotaMeter({ count }: { count: number | null }) {
+  if (count === null) {
+    return (
+      <div className="hidden sm:flex flex-col gap-1 w-32">
+        <div className="h-3 w-20 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
+        <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
+      </div>
+    )
+  }
+
+  const overLimit = count >= FREE_TIER_LIMIT
+  const pct = Math.min(100, (count / FREE_TIER_LIMIT) * 100)
+  const textClass = overLimit ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500 dark:text-zinc-500'
+  const barClass = overLimit ? 'bg-orange-500' : 'bg-slate-400 dark:bg-zinc-500'
+
+  return (
+    <div className="hidden sm:flex flex-col gap-1 w-32" title={`${count} of ${FREE_TIER_LIMIT} free captures used`}>
+      <span className={`text-[11px] font-medium leading-none ${textClass}`}>
+        {count} / {FREE_TIER_LIMIT} Free Captures
+      </span>
+      <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
 }
 
 // ── CapsuleCard ───────────────────────────────────────────────────────────────
@@ -533,6 +566,7 @@ export default function DashboardPage() {
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
   const [colorTarget,       setColorTarget]       = useState<Capsule | null>(null)
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
+  const [totalCaptureCount, setTotalCaptureCount] = useState<number | null>(null)
 
   const sortedCapsules = useMemo(() => {
     if (sortBy === 'name') {
@@ -568,6 +602,14 @@ export default function DashboardPage() {
         ids.forEach(id => { counts[id] = 0 })
         countRows?.forEach(r => { counts[r.capsule_id] = (counts[r.capsule_id] ?? 0) + 1 })
         setCaptureCounts(counts)
+
+        const { count } = await supabase
+          .from('captures')
+          .select('*', { count: 'exact', head: true })
+          .in('capsule_id', ids)
+        setTotalCaptureCount(count ?? 0)
+      } else {
+        setTotalCaptureCount(0)
       }
     }
     setLoading(false)
@@ -655,7 +697,15 @@ export default function DashboardPage() {
           <BrandLink />
 
           {/* Right controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <StorageQuotaMeter count={totalCaptureCount} />
+            <button
+              onClick={() => console.log('Upgrade clicked')}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Upgrade to Pro</span>
+            </button>
             <ThemeToggle />
             <button
               onClick={handleSignOut}
