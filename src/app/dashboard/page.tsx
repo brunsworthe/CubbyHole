@@ -10,7 +10,13 @@ import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
 
 // ── Storage quota (free tier) ───────────────────────────────────────────────
 
-const FREE_TIER_LIMIT = 10
+const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
+const AVG_3D_MB = 15
+const AVG_RELIEF_MB = 5
+const AVG_2D_MB = 2
+
+// Mock usage until real storage accounting lands — see StorageQuotaMeter
+const mockUsedBytes = 1.8 * 1024 * 1024 * 1024 // 1.8 GB used
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,29 +46,46 @@ function resolveColor(hex: string | null): string {
 
 // ── StorageQuotaMeter ─────────────────────────────────────────────────────────
 
-function StorageQuotaMeter({ count }: { count: number | null }) {
-  if (count === null) {
-    return (
-      <div className="hidden sm:flex flex-col gap-1 w-32">
-        <div className="h-3 w-20 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
-        <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
-      </div>
-    )
-  }
+// 2D / Document captures are unlimited on the free tier, so their estimate
+// is computed but withheld from the subtext below.
+const IS_2D_UNLIMITED = true
 
-  const overLimit = count >= FREE_TIER_LIMIT
-  const pct = Math.min(100, (count / FREE_TIER_LIMIT) * 100)
+function formatGB(bytes: number) {
+  return (bytes / 1024 / 1024 / 1024).toFixed(1)
+}
+
+function StorageQuotaMeter() {
+  const usedBytes = mockUsedBytes
+  const remainingBytes = Math.max(0, STORAGE_LIMIT_BYTES - usedBytes)
+  const remainingMB = remainingBytes / 1024 / 1024
+
+  const remaining3D = Math.floor(remainingMB / AVG_3D_MB)
+  const remainingRelief = Math.floor(remainingMB / AVG_RELIEF_MB)
+  const remaining2D = Math.floor(remainingMB / AVG_2D_MB)
+
+  const overLimit = usedBytes >= STORAGE_LIMIT_BYTES
+  const pct = Math.min(100, (usedBytes / STORAGE_LIMIT_BYTES) * 100)
   const textClass = overLimit ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500 dark:text-zinc-500'
   const barClass = overLimit ? 'bg-orange-500' : 'bg-slate-400 dark:bg-zinc-500'
 
+  const estimateText = IS_2D_UNLIMITED
+    ? `Space for approx: ${remaining3D} 3D Spins | ${remainingRelief} Relief Captures`
+    : `Space for approx: ${remaining3D} 3D Spins | ${remainingRelief} Relief | ${remaining2D} 2D`
+
   return (
-    <div className="hidden sm:flex flex-col gap-1 w-32" title={`${count} of ${FREE_TIER_LIMIT} free captures used`}>
+    <div
+      className="hidden md:flex flex-col gap-1 w-56"
+      title={`${formatGB(usedBytes)} GB of ${formatGB(STORAGE_LIMIT_BYTES)} GB used`}
+    >
       <span className={`text-[11px] font-medium leading-none ${textClass}`}>
-        {count} / {FREE_TIER_LIMIT} Free Captures
+        {formatGB(usedBytes)} GB / {formatGB(STORAGE_LIMIT_BYTES)} GB Used
       </span>
       <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
         <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
       </div>
+      <span className="text-[10px] leading-snug text-slate-400 dark:text-zinc-600 truncate">
+        {estimateText}
+      </span>
     </div>
   )
 }
@@ -566,7 +589,6 @@ export default function DashboardPage() {
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
   const [colorTarget,       setColorTarget]       = useState<Capsule | null>(null)
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
-  const [totalCaptureCount, setTotalCaptureCount] = useState<number | null>(null)
 
   const sortedCapsules = useMemo(() => {
     if (sortBy === 'name') {
@@ -602,14 +624,6 @@ export default function DashboardPage() {
         ids.forEach(id => { counts[id] = 0 })
         countRows?.forEach(r => { counts[r.capsule_id] = (counts[r.capsule_id] ?? 0) + 1 })
         setCaptureCounts(counts)
-
-        const { count } = await supabase
-          .from('captures')
-          .select('*', { count: 'exact', head: true })
-          .in('capsule_id', ids)
-        setTotalCaptureCount(count ?? 0)
-      } else {
-        setTotalCaptureCount(0)
       }
     }
     setLoading(false)
@@ -698,7 +712,7 @@ export default function DashboardPage() {
 
           {/* Right controls */}
           <div className="flex items-center gap-3">
-            <StorageQuotaMeter count={totalCaptureCount} />
+            <StorageQuotaMeter />
             <button
               onClick={() => console.log('Upgrade clicked')}
               className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
