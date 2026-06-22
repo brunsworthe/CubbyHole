@@ -275,16 +275,13 @@ function EditCaptureModal({
 
 // ── MoveToCapsuleModal ────────────────────────────────────────────────────────
 
-const dummyCapsules = [
-  { id: '1', name: 'Concept 0004' },
-  { id: '2', name: 'Vintage Restorations' },
-]
-
 function MoveToCapsuleModal({
-  selectedCount, targetCapsuleId, newCapsuleName,
+  selectedCount, profileId, excludeCapsuleId, targetCapsuleId, newCapsuleName,
   onSelectTarget, onChangeNewName, onConfirm, onCancel,
 }: {
   selectedCount: number
+  profileId: string | null
+  excludeCapsuleId: string
   targetCapsuleId: string | null
   newCapsuleName: string
   onSelectTarget: (id: string) => void
@@ -292,6 +289,18 @@ function MoveToCapsuleModal({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const [otherCapsules, setOtherCapsules] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    if (!profileId) return
+    supabase
+      .from('capsules')
+      .select('id, name')
+      .eq('profile_id', profileId)
+      .neq('id', excludeCapsuleId)
+      .then(({ data }) => setOtherCapsules(data ?? []))
+  }, [profileId, excludeCapsuleId])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
     window.addEventListener('keydown', handler)
@@ -317,7 +326,10 @@ function MoveToCapsuleModal({
 
         {/* Existing capsules */}
         <div className="space-y-1.5 mb-4">
-          {dummyCapsules.map(c => (
+          {otherCapsules.length === 0 && (
+            <p className="text-xs text-zinc-500 px-1">No other capsules yet — create one below.</p>
+          )}
+          {otherCapsules.map(c => (
             <button
               key={c.id}
               onClick={() => onSelectTarget(c.id)}
@@ -480,6 +492,7 @@ export default function CapsuleGalleryPage() {
   const { id: capsuleId } = useParams<{ id: string }>()
 
   const [capsule,         setCapsule]         = useState<Capsule | null>(null)
+  const [profileId,       setProfileId]       = useState<string | null>(null)
   const [captures,        setCaptures]        = useState<Capture[]>([])
   const [loading,         setLoading]         = useState(true)
   const [notFound,        setNotFound]        = useState(false)
@@ -521,10 +534,6 @@ export default function CapsuleGalleryPage() {
     setNewCapsuleName('')
   }, [])
 
-  const handleConfirmMove = useCallback(() => {
-    console.log('READY TO MOVE:', { selectedCaptureIds, targetCapsuleId, newCapsuleName })
-    handleCloseCapsuleModal()
-  }, [selectedCaptureIds, targetCapsuleId, newCapsuleName, handleCloseCapsuleModal])
 
   const availableTypes = useMemo(() =>
     (Object.keys(TYPE_CONFIG) as CaptureType[]).filter(t => captures.some(c => c.type === t)),
@@ -582,6 +591,7 @@ export default function CapsuleGalleryPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.replace('/login'); return }
+      setProfileId(session.user.id)
       fetchData(session.user.id)
     })
 
@@ -591,6 +601,41 @@ export default function CapsuleGalleryPage() {
 
     return () => subscription.unsubscribe()
   }, [router, fetchData])
+
+  // ── Bulk move captures to a capsule (existing or newly created) ──────────
+
+  const handleMoveCaptures = useCallback(async () => {
+    if (selectedCaptureIds.length === 0) return
+
+    try {
+      let finalCapsuleId = targetCapsuleId
+
+      if (!finalCapsuleId && newCapsuleName.trim()) {
+        const { data, error } = await supabase
+          .from('capsules')
+          .insert({ profile_id: profileId, name: newCapsuleName.trim() })
+          .select('id')
+          .single()
+        if (error) throw error
+        finalCapsuleId = data.id
+      }
+
+      if (!finalCapsuleId) return
+
+      const { error: moveError } = await supabase
+        .from('captures')
+        .update({ capsule_id: finalCapsuleId })
+        .in('id', selectedCaptureIds)
+      if (moveError) throw moveError
+
+      setCaptures(prev => prev.filter(c => !selectedCaptureIds.includes(c.id)))
+      setSelectedCaptureIds([])
+      handleCloseCapsuleModal()
+    } catch (error) {
+      console.error('MOVE CAPTURES ERROR:', error)
+      handleCloseCapsuleModal()
+    }
+  }, [selectedCaptureIds, targetCapsuleId, newCapsuleName, profileId, handleCloseCapsuleModal])
 
   // ── Rename capture ────────────────────────────────────────────────────────
 
@@ -942,11 +987,13 @@ export default function CapsuleGalleryPage() {
       {isCapsuleModalOpen && (
         <MoveToCapsuleModal
           selectedCount={selectedCaptureIds.length}
+          profileId={profileId}
+          excludeCapsuleId={capsuleId}
           targetCapsuleId={targetCapsuleId}
           newCapsuleName={newCapsuleName}
           onSelectTarget={id => { setTargetCapsuleId(id); setNewCapsuleName('') }}
           onChangeNewName={name => { setNewCapsuleName(name); setTargetCapsuleId(null) }}
-          onConfirm={handleConfirmMove}
+          onConfirm={handleMoveCaptures}
           onCancel={handleCloseCapsuleModal}
         />
       )}
