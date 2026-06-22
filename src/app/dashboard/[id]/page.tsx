@@ -382,6 +382,54 @@ function MoveToCapsuleModal({
   )
 }
 
+// ── BulkDeleteModal ───────────────────────────────────────────────────────────
+
+function BulkDeleteModal({
+  selectedCount, onConfirm, onCancel,
+}: {
+  selectedCount: number
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4">
+      <div className="relative w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-red-950/60 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Trash2 className="w-5 h-5 text-red-400" />
+          </div>
+          <h3 className="font-bold text-zinc-100 text-base leading-snug">
+            Delete {selectedCount} Capture{selectedCount !== 1 ? 's' : ''}?
+          </h3>
+        </div>
+        <p className="text-sm text-zinc-400 leading-relaxed mb-5">
+          This action cannot be undone. Are you sure you want to permanently delete these memories?
+        </p>
+        <div className="flex gap-2.5">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800 text-zinc-300 text-sm font-medium hover:bg-zinc-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-sm font-semibold transition-colors"
+          >
+            Delete Permanently
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── DeleteCaptureModal ────────────────────────────────────────────────────────
 
 function DeleteCaptureModal({
@@ -534,6 +582,9 @@ export default function CapsuleGalleryPage() {
     setNewCapsuleName('')
   }, [])
 
+  // ── Bulk delete confirmation modal ────────────────────────────────────────
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+
 
   const availableTypes = useMemo(() =>
     (Object.keys(TYPE_CONFIG) as CaptureType[]).filter(t => captures.some(c => c.type === t)),
@@ -636,6 +687,27 @@ export default function CapsuleGalleryPage() {
       handleCloseCapsuleModal()
     }
   }, [selectedCaptureIds, targetCapsuleId, newCapsuleName, profileId, handleCloseCapsuleModal])
+
+  // ── Bulk delete selected captures ─────────────────────────────────────────
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedCaptureIds.length === 0) return
+
+    try {
+      const { error } = await supabase
+        .from('captures')
+        .delete()
+        .in('id', selectedCaptureIds)
+      if (error) throw error
+
+      setCaptures(prev => prev.filter(c => !selectedCaptureIds.includes(c.id)))
+      setSelectedCaptureIds([])
+      setIsDeleteModalOpen(false)
+    } catch (error) {
+      console.error('BULK DELETE ERROR:', error)
+      setIsDeleteModalOpen(false)
+    }
+  }, [selectedCaptureIds])
 
   // ── Rename capture ────────────────────────────────────────────────────────
 
@@ -962,7 +1034,7 @@ export default function CapsuleGalleryPage() {
                 Move to Capsule
               </button>
               <button
-                onClick={() => console.log('Deleting IDs:', selectedCaptureIds)}
+                onClick={() => setIsDeleteModalOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-red-500/90 hover:bg-red-500 text-white transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -995,6 +1067,15 @@ export default function CapsuleGalleryPage() {
           onChangeNewName={name => { setNewCapsuleName(name); setTargetCapsuleId(null) }}
           onConfirm={handleMoveCaptures}
           onCancel={handleCloseCapsuleModal}
+        />
+      )}
+
+      {/* ── Bulk delete confirmation modal ── */}
+      {isDeleteModalOpen && (
+        <BulkDeleteModal
+          selectedCount={selectedCaptureIds.length}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setIsDeleteModalOpen(false)}
         />
       )}
 
