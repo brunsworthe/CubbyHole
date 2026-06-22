@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useId } from 'react'
+import { useState, useEffect, useId, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { Cloud, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Cloud, ChevronLeft, ChevronRight, Plus, Minus, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const ThreeViewer = dynamic(() => import('@/components/ThreeViewer'), { ssr: false })
@@ -128,6 +128,42 @@ export default function SharedCapturePage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [scale, setScale] = useState(1)
+  const [isPanning, setIsPanning] = useState(false)
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isPanningRef = useRef(false)
+  const lastPosRef = useRef({ x: 0, y: 0 })
+
+  // Reset zoom every time the page changes, so the next page always opens fit-to-screen.
+  useEffect(() => {
+    setScale(1)
+  }, [currentIndex])
+
+  const zoomIn = useCallback(() => setScale(s => Math.min(4, s + 0.25)), [])
+  const zoomOut = useCallback(() => setScale(s => Math.max(0.25, s - 0.25)), [])
+  const resetZoom = useCallback(() => setScale(1), [])
+
+  const handlePanStart = useCallback((e: React.MouseEvent) => {
+    if (scale <= 1) return
+    isPanningRef.current = true
+    setIsPanning(true)
+    lastPosRef.current = { x: e.clientX, y: e.clientY }
+  }, [scale])
+
+  const handlePanMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanningRef.current || !scrollRef.current) return
+    const dx = e.clientX - lastPosRef.current.x
+    const dy = e.clientY - lastPosRef.current.y
+    scrollRef.current.scrollLeft -= dx
+    scrollRef.current.scrollTop -= dy
+    lastPosRef.current = { x: e.clientX, y: e.clientY }
+  }, [])
+
+  const handlePanEnd = useCallback(() => {
+    isPanningRef.current = false
+    setIsPanning(false)
+  }, [])
 
   useEffect(() => {
     if (!shareId) return
@@ -184,35 +220,88 @@ export default function SharedCapturePage() {
       {is3D || isRelief ? (
         <ThreeViewer imageUrls={is3D ? spinFrameUrls : reliefFrameUrls} />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center p-6">
-          <img
-            src={isPaginated ? pageUrls[safeIndex] : capture.cloud_url}
-            alt={capture.title}
-            className="max-w-full max-h-full object-contain rounded-lg"
-            draggable={false}
-          />
+        <div
+          ref={scrollRef}
+          className={`absolute inset-0 overflow-auto flex items-center justify-center p-6 ${
+            scale > 1 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : ''
+          }`}
+          onMouseDown={handlePanStart}
+          onMouseMove={handlePanMove}
+          onMouseUp={handlePanEnd}
+          onMouseLeave={handlePanEnd}
+        >
+          <div key={safeIndex} className="page-flip">
+            <img
+              src={isPaginated ? pageUrls[safeIndex] : capture.cloud_url}
+              alt={capture.title}
+              className="max-w-full max-h-full object-contain rounded-lg transition-transform duration-200"
+              style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}
+              draggable={false}
+            />
+          </div>
+
+          {isPaginated && (
+            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2 py-1.5 rounded-full bg-black/40 border border-white/15 backdrop-blur-md shadow-lg">
+              <button
+                onClick={zoomOut}
+                disabled={scale <= 0.25}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                aria-label="Zoom out"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <span className="w-12 text-center text-xs font-medium text-white/80 tabular-nums">
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                onClick={resetZoom}
+                className="px-2.5 h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Reset zoom"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={zoomIn}
+                disabled={scale >= 4}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                aria-label="Zoom in"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {hasMultiplePages && (
             <>
               <button
                 onClick={() => setCurrentIndex(i => (i - 1 + pageUrls.length) % pageUrls.length)}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                className="fixed left-3 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setCurrentIndex(i => (i + 1) % pageUrls.length)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                className="fixed right-3 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-black/30 hover:bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
                 aria-label="Next page"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-sm text-white/80 text-xs font-medium">
-                {safeIndex + 1} / {pageUrls.length}
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-black/40 border border-white/15 backdrop-blur-md text-white/85 text-xs font-medium shadow-lg">
+                Page {safeIndex + 1} of {pageUrls.length}
               </div>
             </>
           )}
+
+          <style jsx>{`
+            @keyframes pageFlip {
+              from { opacity: 0; transform: translateX(16px); }
+              to   { opacity: 1; transform: translateX(0); }
+            }
+            .page-flip {
+              animation: pageFlip 300ms ease-out;
+            }
+          `}</style>
         </div>
       )}
 
