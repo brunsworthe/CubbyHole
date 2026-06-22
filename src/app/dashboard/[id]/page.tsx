@@ -7,7 +7,7 @@ import {
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2, Check,
-  FolderOpen,
+  FolderOpen, Share2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -37,6 +37,8 @@ interface Capture {
   cloud_frames: string[] | null
   cloud_relief_frames: string[] | null
   cloud_pages: string[] | null
+  is_public?: boolean | null
+  share_id?: string | null
 }
 
 // ── Type badge config ─────────────────────────────────────────────────────────
@@ -96,20 +98,32 @@ function formatDate(isoDate: string) {
 // ── CaptureCard ───────────────────────────────────────────────────────────────
 
 function CaptureCard({
-  capture, isDeleting, onClick, onEdit, onDelete, isSelectMode, isSelected,
+  capture, isDeleting, onClick, onEdit, onDelete, onShare, isSelectMode, isSelected,
 }: {
   capture: Capture
   isDeleting: boolean
   onClick: () => void
   onEdit: () => void
   onDelete: () => void
+  onShare: () => Promise<boolean>
   isSelectMode: boolean
   isSelected: boolean
 }) {
   const [imgError, setImgError] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [justCopied, setJustCopied] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const { icon: Icon, color, label } = getTypeConfig(capture.type)
+
+  const handleShareClick = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (justCopied) return
+    const ok = await onShare()
+    if (ok) {
+      setJustCopied(true)
+      setTimeout(() => setJustCopied(false), 2000)
+    }
+  }, [onShare, justCopied])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -159,6 +173,21 @@ function CaptureCard({
 
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
+
+        {/* Bottom-right share button — hidden during selection mode */}
+        {!isSelectMode && (
+          <button
+            onClick={handleShareClick}
+            className={`absolute bottom-2.5 right-2.5 z-20 w-7 h-7 rounded-lg backdrop-blur-sm flex items-center justify-center transition-colors ${
+              justCopied
+                ? 'bg-emerald-500/90 text-white opacity-100'
+                : 'bg-black/40 hover:bg-black/65 text-white/65 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+            }`}
+            aria-label={justCopied ? 'Link copied' : 'Copy share link'}
+          >
+            {justCopied ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Share2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         {/* Top-right mode badge */}
         <div className="absolute top-2.5 right-2.5">
@@ -723,6 +752,42 @@ export default function CapsuleGalleryPage() {
     }
   }, [selectedCaptureIds])
 
+  // ── Share capture (public link toggle + copy) ─────────────────────────────
+
+  const handleShareCapture = useCallback(async (
+    captureId: string,
+    currentShareId: string | null | undefined,
+    currentIsPublic: boolean | null | undefined,
+  ): Promise<boolean> => {
+    try {
+      if (currentIsPublic && currentShareId) {
+        const url = `${window.location.origin}/shared/${currentShareId}`
+        await navigator.clipboard.writeText(url)
+        return true
+      }
+
+      const { data, error } = await supabase
+        .from('captures')
+        .update({ is_public: true })
+        .eq('id', captureId)
+        .select('share_id')
+        .single()
+
+      if (error || !data) throw error
+
+      setCaptures(prev => prev.map(c =>
+        c.id === captureId ? { ...c, is_public: true, share_id: data.share_id } : c
+      ))
+
+      const url = `${window.location.origin}/shared/${data.share_id}`
+      await navigator.clipboard.writeText(url)
+      return true
+    } catch (error) {
+      console.error('SHARE CAPTURE ERROR:', error)
+      return false
+    }
+  }, [])
+
   // ── Rename capture ────────────────────────────────────────────────────────
 
   const handleEditSave = useCallback(async (title: string) => {
@@ -1009,6 +1074,7 @@ export default function CapsuleGalleryPage() {
                 }}
                 onEdit={() => setEditTarget(capture)}
                 onDelete={() => setDeleteTarget(capture)}
+                onShare={() => handleShareCapture(capture.id, capture.share_id, capture.is_public)}
               />
             ))}
           </div>
