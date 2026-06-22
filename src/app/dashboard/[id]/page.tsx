@@ -589,7 +589,7 @@ export default function CapsuleGalleryPage() {
   // ── Storage Gate (mock volumetric check — mirrors dashboard header meter) ──
   const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
   const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
-  const mockUsedBytes = 2.0 * 1024 * 1024 * 1024 // SET TO 2.0 GB TO TRIGGER THE GATE
+  const mockUsedBytes = 1.5 * 1024 * 1024 * 1024 // SET TO 2.0 GB TO TRIGGER THE GATE
   const isStorageFull = mockUsedBytes >= STORAGE_LIMIT_BYTES
 
   const handleRequestNewCapture = useCallback(() => {
