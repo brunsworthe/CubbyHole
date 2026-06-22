@@ -10,14 +10,15 @@ import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
 
 // ── Storage quota (free tier) ───────────────────────────────────────────────
 
-const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
 const AVG_3D_MB = 15
 const AVG_RELIEF_MB = 5
 const AVG_2D_MB = 2
 const AVG_DOC_MB = 1
 
-// Mock usage until real storage accounting lands — see StorageQuotaMeter
-const mockUsedBytes = 1.8 * 1024 * 1024 * 1024 // 1.8 GB used
+// Mock usage until real storage accounting lands — see StorageQuotaMeter.
+// Proportional to a 50 MB test grant (~25 MB used = ~50% full) so the meter
+// reads sensibly while testing against an access-code-granted limit.
+const mockUsedBytes = 25 * 1024 * 1024 // 25 MB used
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,9 +52,12 @@ function formatGB(bytes: number) {
   return (bytes / 1024 / 1024 / 1024).toFixed(1)
 }
 
-function StorageQuotaMeter() {
+function StorageQuotaMeter({ storageLimitBytes }: { storageLimitBytes: number | null }) {
   const usedBytes = mockUsedBytes
-  const remainingBytes = Math.max(0, STORAGE_LIMIT_BYTES - usedBytes)
+  // Dynamic, profile-driven limit (granted via an access code) — falls back to 0
+  // so the math degrades to "no space" rather than NaN while the profile loads.
+  const limitBytes = storageLimitBytes || 0
+  const remainingBytes = Math.max(0, limitBytes - usedBytes)
   const remainingMB = remainingBytes / (1024 * 1024)
 
   const remaining3D     = Math.floor(remainingMB / AVG_3D_MB)
@@ -61,7 +65,7 @@ function StorageQuotaMeter() {
   const remaining2D     = Math.floor(remainingMB / AVG_2D_MB)
   const remainingDocs   = Math.floor(remainingMB / AVG_DOC_MB)
 
-  const pct = Math.min(100, (usedBytes / STORAGE_LIMIT_BYTES) * 100)
+  const pct = limitBytes > 0 ? Math.min(100, (usedBytes / limitBytes) * 100) : 100
   const isCritical = pct >= 100
   const isWarning  = pct >= 80
 
@@ -87,7 +91,7 @@ function StorageQuotaMeter() {
     <div className="hidden md:block group relative mr-2" tabIndex={0}>
       <div className="flex flex-col gap-1 w-36 cursor-default outline-none">
         <span className={`text-[11px] font-medium leading-none ${textClass}`}>
-          {formatGB(usedBytes)} GB / {formatGB(STORAGE_LIMIT_BYTES)} GB Used
+          {formatGB(usedBytes)} GB / {formatGB(limitBytes)} GB Used
         </span>
         <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
           <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
@@ -600,6 +604,7 @@ export default function DashboardPage() {
   const router = useRouter()
 
   const [userId,            setUserId]            = useState<string | null>(null)
+  const [storageLimitBytes, setStorageLimitBytes] = useState<number | null>(null)
   const [capsules,          setCapsules]          = useState<Capsule[]>([])
   const [captureCounts,     setCaptureCounts]     = useState<Record<string, number>>({})
   const [sortBy,            setSortBy]            = useState<'date' | 'name'>('date')
@@ -649,6 +654,18 @@ export default function DashboardPage() {
     setLoading(false)
   }, [])
 
+  // Profile's storage_limit_bytes is granted via access-code redemption (see
+  // access_codes_schema.sql / /api/verify-code) — independent of the capsule fetch.
+  const fetchStorageLimit = useCallback(async (uid: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('storage_limit_bytes')
+      .eq('id', uid)
+      .single()
+
+    setStorageLimitBytes(data?.storage_limit_bytes ?? 0)
+  }, [])
+
   useEffect(() => {
     // Check session on mount and redirect if unauthenticated
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -658,6 +675,7 @@ export default function DashboardPage() {
       }
       setUserId(session.user.id)
       fetchCapsules(session.user.id)
+      fetchStorageLimit(session.user.id)
     })
 
     // Also react to auth state changes (e.g. session expiry or sign-out from another tab)
@@ -666,7 +684,7 @@ export default function DashboardPage() {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, fetchCapsules])
+  }, [router, fetchCapsules, fetchStorageLimit])
 
   // ── Optimistic insert ─────────────────────────────────────────────────────
 
@@ -732,7 +750,7 @@ export default function DashboardPage() {
 
           {/* Right controls */}
           <div className="flex items-center gap-3">
-            <StorageQuotaMeter />
+            <StorageQuotaMeter storageLimitBytes={storageLimitBytes} />
             <button
               onClick={() => console.log('Upgrade clicked')}
               className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
