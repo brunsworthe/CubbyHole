@@ -14,6 +14,7 @@ const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
 const AVG_3D_MB = 15
 const AVG_RELIEF_MB = 5
 const AVG_2D_MB = 2
+const AVG_DOC_MB = 1
 
 // Mock usage until real storage accounting lands — see StorageQuotaMeter
 const mockUsedBytes = 1.8 * 1024 * 1024 * 1024 // 1.8 GB used
@@ -46,10 +47,6 @@ function resolveColor(hex: string | null): string {
 
 // ── StorageQuotaMeter ─────────────────────────────────────────────────────────
 
-// 2D / Document captures are unlimited on the free tier, so their estimate
-// is computed but withheld from the subtext below.
-const IS_2D_UNLIMITED = true
-
 function formatGB(bytes: number) {
   return (bytes / 1024 / 1024 / 1024).toFixed(1)
 }
@@ -57,25 +54,35 @@ function formatGB(bytes: number) {
 function StorageQuotaMeter() {
   const usedBytes = mockUsedBytes
   const remainingBytes = Math.max(0, STORAGE_LIMIT_BYTES - usedBytes)
-  const remainingMB = remainingBytes / 1024 / 1024
+  const remainingMB = remainingBytes / (1024 * 1024)
 
-  const remaining3D = Math.floor(remainingMB / AVG_3D_MB)
+  const remaining3D     = Math.floor(remainingMB / AVG_3D_MB)
   const remainingRelief = Math.floor(remainingMB / AVG_RELIEF_MB)
-  const remaining2D = Math.floor(remainingMB / AVG_2D_MB)
+  const remaining2D     = Math.floor(remainingMB / AVG_2D_MB)
+  const remainingDocs   = Math.floor(remainingMB / AVG_DOC_MB)
 
-  const overLimit = usedBytes >= STORAGE_LIMIT_BYTES
   const pct = Math.min(100, (usedBytes / STORAGE_LIMIT_BYTES) * 100)
-  const textClass = overLimit ? 'text-orange-500 dark:text-orange-400' : 'text-slate-500 dark:text-zinc-500'
-  const barClass = overLimit ? 'bg-orange-500' : 'bg-slate-400 dark:bg-zinc-500'
+  const isCritical = pct >= 100
+  const isWarning  = pct >= 80
 
-  const estimateText = IS_2D_UNLIMITED
-    ? `Space for approx: ${remaining3D} 3D Spins | ${remainingRelief} Relief Captures`
-    : `Space for approx: ${remaining3D} 3D Spins | ${remainingRelief} Relief | ${remaining2D} 2D`
+  const textClass = isCritical
+    ? 'text-red-500 dark:text-red-400'
+    : isWarning
+      ? 'text-yellow-500 dark:text-yellow-400'
+      : 'text-slate-500 dark:text-zinc-500'
+  const barClass = isCritical
+    ? 'bg-red-500'
+    : isWarning
+      ? 'bg-yellow-500'
+      : 'bg-slate-400 dark:bg-zinc-500'
+
+  const estimateText =
+    `Space for approx: ${remaining3D} 3D Objects | ${remainingRelief} Reliefs | ${remaining2D} 2D Masterpieces | ${remainingDocs} Documents`
 
   return (
     <div
       className="hidden md:flex flex-col gap-1 w-56"
-      title={`${formatGB(usedBytes)} GB of ${formatGB(STORAGE_LIMIT_BYTES)} GB used`}
+      title={estimateText}
     >
       <span className={`text-[11px] font-medium leading-none ${textClass}`}>
         {formatGB(usedBytes)} GB / {formatGB(STORAGE_LIMIT_BYTES)} GB Used
