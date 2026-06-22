@@ -557,6 +557,20 @@ export default function CapsuleGalleryPage() {
   const [isSelectMode,       setIsSelectMode]       = useState(false)
   const [selectedCaptureIds, setSelectedCaptureIds] = useState<string[]>([])
 
+  // ── Storage Gate (mock volumetric check — mirrors dashboard header meter) ──
+  const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
+  const STORAGE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
+  const mockUsedBytes = 2.0 * 1024 * 1024 * 1024 // SET TO 2.0 GB TO TRIGGER THE GATE
+  const isStorageFull = mockUsedBytes >= STORAGE_LIMIT_BYTES
+
+  const handleRequestNewCapture = useCallback(() => {
+    if (isStorageFull) {
+      setUpgradeModalOpen(true)
+      return
+    }
+    setShowCaptureFlow(true)
+  }, [isStorageFull])
+
   const handleToggleSelectMode = useCallback(() => {
     setIsSelectMode(prev => {
       const next = !prev
@@ -839,7 +853,7 @@ export default function CapsuleGalleryPage() {
             <ThemeToggle />
             {!loading && (
               <button
-                onClick={() => setShowCaptureFlow(true)}
+                onClick={handleRequestNewCapture}
                 className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
                 style={{
                   background: accent,
@@ -961,7 +975,7 @@ export default function CapsuleGalleryPage() {
           <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
             <EmptyState
               capsuleName={capsule?.name ?? 'This capsule'}
-              onAddMemory={() => setShowCaptureFlow(true)}
+              onAddMemory={handleRequestNewCapture}
             />
           </div>
         ) : displayedCaptures.length === 0 ? (
@@ -1005,7 +1019,7 @@ export default function CapsuleGalleryPage() {
       {!loading && captures.length > 0 && (
         <div className="sm:hidden fixed bottom-6 right-5 z-30">
           <button
-            onClick={() => setShowCaptureFlow(true)}
+            onClick={handleRequestNewCapture}
             className="flex items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-sm font-semibold transition-opacity hover:opacity-90 active:opacity-75"
             style={{
               background: accent,
@@ -1105,6 +1119,32 @@ export default function CapsuleGalleryPage() {
           onAddToCapsule={handleCaptureComplete}
           capsuleId={capsuleId}
         />
+      )}
+
+      {/* ── Storage Gate: blocks new captures before the camera ever opens ── */}
+      {isUpgradeModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="w-[90%] max-w-sm rounded-2xl bg-zinc-900 border border-amber-500/30 shadow-2xl shadow-amber-500/10 p-6">
+            <h2 className="text-lg font-bold text-white mb-2">Storage Limit Reached</h2>
+            <p className="text-sm text-white/65 leading-relaxed mb-6">
+              You have used your 2.0 GB of free spatial storage. Upgrade to CubbyHole Pro to unlock unlimited 3D Objects, Reliefs, and high-res archiving.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setUpgradeModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white transition-colors"
+              >
+                Maybe Later
+              </button>
+              <button
+                onClick={() => console.log('Initiate Stripe Checkout')}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-zinc-900 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-colors shadow-sm"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
