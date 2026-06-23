@@ -49,7 +49,7 @@ interface Capture {
 type CaptureType = '2D' | '3D' | 'Relief' | 'Document'
 
 const TYPE_CONFIG: Record<CaptureType, {
-  icon: React.ComponentType<{ className?: string }>
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
   color: string
   label: string
 }> = {
