@@ -19,6 +19,7 @@ export type CaptureMetadata = {
   captureTime?: string
   location?: string
   description?: string
+  capsuleId?: string
 }
 
 export type CapturedMedia = {
@@ -95,6 +96,11 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
     setUploadError(false)
     setStep('uploading')
 
+    // The naming screen's capsule selector takes priority over the capsule
+    // this flow was originally launched with (e.g. when opened from the
+    // global dashboard rather than from inside a specific capsule).
+    const targetCapsuleId = metadata.capsuleId ?? capsuleId
+
     uploadCapture({
       mode,
       asset: media.blob,
@@ -122,13 +128,13 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
           cloudReliefFrames: result.cloudReliefFrames,
         }).catch(() => {})
 
-        if (capsuleId) {
+        if (targetCapsuleId) {
           try {
             const now = new Date()
             const title = isBlankTitle(metadata.title) ? buildFallbackTitle(mode, now) : metadata.title!.trim()
 
             const baseRow = {
-              capsule_id: capsuleId,
+              capsule_id: targetCapsuleId,
               title,
               description: metadata.description?.trim() || null,
               capture_date: metadata.captureDate || now.toISOString().split('T')[0],
@@ -218,6 +224,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
           mode={mode}
           previewUrl={capturedMedia.url}
           mediaType={capturedMedia.mediaType}
+          initialCapsuleId={capsuleId}
           onConfirm={runUpload}
         />
       )}
@@ -236,7 +243,6 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
           mode={mode}
           capturedMedia={capturedMedia}
           onAddToCapsule={onAddToCapsule}
-          onSetPrivacy={() => {/* wires into ShareSettingsModal in a future session */}}
           onRescan={goToCapture}
           onClearCache={handleClearCache}
         />

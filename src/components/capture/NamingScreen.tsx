@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import type { CaptureMode, CaptureMetadata } from './CaptureFlow'
 
 const TITLE_PLACEHOLDERS: Record<CaptureMode, string> = {
@@ -18,14 +19,24 @@ const MODE_DESCRIPTIONS: Record<CaptureMode, string> = {
   document:  'document scan',
 }
 
+interface Capsule {
+  id: string
+  name: string
+}
+
 interface Props {
   mode: CaptureMode
   previewUrl: string
   mediaType: 'image' | 'video'
+  // The capsule this flow was launched from (if any) — pre-selects the
+  // selector below. When the flow starts from the global dashboard instead
+  // of a specific capsule, this is undefined and the selector defaults to
+  // the user's most recently created capsule once the list loads.
+  initialCapsuleId?: string
   onConfirm: (metadata: CaptureMetadata) => void
 }
 
-export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }: Props) {
+export default function NamingScreen({ mode, previewUrl, mediaType, initialCapsuleId, onConfirm }: Props) {
   const now = new Date()
   const todayISO = now.toISOString().split('T')[0]
   const nowHHMM  = now.toTimeString().slice(0, 5)
@@ -38,11 +49,32 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
   const [description, setDescription] = useState('')
   const [isUploading, setIsUploading] = useState(false)
 
+  const [capsules, setCapsules] = useState<Capsule[]>([])
+  const [selectedCapsuleId, setSelectedCapsuleId] = useState(initialCapsuleId ?? '')
+
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 150)
     return () => clearTimeout(t)
+  }, [])
+
+  // Load the user's capsules for the "Save to Capsule" selector. If this
+  // flow wasn't launched from inside a specific capsule, default to the
+  // most recently created one once the list arrives.
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) return
+      const { data } = await supabase
+        .from('capsules')
+        .select('id, name')
+        .eq('profile_id', session.user.id)
+        .order('created_at', { ascending: false })
+
+      const rows = (data ?? []) as Capsule[]
+      setCapsules(rows)
+      setSelectedCapsuleId(prev => prev || rows[0]?.id || '')
+    })
   }, [])
 
   const handleConfirm = () => {
@@ -60,6 +92,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
         captureTime: captureTime        || undefined,
         location:    location.trim()    || undefined,
         description: description.trim() || undefined,
+        capsuleId:   selectedCapsuleId   || undefined,
       })
     } finally {
       setIsUploading(false)
@@ -118,6 +151,25 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
               maxLength={60}
               className={inputClass}
             />
+          </div>
+
+          {/* Save to Capsule */}
+          <div>
+            <label className={labelClass}>
+              Save to Capsule
+            </label>
+            <select
+              value={selectedCapsuleId}
+              onChange={e => setSelectedCapsuleId(e.target.value)}
+              className={`${inputClass} [color-scheme:dark]`}
+            >
+              {capsules.length === 0 && (
+                <option value="" disabled>No capsules yet</option>
+              )}
+              {capsules.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Creator */}
@@ -210,7 +262,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
             {isUploading ? 'Compressing & Saving...' : title.trim() ? 'Save & Continue' : 'Continue'}
           </button>
           <button
-            onClick={() => onConfirm({})}
+            onClick={() => onConfirm({ capsuleId: selectedCapsuleId || undefined })}
             disabled={isUploading}
             className="w-full text-zinc-500 hover:text-zinc-400 text-sm py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

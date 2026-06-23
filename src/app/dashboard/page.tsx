@@ -8,6 +8,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
 import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
 import VolumetricMeter from '@/components/dashboard/VolumetricMeter'
+import CaptureFlow from '@/components/capture/CaptureFlow'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -536,6 +537,7 @@ export default function DashboardPage() {
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
   const [colorTarget,       setColorTarget]       = useState<Capsule | null>(null)
   const [deleteTarget,      setDeleteTarget]      = useState<Capsule | null>(null)
+  const [showCaptureFlow,   setShowCaptureFlow]   = useState(false)
 
   const sortedCapsules = useMemo(() => {
     if (sortBy === 'name') {
@@ -661,6 +663,30 @@ export default function DashboardPage() {
     router.replace('/login')
   }
 
+  // ── Global "+ Add Memory" — targets the most recently created capsule.
+  // Capsules with no destination to save into get routed to capsule creation
+  // first, mirroring the in-capsule storage gate's "nowhere to save" guard. ──
+
+  useEffect(() => {
+    document.body.style.overflow = showCaptureFlow ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [showCaptureFlow])
+
+  const handleRequestNewCapture = useCallback(() => {
+    if (capsules.length === 0) {
+      setIsCreateModalOpen(true)
+      return
+    }
+    setShowCaptureFlow(true)
+  }, [capsules])
+
+  const handleCaptureComplete = useCallback(() => {
+    setShowCaptureFlow(false)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) fetchCapsules(session.user.id)
+    })
+  }, [fetchCapsules])
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -677,6 +703,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <VolumetricMeter usedBytes={usedBytes} limitBytes={storageLimitBytes} />
             <button
+              onClick={handleRequestNewCapture}
+              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 shadow-sm shadow-indigo-500/30"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Add Memory</span>
+            </button>
+            <button
               onClick={() => console.log('Upgrade clicked')}
               className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
             >
@@ -687,7 +720,7 @@ export default function DashboardPage() {
             <button
               onClick={handleSignOut}
               title="Sign out"
-              className="flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-zinc-600 hover:text-slate-700 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 px-2.5 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-zinc-300 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 px-2.5 py-1.5 rounded-lg transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sign out</span>
@@ -837,6 +870,15 @@ export default function DashboardPage() {
           capsule={deleteTarget}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* ── Capture flow overlay — targets the most recently created capsule ── */}
+      {showCaptureFlow && capsules[0] && (
+        <CaptureFlow
+          onClose={() => setShowCaptureFlow(false)}
+          onAddToCapsule={handleCaptureComplete}
+          capsuleId={capsules[0].id}
         />
       )}
     </div>

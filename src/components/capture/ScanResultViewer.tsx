@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { useState, useEffect } from 'react'
-import { PackagePlus, ShieldCheck, RotateCcw, Sparkles, CheckCircle2, Trash2 } from 'lucide-react'
+import { PackagePlus, RotateCcw, Sparkles, CheckCircle2, Trash2 } from 'lucide-react'
 import DocumentViewer from './DocumentViewer'
 import ReliefViewer from './ReliefViewer'
 import LenticularViewer from './LenticularViewer'
@@ -46,12 +46,11 @@ interface Props {
   mode: CaptureMode
   capturedMedia: CapturedMedia | null
   onAddToCapsule: () => void
-  onSetPrivacy: () => void
   onRescan: () => void
   onClearCache?: () => void
 }
 
-export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onSetPrivacy, onRescan, onClearCache }: Props) {
+export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, onRescan, onClearCache }: Props) {
   const [added, setAdded] = useState(false)
   const [docPageUrls, setDocPageUrls] = useState<string[]>([])
 
@@ -215,13 +214,6 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
 
         {/* Secondary actions */}
         <div className="flex gap-2.5">
-          <button
-            onClick={onSetPrivacy}
-            className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-3 rounded-2xl border border-zinc-700/80 transition-colors active:scale-[0.98]"
-          >
-            <ShieldCheck className="w-4 h-4 text-zinc-400" />
-            Adjust Privacy
-          </button>
           <button
             onClick={onRescan}
             className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-300 font-medium py-3 rounded-2xl border border-zinc-700/80 transition-colors active:scale-[0.98]"

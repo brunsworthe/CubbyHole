@@ -283,13 +283,15 @@ export default function LoginPage() {
           ) : (
             <>
               {/* Heading */}
-              <h2 className="text-slate-900 dark:text-white font-semibold text-lg mb-1">
-                {isMagicLinkMode ? 'Send a magic link' : 'Welcome back'}
-              </h2>
+              {isMagicLinkMode && (
+                <h2 className="text-slate-900 dark:text-white font-semibold text-lg mb-1">
+                  Send a magic link
+                </h2>
+              )}
               <p className="text-slate-500 dark:text-zinc-500 text-sm mb-6">
                 {isMagicLinkMode
                   ? "We'll email you a one-tap link — no password needed."
-                  : 'Sign in to your parent account.'}
+                  : 'sign in to your cubbyhole account'}
               </p>
 
               <div className="space-y-4">
