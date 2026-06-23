@@ -14,6 +14,7 @@ import CaptureFlow from '@/components/capture/CaptureFlow'
 import CaptureViewerModal, { type ViewableCapture } from '@/components/capture/CaptureViewerModal'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
+import VolumetricMeter from '@/components/dashboard/VolumetricMeter'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -571,6 +572,8 @@ export default function CapsuleGalleryPage() {
   const [capsule,         setCapsule]         = useState<Capsule | null>(null)
   const [profileId,       setProfileId]       = useState<string | null>(null)
   const [captures,        setCaptures]        = useState<Capture[]>([])
+  const [storageLimitBytes, setStorageLimitBytes] = useState<number | null>(null)
+  const [usedBytes,         setUsedBytes]         = useState(0)
   const [loading,         setLoading]         = useState(true)
   const [notFound,        setNotFound]        = useState(false)
   const [selectedCapture, setSelectedCapture] = useState<Capture | null>(null)
@@ -680,6 +683,28 @@ export default function CapsuleGalleryPage() {
     setLoading(false)
   }, [capsuleId])
 
+  // Profile's storage_limit_bytes and total usage across all of the user's captures
+  // (not just this capsule's) — mirrors the dashboard header's VolumetricMeter.
+  const fetchStorageStats = useCallback(async (uid: string) => {
+    const [{ data: profileData }, { data: capsuleRows }] = await Promise.all([
+      supabase.from('profiles').select('storage_limit_bytes').eq('id', uid).single(),
+      supabase.from('capsules').select('id').eq('profile_id', uid),
+    ])
+
+    setStorageLimitBytes(profileData?.storage_limit_bytes ?? 0)
+
+    const ids = capsuleRows?.map(c => c.id) ?? []
+    if (ids.length === 0) { setUsedBytes(0); return }
+
+    const { data: countRows } = await supabase
+      .from('captures')
+      .select('size_bytes')
+      .in('capsule_id', ids)
+
+    const total = countRows?.reduce((acc, curr) => acc + (curr.size_bytes || 0), 0) ?? 0
+    setUsedBytes(total)
+  }, [])
+
   // ── Auth guard ────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -687,6 +712,7 @@ export default function CapsuleGalleryPage() {
       if (!session) { router.replace('/login'); return }
       setProfileId(session.user.id)
       fetchData(session.user.id)
+      fetchStorageStats(session.user.id)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -694,7 +720,7 @@ export default function CapsuleGalleryPage() {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, fetchData])
+  }, [router, fetchData, fetchStorageStats])
 
   // ── Bulk move captures to a capsule (existing or newly created) ──────────
 
@@ -915,6 +941,7 @@ export default function CapsuleGalleryPage() {
                 {isSelectMode ? 'Done' : 'Select'}
               </button>
             )}
+            <VolumetricMeter usedBytes={usedBytes} limitBytes={storageLimitBytes} />
             <ThemeToggle />
             {!loading && (
               <button
