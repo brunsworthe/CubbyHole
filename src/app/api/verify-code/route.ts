@@ -3,16 +3,17 @@ import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-// Service-role client — bypasses RLS. Server-only; never exposed to the browser.
-// Untyped: access_codes/profiles.is_beta_unlocked/storage_limit_bytes aren't in the
-// generated Database type yet (access_codes_schema.sql hasn't been run against the DB).
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST(req: NextRequest) {
   try {
+    // Service-role client — bypasses RLS. Server-only; never exposed to the browser.
+    // Untyped: access_codes/profiles.is_beta_unlocked/storage_limit_bytes aren't in the
+    // generated Database type yet (access_codes_schema.sql hasn't been run against the DB).
+    // Instantiated inside the handler so build-time static analysis never touches it.
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
     const { accessCode, userId } = await req.json()
 
     if (!accessCode || !userId) {
