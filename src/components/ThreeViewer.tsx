@@ -100,8 +100,12 @@ export default function ThreeViewer({ imageUrls }: ThreeViewerProps) {
   }
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-zinc-950">
-      <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
+    <div className="absolute inset-0 w-full h-full">
+      <Canvas
+        camera={{ position: [0, 0, 4], fov: 50 }}
+        gl={{ alpha: true }}
+        onCreated={({ scene }) => { scene.background = null }}
+      >
         <Suspense fallback={<Html center>Loading 3D Engine...</Html>}>
           {imageUrls.length > 0 && <SpinSequenceStack imageUrls={imageUrls} />}
         </Suspense>

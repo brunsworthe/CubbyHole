@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { X, Sparkles, MoreHorizontal, Pencil, Trash2, Boxes } from 'lucide-react'
+import { X, Sparkles, MoreHorizontal, Pencil, Trash2, Boxes, Share2, Check } from 'lucide-react'
 import DocumentViewer from './DocumentViewer'
 import VideoCaptureViewer from './VideoCaptureViewer'
 import SpinSequenceViewer from './SpinSequenceViewer'
@@ -53,9 +53,10 @@ interface Props {
   onClose: () => void
   onRename?: (id: string, newTitle: string) => void
   onDelete?: (id: string) => void
+  onShare?: () => Promise<boolean>
 }
 
-export default function CaptureViewerModal({ capture, onClose, onRename, onDelete }: Props) {
+export default function CaptureViewerModal({ capture, onClose, onRename, onDelete, onShare }: Props) {
   const mode = capture.mode as CaptureMode
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
@@ -82,12 +83,13 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
   })
 
   // ── Management state ─────────────────────────────────────────────────────────
-  const canManage = !!(onRename || onDelete)
+  const canManage = !!(onRename || onDelete || onShare)
   const [localTitle, setLocalTitle] = useState(capture.title ?? '')
   const [menuOpen, setMenuOpen] = useState(false)
   const [renameMode, setRenameMode] = useState(false)
   const [renameValue, setRenameValue] = useState(capture.title ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [justCopied, setJustCopied] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -143,6 +145,15 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
     onClose()
   }, [capture.id, onDelete, onClose])
 
+  const handleShareClick = useCallback(async () => {
+    if (!onShare || justCopied) return
+    const ok = await onShare()
+    if (ok) {
+      setJustCopied(true)
+      setTimeout(() => setJustCopied(false), 2000)
+    }
+  }, [onShare, justCopied])
+
   // ── Hint text ─────────────────────────────────────────────────────────────────
   let hintText: string
   if (isScan3d && hasSpinFrames) hintText = 'Drag left/right to rotate · ← → keys also work'
@@ -153,93 +164,12 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-zinc-950"
+      className="fixed inset-0 z-[60] bg-black/90"
       role="dialog"
       aria-modal="true"
     >
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${badgeClass}`}>
-            <Sparkles className="w-3 h-3" />
-            {capture.type}
-          </div>
-          {localTitle && (
-            <span className="text-sm font-semibold text-zinc-200 truncate max-w-[160px]">
-              {localTitle}
-            </span>
-          )}
-          <span className="text-xs text-zinc-500 flex-shrink-0">{dateStr}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
-          {/* Experimental WebGL alt-view toggle */}
-          {canThreeView && (
-            <button
-              onClick={() => setShowThreeViewer(v => !v)}
-              className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
-                showThreeViewer
-                  ? 'bg-slate-500 border-slate-400 text-white'
-                  : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-400 hover:text-zinc-100'
-              }`}
-              aria-label="Toggle 3D WebGL view"
-              title="Toggle experimental 3D view"
-            >
-              <Boxes className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* Management menu */}
-          {canManage && (
-            <div ref={menuRef} className="relative">
-              <button
-                onClick={() => setMenuOpen(v => !v)}
-                className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors"
-                aria-label="More options"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-10 w-44 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-10">
-                  {onRename && (
-                    <button
-                      onClick={() => { setMenuOpen(false); setRenameMode(true) }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors text-left"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
-                      Rename
-                    </button>
-                  )}
-                  {onRename && onDelete && (
-                    <div className="border-t border-zinc-800" />
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => { setMenuOpen(false); setConfirmDelete(true) }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-950/30 transition-colors text-left"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
-                      Delete
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors"
-            aria-label="Close viewer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Viewer */}
-      <div className="relative flex-1 min-h-0">
+      {/* LAYER 1: Base layer — the WebGL/image viewer, full-bleed */}
+      <div className="absolute inset-0 z-0 flex items-center justify-center">
         {canThreeView && showThreeViewer
           ? <ThreeViewer imageUrls={threeViewerImageUrls} />
           : isScan3d && hasSpinFrames
@@ -251,7 +181,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
               : (is2D || isDocument)
                 ? <DocumentViewer imageUrls={docPageUrls} />
                 : (
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-950 p-6">
+                    <div className="w-full h-full flex items-center justify-center p-6">
                       <img
                         src={capture.cloudUrl}
                         alt={localTitle}
@@ -263,16 +193,129 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
         }
       </div>
 
-      {/* Footer hint */}
-      {hintText && (
-        <div className="flex-shrink-0 px-5 py-2 border-t border-zinc-800/60 bg-zinc-950/80">
-          <p className="text-xs text-zinc-600 text-center">{hintText}</p>
-        </div>
-      )}
+      {/* LAYER 2: UI glass — header/footer chrome floats above the viewer
+          without stealing pointer events from it, except where explicitly opted in. */}
+      <div className="absolute inset-0 z-50 pointer-events-none flex flex-col">
+        {/* Header */}
+        <header className="pointer-events-auto flex-shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 ${badgeClass}`}>
+              <Sparkles className="w-3 h-3" />
+              {capture.type}
+            </div>
+            {localTitle && (
+              <span className="text-sm font-semibold text-zinc-200 truncate max-w-[160px]">
+                {localTitle}
+              </span>
+            )}
+            <span className="text-xs text-zinc-500 flex-shrink-0">{dateStr}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-3">
+            {/* Experimental WebGL alt-view toggle */}
+            {canThreeView && (
+              <button
+                onClick={() => setShowThreeViewer(v => !v)}
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ${
+                  showThreeViewer
+                    ? 'bg-slate-500 border-slate-400 text-white'
+                    : 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-400 hover:text-zinc-100'
+                }`}
+                aria-label="Toggle 3D WebGL view"
+                title="Toggle experimental 3D view"
+              >
+                <Boxes className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Management menu */}
+            {canManage && (
+              <div ref={menuRef} className="relative pointer-events-auto">
+                <button
+                  onClick={() => setMenuOpen(v => !v)}
+                  className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-10 w-44 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-[9999] pointer-events-auto">
+                    {onRename && (
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setRenameMode(true)
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors text-left first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                        Rename
+                      </button>
+                    )}
+                    {onRename && onShare && (
+                      <div className="border-t border-zinc-800" />
+                    )}
+                    {onShare && (
+                      <button
+                        onClick={() => {
+                          console.log('Button clicked:', capture.id)
+                          setMenuOpen(false)
+                          handleShareClick()
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors text-left first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        {justCopied
+                          ? <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                          : <Share2 className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />}
+                        {justCopied ? 'Link copied!' : 'Share'}
+                      </button>
+                    )}
+                    {(onRename || onShare) && onDelete && (
+                      <div className="border-t border-zinc-800" />
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => {
+                          console.log('Button clicked:', capture.id)
+                          setMenuOpen(false)
+                          setConfirmDelete(true)
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-950/30 transition-colors text-left first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Close */}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors"
+              aria-label="Close viewer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+
+        {/* Spacer — keeps pointer-events-none so drags pass through to the viewer below */}
+        <div className="flex-1" />
+
+        {/* Footer hint */}
+        {hintText && (
+          <div className="flex-shrink-0 px-5 py-2 border-t border-zinc-800/60 bg-zinc-950/80">
+            <p className="text-xs text-zinc-600 text-center">{hintText}</p>
+          </div>
+        )}
+      </div>
 
       {/* ── Rename overlay ────────────────────────────────────────────────────── */}
       {renameMode && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center px-4 bg-black/65 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[70] flex items-center justify-center px-4 bg-black/65 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl p-6">
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-bold text-zinc-100 text-base">Rename memory</h3>
@@ -315,7 +358,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
 
       {/* ── Delete confirmation overlay ───────────────────────────────────────── */}
       {confirmDelete && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center px-4 bg-black/65 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[70] flex items-center justify-center px-4 bg-black/65 backdrop-blur-sm">
           <div className="w-full max-w-sm bg-zinc-900 rounded-2xl border border-zinc-800 shadow-2xl p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-red-950/60 flex items-center justify-center flex-shrink-0 mt-0.5">

@@ -12,7 +12,6 @@ const compressionOptions = {
   maxSizeMB: 0.8,
   maxWidthOrHeight: 1920,
   useWebWorker: true,
-  exifOrientation: true,
 }
 
 // Video assets can't be run through an image compressor — only still-image

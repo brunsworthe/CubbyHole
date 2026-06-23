@@ -1345,6 +1345,7 @@ export default function CapsuleGalleryPage() {
           onClose={() => setSelectedCapture(null)}
           onRename={handleViewerRename}
           onDelete={handleViewerDelete}
+          onShare={() => handleShareCapture(selectedCapture.id, selectedCapture.share_id, selectedCapture.is_public)}
         />
       )}
 
