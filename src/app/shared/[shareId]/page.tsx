@@ -8,6 +8,7 @@ import { Cloud, ChevronLeft, ChevronRight, Plus, Minus, RotateCcw } from 'lucide
 import { supabase } from '@/lib/supabase'
 
 const ThreeViewer = dynamic(() => import('@/components/ThreeViewer'), { ssr: false })
+const LenticularViewer = dynamic(() => import('@/components/capture/LenticularViewer'), { ssr: false })
 
 interface SharedCapture {
   id: string
@@ -217,8 +218,12 @@ export default function SharedCapturePage() {
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
-      {is3D || isRelief ? (
-        <ThreeViewer imageUrls={is3D ? spinFrameUrls : reliefFrameUrls} />
+      {is3D ? (
+        <ThreeViewer imageUrls={spinFrameUrls} />
+      ) : isRelief ? (
+        <div className="absolute inset-0 w-full h-full">
+          <LenticularViewer imageUrls={reliefFrameUrls} readOnly />
+        </div>
       ) : (
         <div
           ref={scrollRef}

@@ -9,6 +9,9 @@ const ANGLE_LABELS = ['-80°', '-40°', '0°', '+40°', '+80°']
 
 interface Props {
   imageUrls: string[]
+  // No edit/delete/align controls exist in this viewer, but public callers (e.g.
+  // the shared/[shareId] page) pass this explicitly to document the lockdown intent.
+  readOnly?: boolean
 }
 
 export default function LenticularViewer({ imageUrls }: Props) {
