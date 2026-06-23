@@ -1,21 +1,13 @@
 'use client'
 
+import { formatBytes } from '@/utils/formatters'
+
 // ── Storage quota (free tier) ───────────────────────────────────────────────
 
 const AVG_3D_MB = 15
 const AVG_RELIEF_MB = 5
 const AVG_2D_MB = 2
 const AVG_DOC_MB = 1
-
-export const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 MB'
-  const mb = bytes / (1024 * 1024)
-  if (mb < 1000) {
-    return `${Math.round(mb)} MB`
-  }
-  const gb = mb / 1024
-  return `${gb.toFixed(1)} GB`
-}
 
 export default function VolumetricMeter({ usedBytes, limitBytes }: { usedBytes: number; limitBytes: number | null }) {
   // Dynamic, profile-driven limit (granted via an access code) — falls back to 0

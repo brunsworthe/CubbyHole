@@ -7,7 +7,7 @@ import {
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2, Check,
-  FolderOpen, Share2,
+  FolderOpen, Share2, LayoutGrid, List as ListIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -15,6 +15,7 @@ import CaptureViewerModal, { type ViewableCapture } from '@/components/capture/C
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
 import VolumetricMeter from '@/components/dashboard/VolumetricMeter'
+import { formatBytes } from '@/utils/formatters'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ interface Capture {
   cloud_pages: string[] | null
   is_public?: boolean | null
   share_id?: string | null
+  size_bytes?: number | null
 }
 
 // ── Type badge config ─────────────────────────────────────────────────────────
@@ -241,6 +243,140 @@ function CaptureCard({
             <p className="text-white/55 text-[11px] leading-none">
               {formatDate(capture.capture_date)}
             </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── CaptureListRow ────────────────────────────────────────────────────────────
+
+function CaptureListRow({
+  capture, isDeleting, onClick, onEdit, onDelete, onShare,
+}: {
+  capture: Capture
+  isDeleting: boolean
+  onClick: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onShare: () => Promise<boolean>
+}) {
+  const [imgError, setImgError] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [justCopied, setJustCopied] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const { icon: Icon, color, label } = getTypeConfig(capture.type)
+
+  const handleShareClick = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (justCopied) return
+    const ok = await onShare()
+    if (ok) {
+      setJustCopied(true)
+      setTimeout(() => setJustCopied(false), 2000)
+    }
+  }, [onShare, justCopied])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  return (
+    <div
+      className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 cursor-pointer transition-all duration-200 ${
+        isDeleting ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+      } ${menuOpen ? 'z-10 relative' : ''}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
+    >
+      {/* Thumbnail */}
+      <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800">
+        {imgError ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <Cloud className="w-4 h-4 text-zinc-600" />
+          </div>
+        ) : (
+          <img
+            src={capture.cloud_url}
+            alt={capture.title}
+            className="w-full h-full object-cover"
+            draggable={false}
+            onError={() => setImgError(true)}
+          />
+        )}
+      </div>
+
+      {/* Title */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 truncate">
+          {capture.title || 'Untitled Capture'}
+        </p>
+      </div>
+
+      {/* Type badge */}
+      <div className="hidden sm:flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 flex-shrink-0">
+        <Icon className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
+        {label}
+      </div>
+
+      {/* Date */}
+      <span className="hidden md:block text-xs text-slate-500 dark:text-zinc-500 w-24 flex-shrink-0 text-right">
+        {capture.capture_date ? formatDate(capture.capture_date) : '—'}
+      </span>
+
+      {/* File size */}
+      <span className="hidden lg:block text-xs text-slate-500 dark:text-zinc-500 w-16 flex-shrink-0 text-right tabular-nums">
+        {formatBytes(capture.size_bytes ?? 0)}
+      </span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={handleShareClick}
+          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+            justCopied
+              ? 'bg-emerald-500/15 text-emerald-500'
+              : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
+          }`}
+          aria-label={justCopied ? 'Link copied' : 'Copy share link'}
+        >
+          {justCopied ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Share2 className="w-3.5 h-3.5" />}
+        </button>
+
+        <div ref={menuRef} className="relative">
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 transition-colors"
+            aria-label="Options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute top-8 right-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+              <button
+                onClick={() => { setMenuOpen(false); onEdit() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Rename
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onDelete() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                Delete
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -584,6 +720,7 @@ export default function CapsuleGalleryPage() {
   const [sortBy,          setSortBy]          = useState<'date' | 'name'>('date')
   const [sortDir,         setSortDir]         = useState<'desc' | 'asc'>('desc')
   const [filterType,      setFilterType]      = useState<CaptureType | null>(null)
+  const [viewMode,        setViewMode]        = useState<'grid' | 'list'>('grid')
 
   // ── Selection mode (bulk actions) ──────────────────────────────────────────
   const [isSelectMode,       setIsSelectMode]       = useState(false)
@@ -975,6 +1112,35 @@ export default function CapsuleGalleryPage() {
             </p>
 
             {captures.length > 0 && (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Grid/List view toggle */}
+                <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    aria-label="Grid view"
+                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                      viewMode === 'grid'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={viewMode === 'grid' ? { background: accent } : undefined}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    aria-label="List view"
+                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                      viewMode === 'list'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={viewMode === 'list' ? { background: accent } : undefined}
+                  >
+                    <ListIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
               <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium flex-shrink-0">
                 {/* Date button — re-clicking toggles asc/desc */}
                 <button
@@ -1017,6 +1183,7 @@ export default function CapsuleGalleryPage() {
                       : <ArrowUp className="w-3 h-3" />
                   )}
                 </button>
+              </div>
               </div>
             )}
           </div>
@@ -1083,7 +1250,7 @@ export default function CapsuleGalleryPage() {
               Clear filter
             </button>
           </div>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {displayedCaptures.map(capture => (
               <CaptureCard
@@ -1099,6 +1266,20 @@ export default function CapsuleGalleryPage() {
                     setSelectedCapture(capture)
                   }
                 }}
+                onEdit={() => setEditTarget(capture)}
+                onDelete={() => setDeleteTarget(capture)}
+                onShare={() => handleShareCapture(capture.id, capture.share_id, capture.is_public)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {displayedCaptures.map(capture => (
+              <CaptureListRow
+                key={capture.id}
+                capture={capture}
+                isDeleting={deletingIds.has(capture.id)}
+                onClick={() => setSelectedCapture(capture)}
                 onEdit={() => setEditTarget(capture)}
                 onDelete={() => setDeleteTarget(capture)}
                 onShare={() => handleShareCapture(capture.id, capture.share_id, capture.is_public)}
