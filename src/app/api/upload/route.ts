@@ -61,9 +61,13 @@ export async function POST(req: NextRequest) {
       Promise.all(reliefFiles.map((f, i) => uploadBlob(f, `${prefix}-relief-${i}${fileExt(f)}`, `reliefFrame[${i}]`))),
     ])
 
+    const sizeBytes = [asset, ...pageFiles, ...frameFiles, ...reliefFiles]
+      .reduce((sum, f) => sum + f.size, 0)
+
     return NextResponse.json({
       ok: true,
       cloudUrl,
+      sizeBytes,
       ...(cloudPages.length ? { cloudPages } : {}),
       ...(cloudFrames.length ? { cloudFrames } : {}),
       ...(cloudReliefFrames.length ? { cloudReliefFrames } : {}),

@@ -136,6 +136,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
               creator: metadata.creator?.trim() || null,
               cloud_url: result.cloudUrl,
               type: MODE_TO_TYPE[mode],
+              size_bytes: result.sizeBytes,
             }
 
             const frameFields = {

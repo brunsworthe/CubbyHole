@@ -15,11 +15,6 @@ const AVG_RELIEF_MB = 5
 const AVG_2D_MB = 2
 const AVG_DOC_MB = 1
 
-// Mock usage until real storage accounting lands — see StorageQuotaMeter.
-// Proportional to a 50 MB test grant (~25 MB used = ~50% full) so the meter
-// reads sensibly while testing against an access-code-granted limit.
-const mockUsedBytes = 25 * 1024 * 1024 // 25 MB used
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Capsule {
@@ -48,12 +43,17 @@ function resolveColor(hex: string | null): string {
 
 // ── StorageQuotaMeter ─────────────────────────────────────────────────────────
 
-function formatGB(bytes: number) {
-  return (bytes / 1024 / 1024 / 1024).toFixed(1)
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0 MB'
+  const mb = bytes / (1024 * 1024)
+  if (mb < 1000) {
+    return `${Math.round(mb)} MB`
+  }
+  const gb = mb / 1024
+  return `${gb.toFixed(1)} GB`
 }
 
-function StorageQuotaMeter({ storageLimitBytes }: { storageLimitBytes: number | null }) {
-  const usedBytes = mockUsedBytes
+function StorageQuotaMeter({ usedBytes, storageLimitBytes }: { usedBytes: number; storageLimitBytes: number | null }) {
   // Dynamic, profile-driven limit (granted via an access code) — falls back to 0
   // so the math degrades to "no space" rather than NaN while the profile loads.
   const limitBytes = storageLimitBytes || 0
@@ -91,7 +91,7 @@ function StorageQuotaMeter({ storageLimitBytes }: { storageLimitBytes: number | 
     <div className="hidden md:block group relative mr-2" tabIndex={0}>
       <div className="flex flex-col gap-1 w-36 cursor-default outline-none">
         <span className={`text-[11px] font-medium leading-none ${textClass}`}>
-          {formatGB(usedBytes)} GB / {formatGB(limitBytes)} GB Used
+          {formatBytes(usedBytes)} / {formatBytes(limitBytes)} Used
         </span>
         <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-zinc-800 overflow-hidden">
           <div className={`h-full rounded-full transition-all ${barClass}`} style={{ width: `${pct}%` }} />
@@ -607,6 +607,7 @@ export default function DashboardPage() {
   const [storageLimitBytes, setStorageLimitBytes] = useState<number | null>(null)
   const [capsules,          setCapsules]          = useState<Capsule[]>([])
   const [captureCounts,     setCaptureCounts]     = useState<Record<string, number>>({})
+  const [usedBytes,         setUsedBytes]         = useState(0)
   const [sortBy,            setSortBy]            = useState<'date' | 'name'>('date')
   const [sortDir,           setSortDir]           = useState<'desc' | 'asc'>('desc')
   const [loading,           setLoading]           = useState(true)
@@ -642,13 +643,16 @@ export default function DashboardPage() {
         const ids = rows.map(c => c.id)
         const { data: countRows } = await supabase
           .from('captures')
-          .select('capsule_id')
+          .select('capsule_id, size_bytes')
           .in('capsule_id', ids)
 
         const counts: Record<string, number> = {}
         ids.forEach(id => { counts[id] = 0 })
         countRows?.forEach(r => { counts[r.capsule_id] = (counts[r.capsule_id] ?? 0) + 1 })
         setCaptureCounts(counts)
+
+        const total = countRows?.reduce((acc, curr) => acc + (curr.size_bytes || 0), 0) ?? 0
+        setUsedBytes(total)
       }
     }
     setLoading(false)
@@ -750,7 +754,7 @@ export default function DashboardPage() {
 
           {/* Right controls */}
           <div className="flex items-center gap-3">
-            <StorageQuotaMeter storageLimitBytes={storageLimitBytes} />
+            <StorageQuotaMeter usedBytes={usedBytes} storageLimitBytes={storageLimitBytes} />
             <button
               onClick={() => console.log('Upgrade clicked')}
               className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"

@@ -1,5 +1,6 @@
 export type UploadResult = {
   cloudUrl: string
+  sizeBytes: number
   cloudPages?: string[]
   cloudFrames?: string[]
   cloudReliefFrames?: string[]
