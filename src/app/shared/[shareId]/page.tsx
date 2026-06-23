@@ -7,7 +7,14 @@ import Link from 'next/link'
 import { Cloud, ChevronLeft, ChevronRight, Plus, Minus, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-const ThreeViewer = dynamic(() => import('@/components/ThreeViewer'), { ssr: false })
+const ThreeViewer = dynamic(() => import('@/components/ThreeViewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full w-full bg-gray-900 animate-pulse text-white/50">
+      Loading 3D Engine...
+    </div>
+  ),
+})
 const LenticularViewer = dynamic(() => import('@/components/capture/LenticularViewer'), { ssr: false })
 
 interface SharedCapture {

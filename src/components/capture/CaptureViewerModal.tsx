@@ -18,7 +18,14 @@ const TimeCapsuleViewer = dynamic(
 // SpinSequenceViewer/LenticularViewer experience is untouched.
 const ThreeViewer = dynamic(
   () => import('@/components/ThreeViewer'),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full w-full bg-zinc-900 animate-pulse text-white/50">
+        Loading 3D Engine...
+      </div>
+    ),
+  }
 )
 
 export type ViewableCapture = {
