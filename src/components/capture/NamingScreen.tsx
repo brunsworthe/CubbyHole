@@ -36,6 +36,7 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
   const [captureTime, setCaptureTime] = useState(nowHHMM)
   const [location, setLocation]     = useState('')
   const [description, setDescription] = useState('')
+  const [isUploading, setIsUploading] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -45,17 +46,24 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
   }, [])
 
   const handleConfirm = () => {
-    const resolvedTitle = title.trim() ||
-      `${MODE_DESCRIPTIONS[mode]} — ${captureDate}${captureTime ? ` ${captureTime}` : ''}`
+    if (isUploading) return
+    setIsUploading(true)
 
-    onConfirm({
-      title:       resolvedTitle,
-      creator:     creator.trim()     || undefined,
-      captureDate: captureDate        || undefined,
-      captureTime: captureTime        || undefined,
-      location:    location.trim()    || undefined,
-      description: description.trim() || undefined,
-    })
+    try {
+      const resolvedTitle = title.trim() ||
+        `${MODE_DESCRIPTIONS[mode]} — ${captureDate}${captureTime ? ` ${captureTime}` : ''}`
+
+      onConfirm({
+        title:       resolvedTitle,
+        creator:     creator.trim()     || undefined,
+        captureDate: captureDate        || undefined,
+        captureTime: captureTime        || undefined,
+        location:    location.trim()    || undefined,
+        description: description.trim() || undefined,
+      })
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const inputClass =
@@ -191,14 +199,20 @@ export default function NamingScreen({ mode, previewUrl, mediaType, onConfirm }:
         <div className="w-full max-w-sm mx-auto space-y-3">
           <button
             onClick={handleConfirm}
-            className="w-full flex items-center justify-center gap-2 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-slate-500/20"
+            disabled={isUploading}
+            className="w-full flex items-center justify-center gap-2 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors shadow-sm shadow-slate-500/20"
           >
-            <Check className="w-4 h-4" />
-            {title.trim() ? 'Save & Continue' : 'Continue'}
+            {isUploading ? (
+              <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {isUploading ? 'Compressing & Saving...' : title.trim() ? 'Save & Continue' : 'Continue'}
           </button>
           <button
             onClick={() => onConfirm({})}
-            className="w-full text-zinc-500 hover:text-zinc-400 text-sm py-2 transition-colors"
+            disabled={isUploading}
+            className="w-full text-zinc-500 hover:text-zinc-400 text-sm py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Skip naming
           </button>
