@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic'
+
 // Service-role client — bypasses RLS. Server-only; never exposed to the browser.
 // Untyped: access_codes/profiles.is_beta_unlocked/storage_limit_bytes aren't in the
 // generated Database type yet (access_codes_schema.sql hasn't been run against the DB).
