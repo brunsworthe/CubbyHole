@@ -109,14 +109,15 @@ function PoweredByPill() {
   return (
     <Link
       href="/"
-      className="fixed bottom-6 right-6 z-30 flex items-center gap-3 px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-lg shadow-black/40"
+      className="fixed bottom-6 right-6 z-30 flex items-center px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md transition-all shadow-lg shadow-black/40"
     >
-      <div className="w-6 h-6 rounded-sm overflow-hidden flex-shrink-0">
-        <BrandShelfIcon className="w-full h-full text-white" />
+      <span className="text-base font-medium text-white lowercase tracking-tight">powered by&nbsp;</span>
+      <div className="flex items-center">
+        <div className="w-6 h-6 m-0 p-0 rounded-sm overflow-hidden flex-shrink-0">
+          <BrandShelfIcon className="w-full h-full text-white" />
+        </div>
+        <span className="text-base font-medium text-white lowercase tracking-tight leading-none">cubbyhole</span>
       </div>
-      <span className="text-base font-medium text-white lowercase tracking-tight">
-        powered by cubbyhole
-      </span>
     </Link>
   )
 }
