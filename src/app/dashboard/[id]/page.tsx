@@ -234,16 +234,21 @@ function CaptureCard({
           )}
         </div>
 
-        {/* Bottom-left title + date */}
+        {/* Bottom-left title + date / size */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <p className="text-white text-sm font-semibold line-clamp-2 leading-snug mb-0.5 drop-shadow-sm">
             {capture.title}
           </p>
-          {capture.capture_date && (
-            <p className="text-white/55 text-[11px] leading-none">
-              {formatDate(capture.capture_date)}
+          <div className="flex items-center justify-between gap-2">
+            {capture.capture_date ? (
+              <p className="text-white/55 text-[11px] leading-none">
+                {formatDate(capture.capture_date)}
+              </p>
+            ) : <span />}
+            <p className="text-white/40 text-[10px] uppercase tracking-wider leading-none flex-shrink-0">
+              {formatBytes(capture.size_bytes || 0)}
             </p>
-          )}
+          </div>
         </div>
       </div>
     </div>
