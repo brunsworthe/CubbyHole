@@ -7,7 +7,7 @@ import {
   FileText, Mountain, Palette, Cloud,
   X, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Trash2, Check,
-  FolderOpen, Share2, LayoutGrid, List as ListIcon,
+  FolderOpen, Share2, LayoutGrid, List as ListIcon, Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import CaptureFlow from '@/components/capture/CaptureFlow'
@@ -324,16 +324,27 @@ function CaptureListRow({
         <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 truncate">
           {capture.title || 'Untitled Capture'}
         </p>
+        {/* Mobile-only meta row — covers phones in both orientations; collapses into columns at lg+ */}
+        <div className="lg:hidden flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 dark:text-zinc-500">
+          <span className="flex items-center gap-0.5 flex-shrink-0">
+            <Icon className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
+            {label}
+          </span>
+          <span className="flex-shrink-0">·</span>
+          <span className="flex-shrink-0">{capture.capture_date ? formatDate(capture.capture_date) : '—'}</span>
+          <span className="flex-shrink-0">·</span>
+          <span className="flex-shrink-0 tabular-nums">{formatBytes(capture.size_bytes ?? 0)}</span>
+        </div>
       </div>
 
       {/* Type badge */}
-      <div className="hidden sm:flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 flex-shrink-0">
+      <div className="hidden lg:flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 flex-shrink-0">
         <Icon className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
         {label}
       </div>
 
       {/* Date */}
-      <span className="hidden md:block text-xs text-slate-500 dark:text-zinc-500 w-24 flex-shrink-0 text-right">
+      <span className="hidden lg:block text-xs text-slate-500 dark:text-zinc-500 w-24 flex-shrink-0 text-right">
         {capture.capture_date ? formatDate(capture.capture_date) : '—'}
       </span>
 
@@ -1053,53 +1064,24 @@ export default function CapsuleGalleryPage() {
           {/* Vertical divider */}
           <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800 flex-shrink-0" />
 
-          {/* Capsule name + accent swatch */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div
-              className="w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center transition-all duration-300"
-              style={{ background: `${accent}25`, border: `1.5px solid ${accent}55` }}
-            >
-              <Box className="w-2.5 h-2.5" style={{ color: accent }} />
-            </div>
-
-            {loading ? (
-              <div className="h-4 w-32 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
-            ) : (
-              <h1 className="font-bold text-base tracking-tight truncate">
-                {capsule?.name ?? 'Gallery'}
-              </h1>
-            )}
-          </div>
+          {/* Spacer — capsule title now lives in the main content above the filter chips */}
+          <div className="flex-1 min-w-0" />
 
           {/* Right: theme toggle + desktop CTA */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {!loading && captures.length > 0 && (
-              <button
-                onClick={handleToggleSelectMode}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                  isSelectMode
-                    ? 'bg-slate-500 hover:bg-slate-400 border-slate-400 text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
-                }`}
-              >
-                {isSelectMode ? 'Done' : 'Select'}
-              </button>
-            )}
             <VolumetricMeter usedBytes={usedBytes} limitBytes={storageLimitBytes} />
+            <button
+              onClick={() => console.log('Upgrade clicked')}
+              className="flex items-center gap-1 sm:gap-1.5 text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-2 sm:px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="sm:hidden flex flex-col items-start leading-[1.1] text-[9px] font-bold">
+                <span>upgrade</span>
+                <span>to pro</span>
+              </span>
+              <span className="hidden sm:inline text-xs font-semibold">upgrade to pro</span>
+            </button>
             <ThemeToggle />
-            {!loading && (
-              <button
-                onClick={handleRequestNewCapture}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
-                style={{
-                  background: accent,
-                  boxShadow: `0 2px 8px ${accent}40`,
-                }}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                add memory
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -1107,17 +1089,20 @@ export default function CapsuleGalleryPage() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-        {/* Count line + sort toggle */}
-        {!loading && (
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <p className="text-sm text-slate-500 dark:text-zinc-500">
-              {captures.length === 0
-                ? 'No memories yet'
-                : filterType
-                  ? `${displayedCaptures.length} of ${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`
-                  : `${captures.length} memor${captures.length !== 1 ? 'ies' : 'y'}`}
-            </p>
+        {/* Capsule title + sort toggle */}
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div>
+            {loading ? (
+              <div className="h-7 w-40 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
+            ) : (
+              <h1 className="inline-block text-2xl font-medium tracking-tight truncate rounded-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-black text-slate-500 px-3 py-1">
+                {capsule?.name ?? 'Gallery'}
+              </h1>
+            )}
+          </div>
 
+          {!loading && (
+            <>
             {captures.length > 0 && (
               <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Grid/List view toggle */}
@@ -1191,44 +1176,74 @@ export default function CapsuleGalleryPage() {
                   )}
                 </button>
               </div>
+
+              <button
+                onClick={handleRequestNewCapture}
+                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
+                style={{
+                  background: accent,
+                  boxShadow: `0 2px 8px ${accent}40`,
+                }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                add memory
+              </button>
               </div>
             )}
-          </div>
-        )}
+            </>
+          )}
+        </div>
 
-        {/* Type filter chips — only shown when 2+ types exist */}
-        {!loading && availableTypes.length >= 2 && (
-          <div className="flex items-center gap-2 flex-wrap mb-6">
-            <button
-              onClick={() => setFilterType(null)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                filterType === null
-                  ? 'text-white border-transparent'
-                  : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
-              }`}
-              style={filterType === null ? { background: accent, borderColor: accent } : undefined}
-            >
-              All
-            </button>
-            {availableTypes.map(type => {
-              const { icon: Icon, label } = TYPE_CONFIG[type]
-              const active = filterType === type
-              return (
+        {/* Type filter chips + Select toggle */}
+        {!loading && (availableTypes.length >= 2 || captures.length > 0) && (
+          <div className="flex items-center justify-between gap-2 flex-wrap mb-6">
+            {availableTypes.length >= 2 ? (
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  key={type}
-                  onClick={() => setFilterType(active ? null : type)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                    active
+                  onClick={() => setFilterType(null)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                    filterType === null
                       ? 'text-white border-transparent'
                       : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
                   }`}
-                  style={active ? { background: accent, borderColor: accent } : undefined}
+                  style={filterType === null ? { background: accent, borderColor: accent } : undefined}
                 >
-                  <Icon className="w-3 h-3" />
-                  {label}
+                  All
                 </button>
-              )
-            })}
+                {availableTypes.map(type => {
+                  const { icon: Icon, label } = TYPE_CONFIG[type]
+                  const active = filterType === type
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => setFilterType(active ? null : type)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                        active
+                          ? 'text-white border-transparent'
+                          : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200'
+                      }`}
+                      style={active ? { background: accent, borderColor: accent } : undefined}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : <div />}
+
+            {captures.length > 0 && (
+              <button
+                onClick={handleToggleSelectMode}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 ${
+                  isSelectMode
+                    ? 'bg-slate-500 hover:bg-slate-400 border-slate-400 text-white'
+                    : 'bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                }`}
+              >
+                {isSelectMode ? 'Done' : 'Select'}
+              </button>
+            )}
           </div>
         )}
 

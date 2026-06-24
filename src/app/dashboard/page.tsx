@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette, Sparkles } from 'lucide-react'
+import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette, Sparkles, LayoutGrid, List as ListIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
@@ -39,10 +39,11 @@ function resolveColor(hex: string | null): string {
 // ── CapsuleCard ───────────────────────────────────────────────────────────────
 
 function CapsuleCard({
-  capsule, captureCount = 0, onClick, onRename, onChangeColor, onDelete,
+  capsule, captureCount = 0, viewMode = 'grid', onClick, onRename, onChangeColor, onDelete,
 }: {
   capsule: Capsule
   captureCount?: number
+  viewMode?: 'grid' | 'list'
   onClick: () => void
   onRename: () => void
   onChangeColor: () => void
@@ -63,6 +64,80 @@ function CapsuleCard({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
+
+  if (viewMode === 'list') {
+    return (
+      <div
+        className={`group relative flex items-center gap-3 w-full rounded-xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 hover:shadow-md hover:shadow-black/5 dark:hover:shadow-black/40 transition-all duration-300 px-3 py-2.5 cursor-pointer ${menuOpen ? 'z-10 relative' : ''}`}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onClick() }}
+      >
+        <div
+          className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center"
+          style={{ background: `${color}14` }}
+        >
+          <CubbyShelfIcon color={color} className="w-5 h-7" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 truncate leading-snug">
+            {capsule.name}
+          </p>
+          <p className="text-xs text-slate-400 dark:text-zinc-500">Created {dateStr}</p>
+        </div>
+
+        <div
+          className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold tabular-nums leading-none flex items-center"
+          style={{ background: `${color}25`, border: `1px solid ${color}45`, color }}
+        >
+          {captureCount}
+        </div>
+
+        <div
+          ref={menuRef}
+          className="relative flex-shrink-0"
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setMenuOpen(v => !v)}
+            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center justify-center text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+            aria-label="Capsule options"
+          >
+            <MoreHorizontal className="w-3.5 h-3.5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute top-8 right-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-20">
+              <button
+                onClick={() => { setMenuOpen(false); onRename() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Rename
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onChangeColor() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
+              >
+                <Palette className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                Change Colour
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
+              <button
+                onClick={() => { setMenuOpen(false); onDelete() }}
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -532,6 +607,7 @@ export default function DashboardPage() {
   const [usedBytes,         setUsedBytes]         = useState(0)
   const [sortBy,            setSortBy]            = useState<'date' | 'name'>('date')
   const [sortDir,           setSortDir]           = useState<'desc' | 'asc'>('desc')
+  const [viewMode,          setViewMode]          = useState<'grid' | 'list'>('grid')
   const [loading,           setLoading]           = useState(true)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [renameTarget,      setRenameTarget]      = useState<Capsule | null>(null)
@@ -701,18 +777,15 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             <VolumetricMeter usedBytes={usedBytes} limitBytes={storageLimitBytes} />
             <button
-              onClick={handleRequestNewCapture}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 shadow-sm shadow-indigo-500/30"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Add Memory</span>
-            </button>
-            <button
               onClick={() => console.log('Upgrade clicked')}
-              className="flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="flex items-center gap-1 sm:gap-1.5 text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 px-2 sm:px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Upgrade to Pro</span>
+              <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="sm:hidden flex flex-col items-start leading-[1.1] text-[9px] font-bold">
+                <span>upgrade</span>
+                <span>to pro</span>
+              </span>
+              <span className="hidden sm:inline text-xs font-semibold">upgrade to pro</span>
             </button>
             <ThemeToggle />
             <button
@@ -733,19 +806,40 @@ export default function DashboardPage() {
         {/* Section heading */}
         <div className="flex items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">cubbyhole gallery</h1>
-            {!loading && (
-              <p className="text-sm text-slate-500 dark:text-zinc-500 mt-0.5">
-                {capsules.length === 0
-                  ? 'Create a capsule to start preserving memories'
-                  : `${capsules.length} collection${capsules.length !== 1 ? 's' : ''}`}
-              </p>
-            )}
+            <h1 className="inline-block text-2xl font-medium tracking-tight rounded-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-black text-slate-500 px-3 py-1">
+              cubbyhole gallery
+            </h1>
           </div>
 
           {/* Sort toggle + desktop CTA — only shown when there are existing capsules */}
           {!loading && capsules.length > 0 && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Grid/List view toggle */}
+              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
+                  className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-slate-500 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                  className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-slate-500 text-white shadow-sm'
+                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  <ListIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               {/* Sort toggle */}
               <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium">
                 {/* Date button — re-clicking toggles asc/desc */}
@@ -791,10 +885,18 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold transition-colors shadow-sm shadow-slate-500/20"
+                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-xs font-semibold transition-colors shadow-sm shadow-slate-500/20"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 new cubbyhole
+              </button>
+
+              <button
+                onClick={handleRequestNewCapture}
+                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-xs font-semibold transition-colors shadow-sm shadow-indigo-500/30"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                add memory
               </button>
             </div>
           )}
@@ -810,12 +912,13 @@ export default function DashboardPage() {
             <EmptyState onCreateClick={() => setIsCreateModalOpen(true)} />
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className={viewMode === 'list' ? 'flex flex-col gap-2.5' : 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'}>
             {sortedCapsules.map(capsule => (
               <CapsuleCard
                 key={capsule.id}
                 capsule={capsule}
                 captureCount={captureCounts[capsule.id] ?? 0}
+                viewMode={viewMode}
                 onClick={() => router.push(`/dashboard/${capsule.id}`)}
                 onRename={() => setRenameTarget(capsule)}
                 onChangeColor={() => setColorTarget(capsule)}
@@ -826,15 +929,22 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* ── FAB (mobile only, when capsules exist) ── */}
+      {/* ── FABs (mobile only, when capsules exist) ── */}
       {!loading && capsules.length > 0 && (
-        <div className="sm:hidden fixed bottom-6 right-5 z-30">
+        <div className="sm:hidden fixed bottom-6 right-5 z-30 flex flex-col items-end gap-3">
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-sm font-semibold shadow-xl shadow-slate-500/35 transition-colors"
           >
             <Plus className="w-5 h-5" />
             new cubbyhole
+          </button>
+          <button
+            onClick={handleRequestNewCapture}
+            className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-sm font-semibold shadow-xl shadow-indigo-500/35 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            add memory
           </button>
         </div>
       )}
