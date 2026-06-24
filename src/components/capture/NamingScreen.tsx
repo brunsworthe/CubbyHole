@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Check } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import type { CaptureMode, CaptureMetadata } from './CaptureFlow'
 
 const TITLE_PLACEHOLDERS: Record<CaptureMode, string> = {

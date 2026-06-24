@@ -9,7 +9,7 @@ import {
   MoreHorizontal, Pencil, Trash2, Check,
   FolderOpen, Share2, LayoutGrid, List as ListIcon,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import CaptureFlow from '@/components/capture/CaptureFlow'
 import CaptureViewerModal, { type ViewableCapture } from '@/components/capture/CaptureViewerModal'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -850,8 +850,10 @@ export default function CapsuleGalleryPage() {
   // ── Auth guard ────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    // Middleware already guarantees an authenticated session for this route —
+    // just read the user id, no redirect-on-mount (that caused the login flash).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/login'); return }
+      if (!session) return
       setProfileId(session.user.id)
       fetchData(session.user.id)
       fetchStorageStats(session.user.id)

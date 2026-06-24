@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, FolderOpen, LogOut, X, Check, Loader2, MoreHorizontal, Pencil, Trash2, ArrowUp, ArrowDown, Palette, Sparkles } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import BrandLink from '@/components/ui/BrandLink'
 import CubbyShelfIcon from '@/components/ui/CubbyShelfIcon'
@@ -594,12 +594,10 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Check session on mount and redirect if unauthenticated
+    // Middleware already guarantees an authenticated session for this route —
+    // just read the user id, no redirect-on-mount (that caused the login flash).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.replace('/login')
-        return
-      }
+      if (!session) return
       setUserId(session.user.id)
       fetchCapsules(session.user.id)
       fetchStorageLimit(session.user.id)

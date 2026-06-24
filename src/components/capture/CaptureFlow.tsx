@@ -8,7 +8,7 @@ import ScanResultViewer from './ScanResultViewer'
 import UploadSyncScreen from './UploadSyncScreen'
 import { saveCapture, clearCaptures } from '@/lib/captureDB'
 import { uploadCapture } from '@/lib/uploadManager'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 export type CaptureMode = 'scan3d' | 'relief180' | 'artwork2d' | 'document'
 

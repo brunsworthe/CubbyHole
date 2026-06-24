@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Camera, Box, Palette, FileText, Mountain, Cloud, X, CalendarDays, User, MapPin } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -278,8 +278,10 @@ export default function CapsuleDashboard({ onOpenCapture }: Props) {
   }, [])
 
   useEffect(() => {
+    // Middleware already guarantees an authenticated session for this route —
+    // just read the user id, no redirect-on-mount (that caused the login flash).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.replace('/login'); return }
+      if (!session) return
       fetchMemories(session.user.id)
     })
 

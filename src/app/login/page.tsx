@@ -3,7 +3,7 @@
 import { useState, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, ArrowRight, Loader2, Inbox, Eye, EyeOff, KeyRound } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase/client'
 
 type Message = { type: 'success' | 'error'; text: string }
 
