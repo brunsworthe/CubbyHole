@@ -177,44 +177,45 @@ function CaptureCard({
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
 
-        {/* Bottom-right share button — hidden during selection mode */}
-        {!isSelectMode && (
-          <button
-            onClick={handleShareClick}
-            className={`absolute bottom-2.5 right-2.5 z-20 w-7 h-7 rounded-lg backdrop-blur-sm flex items-center justify-center transition-colors ${
-              justCopied
-                ? 'bg-emerald-500/90 text-white opacity-100'
-                : 'bg-black/40 hover:bg-black/65 text-white/65 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-            }`}
-            aria-label={justCopied ? 'Link copied' : 'Copy share link'}
-          >
-            {justCopied ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Share2 className="w-3.5 h-3.5" />}
-          </button>
-        )}
-
-        {/* Top-right mode badge */}
-        <div className="absolute top-2.5 right-2.5">
+        {/* Top-left mode badge */}
+        <div className="absolute top-2.5 left-2.5">
           <div className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-white/10 bg-zinc-900/75 backdrop-blur-md text-white">
             <Icon className="w-2.5 h-2.5 flex-shrink-0" style={{ color }} />
             {label}
           </div>
         </div>
 
-        {/* Top-left ellipsis menu — hidden during selection mode so it doesn't collide with the checkmark */}
+        {/* Top-right ellipsis menu — hidden during selection mode so it doesn't collide with the checkmark */}
         <div
           ref={menuRef}
-          className={`absolute top-2.5 left-2.5 z-20 ${isSelectMode ? 'hidden' : ''}`}
+          className={`absolute top-2.5 right-2.5 z-20 ${isSelectMode ? 'hidden' : ''}`}
           onClick={e => e.stopPropagation()}
         >
           <button
             onClick={() => setMenuOpen(v => !v)}
-            className="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/65 backdrop-blur-sm flex items-center justify-center text-white/65 hover:text-white transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            className="w-7 h-7 rounded-lg bg-black/40 hover:bg-black/65 backdrop-blur-sm flex items-center justify-center text-white/65 hover:text-white transition-colors opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100"
             aria-label="Options"
           >
             <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
           {menuOpen && (
-            <div className="absolute top-8 left-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+            <div className="absolute top-8 right-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+              <button
+                onClick={handleShareClick}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition-colors text-left ${
+                  justCopied
+                    ? 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
+                    : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+                aria-label={justCopied ? 'Link copied' : 'Copy share link'}
+              >
+                {justCopied
+                  ? <Check className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={3} />
+                  : <Share2 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                }
+                {justCopied ? 'Copied!' : 'Copy link'}
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
               <button
                 onClick={() => { setMenuOpen(false); onEdit() }}
                 className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
@@ -355,18 +356,6 @@ function CaptureListRow({
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={handleShareClick}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
-            justCopied
-              ? 'bg-emerald-500/15 text-emerald-500'
-              : 'hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300'
-          }`}
-          aria-label={justCopied ? 'Link copied' : 'Copy share link'}
-        >
-          {justCopied ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : <Share2 className="w-3.5 h-3.5" />}
-        </button>
-
         <div ref={menuRef} className="relative">
           <button
             onClick={() => setMenuOpen(v => !v)}
@@ -377,6 +366,22 @@ function CaptureListRow({
           </button>
           {menuOpen && (
             <div className="absolute top-8 right-0 w-40 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl shadow-2xl overflow-hidden">
+              <button
+                onClick={handleShareClick}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition-colors text-left ${
+                  justCopied
+                    ? 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30'
+                    : 'text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800'
+                }`}
+                aria-label={justCopied ? 'Link copied' : 'Copy share link'}
+              >
+                {justCopied
+                  ? <Check className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={3} />
+                  : <Share2 className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 flex-shrink-0" />
+                }
+                {justCopied ? 'Copied!' : 'Copy link'}
+              </button>
+              <div className="border-t border-slate-100 dark:border-zinc-800" />
               <button
                 onClick={() => { setMenuOpen(false); onEdit() }}
                 className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-700 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-left"
@@ -1064,7 +1069,7 @@ export default function CapsuleGalleryPage() {
           {/* Vertical divider */}
           <div className="w-px h-4 bg-slate-200 dark:bg-zinc-800 flex-shrink-0" />
 
-          {/* Spacer — capsule title now lives in the main content above the filter chips */}
+          {/* Spacer */}
           <div className="flex-1 min-w-0" />
 
           {/* Right: theme toggle + desktop CTA */}
@@ -1089,115 +1094,20 @@ export default function CapsuleGalleryPage() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-        {/* Capsule title + sort toggle */}
-        <div className="flex items-end justify-between gap-4 mb-4">
-          <div>
-            {loading ? (
-              <div className="h-7 w-40 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse" />
-            ) : (
-              <h1 className="inline-block text-2xl font-medium tracking-tight truncate rounded-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-black text-slate-500 px-3 py-1">
-                {capsule?.name ?? 'Gallery'}
-              </h1>
-            )}
-          </div>
+        {/* Capsule heading */}
+        {loading ? (
+          <div className="h-7 w-48 rounded-full bg-slate-200 dark:bg-zinc-800 animate-pulse mb-4" />
+        ) : (
+          <h1 className="text-2xl font-medium tracking-tight text-slate-500 dark:text-zinc-400 truncate mb-4">
+            {capsule?.name ?? 'Gallery'}
+          </h1>
+        )}
 
-          {!loading && (
-            <>
-            {captures.length > 0 && (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Grid/List view toggle */}
-                <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    aria-label="Grid view"
-                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
-                      viewMode === 'grid'
-                        ? 'text-white shadow-sm'
-                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                    }`}
-                    style={viewMode === 'grid' ? { background: accent } : undefined}
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    aria-label="List view"
-                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
-                      viewMode === 'list'
-                        ? 'text-white shadow-sm'
-                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                    }`}
-                    style={viewMode === 'list' ? { background: accent } : undefined}
-                  >
-                    <ListIcon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium flex-shrink-0">
-                {/* Date button — re-clicking toggles asc/desc */}
-                <button
-                  onClick={() => {
-                    if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-                    else setSortBy('date')
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                    sortBy === 'date'
-                      ? 'text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                  style={sortBy === 'date' ? { background: accent } : undefined}
-                >
-                  date
-                  {sortBy === 'date' && (
-                    sortDir === 'desc'
-                      ? <ArrowDown className="w-3 h-3" />
-                      : <ArrowUp className="w-3 h-3" />
-                  )}
-                </button>
-
-                {/* Name button — re-clicking toggles asc/desc */}
-                <button
-                  onClick={() => {
-                    if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-                    else setSortBy('name')
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                    sortBy === 'name'
-                      ? 'text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                  style={sortBy === 'name' ? { background: accent } : undefined}
-                >
-                  name
-                  {sortBy === 'name' && (
-                    sortDir === 'desc'
-                      ? <ArrowDown className="w-3 h-3" />
-                      : <ArrowUp className="w-3 h-3" />
-                  )}
-                </button>
-              </div>
-
-              <button
-                onClick={handleRequestNewCapture}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
-                style={{
-                  background: accent,
-                  boxShadow: `0 2px 8px ${accent}40`,
-                }}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                add memory
-              </button>
-              </div>
-            )}
-            </>
-          )}
-        </div>
-
-        {/* Type filter chips + Select toggle */}
+        {/* Controls row: type filters (left) + view/sort/actions (right) */}
         {!loading && (availableTypes.length >= 2 || captures.length > 0) && (
-          <div className="flex items-center justify-between gap-2 flex-wrap mb-6">
-            {availableTypes.length >= 2 ? (
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            {/* Left: type filter chips */}
+            {availableTypes.length >= 2 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setFilterType(null)}
@@ -1230,19 +1140,106 @@ export default function CapsuleGalleryPage() {
                   )
                 })}
               </div>
-            ) : <div />}
+            )}
 
+            {/* Right: grid/list toggle + sort + add memory + select — ml-auto keeps it right-aligned on any wrapped row */}
             {captures.length > 0 && (
-              <button
-                onClick={handleToggleSelectMode}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 ${
-                  isSelectMode
-                    ? 'bg-slate-500 hover:bg-slate-400 border-slate-400 text-white'
-                    : 'bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
-                }`}
-              >
-                {isSelectMode ? 'Done' : 'Select'}
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+                {/* Grid/List view toggle */}
+                <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    aria-label="Grid view"
+                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                      viewMode === 'grid'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={viewMode === 'grid' ? { background: accent } : undefined}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    aria-label="List view"
+                    className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                      viewMode === 'list'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={viewMode === 'list' ? { background: accent } : undefined}
+                  >
+                    <ListIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium">
+                  {/* Date button — re-clicking toggles asc/desc */}
+                  <button
+                    onClick={() => {
+                      if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                      else setSortBy('date')
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                      sortBy === 'date'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={sortBy === 'date' ? { background: accent } : undefined}
+                  >
+                    date
+                    {sortBy === 'date' && (
+                      sortDir === 'desc'
+                        ? <ArrowDown className="w-3 h-3" />
+                        : <ArrowUp className="w-3 h-3" />
+                    )}
+                  </button>
+
+                  {/* Name button — re-clicking toggles asc/desc */}
+                  <button
+                    onClick={() => {
+                      if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                      else setSortBy('name')
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                      sortBy === 'name'
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                    }`}
+                    style={sortBy === 'name' ? { background: accent } : undefined}
+                  >
+                    name
+                    {sortBy === 'name' && (
+                      sortDir === 'desc'
+                        ? <ArrowDown className="w-3 h-3" />
+                        : <ArrowUp className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleRequestNewCapture}
+                  className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-opacity hover:opacity-90 active:opacity-75 flex-shrink-0 shadow-sm"
+                  style={{
+                    background: accent,
+                    boxShadow: `0 2px 8px ${accent}40`,
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  add memory
+                </button>
+
+                <button
+                  onClick={handleToggleSelectMode}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex-shrink-0 ${
+                    isSelectMode
+                      ? 'bg-slate-500 hover:bg-slate-400 border-slate-400 text-white'
+                      : 'bg-slate-200 hover:bg-slate-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-slate-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400'
+                  }`}
+                >
+                  {isSelectMode ? 'Done' : 'Select'}
+                </button>
+              </div>
             )}
           </div>
         )}

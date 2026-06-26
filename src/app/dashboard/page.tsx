@@ -803,104 +803,100 @@ export default function DashboardPage() {
       {/* ── Main ── */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-        {/* Section heading */}
-        <div className="flex items-end justify-between gap-4 mb-8">
-          <div>
-            <h1 className="inline-block text-2xl font-medium tracking-tight rounded-full border border-slate-200 dark:border-zinc-800 bg-white dark:bg-black text-slate-500 px-3 py-1">
-              cubbyhole gallery
-            </h1>
-          </div>
+        {/* Page heading */}
+        <h1 className="text-2xl font-medium tracking-tight text-slate-500 dark:text-zinc-400 mb-4">
+          cubbyhole gallery
+        </h1>
 
-          {/* Sort toggle + desktop CTA — only shown when there are existing capsules */}
-          {!loading && capsules.length > 0 && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Grid/List view toggle */}
-              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  aria-label="Grid view"
-                  className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
-                    viewMode === 'grid'
-                      ? 'bg-slate-500 text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  aria-label="List view"
-                  className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-slate-500 text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  <ListIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Sort toggle */}
-              <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium">
-                {/* Date button — re-clicking toggles asc/desc */}
-                <button
-                  onClick={() => {
-                    if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-                    else setSortBy('date')
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                    sortBy === 'date'
-                      ? 'bg-slate-500 text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  date
-                  {sortBy === 'date' && (
-                    sortDir === 'desc'
-                      ? <ArrowDown className="w-3 h-3" />
-                      : <ArrowUp className="w-3 h-3" />
-                  )}
-                </button>
-
-                {/* Name button — re-clicking toggles asc/desc */}
-                <button
-                  onClick={() => {
-                    if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-                    else setSortBy('name')
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
-                    sortBy === 'name'
-                      ? 'bg-slate-500 text-white shadow-sm'
-                      : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
-                  }`}
-                >
-                  name
-                  {sortBy === 'name' && (
-                    sortDir === 'desc'
-                      ? <ArrowDown className="w-3 h-3" />
-                      : <ArrowUp className="w-3 h-3" />
-                  )}
-                </button>
-              </div>
-
+        {/* Sort toggle + desktop CTA — only shown when there are existing capsules */}
+        {!loading && capsules.length > 0 && (
+          <div className="flex items-center justify-end gap-2 mb-8">
+            {/* Grid/List view toggle */}
+            <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5">
               <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-xs font-semibold transition-colors shadow-sm shadow-slate-500/20"
+                onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-slate-500 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                }`}
               >
-                <Plus className="w-3.5 h-3.5" />
-                new cubbyhole
+                <LayoutGrid className="w-3.5 h-3.5" />
               </button>
-
               <button
-                onClick={handleRequestNewCapture}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-xs font-semibold transition-colors shadow-sm shadow-indigo-500/30"
+                onClick={() => setViewMode('list')}
+                aria-label="List view"
+                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-slate-500 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                }`}
               >
-                <Plus className="w-3.5 h-3.5" />
-                add memory
+                <ListIcon className="w-3.5 h-3.5" />
               </button>
             </div>
-          )}
-        </div>
+
+            {/* Sort toggle */}
+            <div className="flex items-center rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs font-medium">
+              {/* Date button — re-clicking toggles asc/desc */}
+              <button
+                onClick={() => {
+                  if (sortBy === 'date') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                  else setSortBy('date')
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                  sortBy === 'date'
+                    ? 'bg-slate-500 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                }`}
+              >
+                date
+                {sortBy === 'date' && (
+                  sortDir === 'desc'
+                    ? <ArrowDown className="w-3 h-3" />
+                    : <ArrowUp className="w-3 h-3" />
+                )}
+              </button>
+
+              {/* Name button — re-clicking toggles asc/desc */}
+              <button
+                onClick={() => {
+                  if (sortBy === 'name') setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                  else setSortBy('name')
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${
+                  sortBy === 'name'
+                    ? 'bg-slate-500 text-white shadow-sm'
+                    : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+                }`}
+              >
+                name
+                {sortBy === 'name' && (
+                  sortDir === 'desc'
+                    ? <ArrowDown className="w-3 h-3" />
+                    : <ArrowUp className="w-3 h-3" />
+                )}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white text-xs font-semibold transition-colors shadow-sm shadow-slate-500/20"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              new cubbyhole
+            </button>
+
+            <button
+              onClick={handleRequestNewCapture}
+              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white text-xs font-semibold transition-colors shadow-sm shadow-indigo-500/30"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              add memory
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {loading ? (
