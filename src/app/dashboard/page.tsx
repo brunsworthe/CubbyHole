@@ -173,7 +173,7 @@ function CapsuleCard({
         >
           <button
             onClick={() => setMenuOpen(v => !v)}
-            className="w-7 h-7 rounded-lg bg-white/60 dark:bg-zinc-900/60 hover:bg-white dark:hover:bg-zinc-900 backdrop-blur-sm border border-slate-200/60 dark:border-zinc-700/60 flex items-center justify-center text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            className="w-7 h-7 rounded-lg bg-white/60 dark:bg-zinc-900/60 hover:bg-white dark:hover:bg-zinc-900 backdrop-blur-sm border border-slate-200/60 dark:border-zinc-700/60 flex items-center justify-center text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors opacity-100 lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100"
             aria-label="Capsule options"
           >
             <MoreHorizontal className="w-3.5 h-3.5" />
