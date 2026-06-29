@@ -616,7 +616,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                    : isRelief   ? 'rgb(251 146 60)'
                    :               'rgb(110 231 183)'
 
-  const isLevel = is2D && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
+  const isLevel = (is2D || isDocument) && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
   const bubbleX = Math.max(-11, Math.min(11, (levelGamma / 30) * 11))
   const bubbleY = Math.max(-11, Math.min(11, (levelBeta  / 30) * 11))
 
@@ -768,7 +768,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // Device orientation for 2D level indicator
   useEffect(() => {
-    if (!is2D) { setLevelBeta(30); setLevelGamma(20); return }
+    if (!is2D && !isDocument) { setLevelBeta(30); setLevelGamma(20); return }
     let cleanup: (() => void) | undefined
     const handler = (e: DeviceOrientationEvent) => {
       setLevelBeta(e.beta  ?? 30)
@@ -1096,17 +1096,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
            : is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : isRelief ? 'Depth Sensor Active' : 'LiDAR Active'}
           </span>
         </div>
-        <div className="w-9 h-9 flex items-center justify-center">
-          {isRelief && torchActive && (
-            <Zap className="w-4 h-4 text-orange-400 animate-pulse" aria-label="Torch active" />
-          )}
-          {isRelief && !torchActive && (
-            <Lightbulb className="w-4 h-4 text-white/25" />
-          )}
-          {!isRelief && (
-            <Lightbulb className="w-5 h-5 text-white/40" />
-          )}
-        </div>
+        <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
       </div>
 
       {/* Mode switcher */}
@@ -1561,39 +1551,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* ── Level indicator (2D mode) ── */}
-        {is2D && cameraReady && (
-          <div className="absolute top-4 right-4 z-20 flex flex-col items-center gap-1">
-            <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
-              isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
-            }`}>
-              <div className="absolute inset-0 flex items-center pointer-events-none">
-                <div className="w-full h-px bg-white/25" />
-              </div>
-              <div className="absolute inset-0 flex justify-center pointer-events-none">
-                <div className="h-full w-px bg-white/25" />
-              </div>
-              <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
-                isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
-              }`} />
-              <div
-                className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
-                  isLevel ? 'bg-emerald-400' : 'bg-red-400'
-                }`}
-                style={{
-                  top: '50%', left: '50%',
-                  transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleY}px))`,
-                  transition: 'transform 150ms ease-out, background-color 300ms',
-                }}
-              />
-            </div>
-            <span className={`text-[9px] font-mono tracking-wider transition-colors duration-300 ${
-              isLevel ? 'text-emerald-400' : 'text-red-400/80'
-            }`}>
-              {isLevel ? 'LEVEL' : 'TILT'}
-            </span>
-          </div>
-        )}
 
         </div>
       </div>
@@ -1871,37 +1828,84 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       ) : (
         /* ── Standard bottom controls (artwork2d, document) ── */
-        <div className="flex-shrink-0 flex items-center justify-around px-10 pt-2" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex-shrink-0 pt-2" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+          <div className="w-full flex justify-center">
+            <div className="flex items-center">
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isCapturing || docOverlay}
-            className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
-            aria-label="Upload from gallery"
-          >
-            <Images className="w-5 h-5" />
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
+              {/* Left zone: upload button */}
+              <div className="w-28 flex items-center justify-center">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isCapturing || docOverlay}
+                  className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
+                  aria-label="Upload from gallery"
+                >
+                  <Images className="w-5 h-5" />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
+              </div>
 
-          <button
-            onClick={handleShutter}
-            disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
-            className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-            aria-label={isFlat ? 'Capture page' : 'Take photo'}
-          >
-            <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-              isCapturing ? accentBtn.active : accentBtn.idle
-            }`} />
-            {isCapturing && (
-              <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-                is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-slate-400'
-              }`} />
-            )}
-          </button>
+              <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-          {/* Spacer mirrors the gallery upload button to keep the shutter centered */}
-          <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
+              {/* Shutter button */}
+              <button
+                onClick={handleShutter}
+                disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
+                className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                aria-label={isFlat ? 'Capture page' : 'Take photo'}
+              >
+                <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                  isCapturing ? accentBtn.active : accentBtn.idle
+                }`} />
+                {isCapturing && (
+                  <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
+                    is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-slate-400'
+                  }`} />
+                )}
+              </button>
 
+              <div className="w-10 flex-shrink-0" aria-hidden="true" />
+
+              {/* Right zone: level indicator (2D Artwork) or spacer (Document) */}
+              <div className="w-28 flex items-center justify-center">
+                {(is2D || isDocument) && cameraReady ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
+                      isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
+                    }`}>
+                      <div className="absolute inset-0 flex items-center pointer-events-none">
+                        <div className="w-full h-px bg-white/25" />
+                      </div>
+                      <div className="absolute inset-0 flex justify-center pointer-events-none">
+                        <div className="h-full w-px bg-white/25" />
+                      </div>
+                      <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
+                        isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
+                      }`} />
+                      <div
+                        className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
+                          isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                        }`}
+                        style={{
+                          top: '50%', left: '50%',
+                          transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleY}px))`,
+                          transition: 'transform 150ms ease-out, background-color 300ms',
+                        }}
+                      />
+                    </div>
+                    <span className={`text-[9px] font-mono tracking-wider transition-colors duration-300 ${
+                      isLevel ? 'text-emerald-400' : 'text-red-400/80'
+                    }`}>
+                      {isLevel ? 'LEVEL' : 'TILT'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
+                )}
+              </div>
+
+            </div>
+          </div>
         </div>
       )}
     </div>
