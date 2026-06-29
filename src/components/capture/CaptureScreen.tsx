@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Info, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap } from 'lucide-react'
+import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 import { createClient } from '@/lib/supabase/client'
 
@@ -1635,53 +1635,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       ) : isScan3d ? (
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
 
-          {/* Rotate / Orbit toggle — mirrors the Relief lighting toggle */}
-          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
-            <Box className={`w-4 h-4 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
-            <span className="text-white/50 text-xs flex-1 font-medium">3D Mode</span>
-            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
-              <button
-                onClick={() => handleOrbitToggle(false)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                  !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
-                }`}
-              >
-                Rotate
-              </button>
-              <button
-                onClick={() => handleOrbitToggle(true)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                  isOrbitMode
-                    ? 'bg-slate-500 text-white shadow-sm shadow-slate-500/30'
-                    : 'text-white/35 hover:text-white/60'
-                }`}
-              >
-                <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-                  <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
-                  <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
-                </svg>
-                Orbit
-              </button>
-            </div>
-          </div>
 
-          {/* Width + Height sliders — Step 1 only, both Rotate and Orbit modes. */}
-          {currentStep === 0 && !allFramesCaptured && (
-            <div className="w-full px-1 flex items-center gap-2">
-              <span className="text-white/35 text-[9px] font-mono flex-shrink-0">W</span>
-              <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
-                onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-slate-400 cursor-pointer touch-manipulation"
-                aria-label="Guide box width" />
-              <span className="text-slate-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
-              <span className="text-white/35 text-[9px] font-mono flex-shrink-0 ml-1">H</span>
-              <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
-                onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-slate-400 cursor-pointer touch-manipulation"
-                aria-label="Guide box height" />
-              <span className="text-slate-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
-            </div>
-          )}
 
           {/* Positional HUD */}
           <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-24 h-24" isOrbitMode={isOrbitMode} />
@@ -1715,19 +1669,86 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {isUploading ? 'Uploading…' : 'Compile & Save 3D Object'}
             </button>
           ) : (
-            <button
-              onClick={handleShutter}
-              disabled={!cameraReady || isCapturing}
-              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-              aria-label="Capture scan frame"
-            >
-              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                isCapturing ? 'bg-slate-500' : 'bg-slate-400 hover:bg-slate-300'
-              }`} />
-              {isCapturing && (
-                <div className="absolute inset-0 rounded-full border-4 border-slate-400 animate-ping opacity-20" />
-              )}
-            </button>
+            <div className="w-full flex justify-center">
+              <div className="flex items-center">
+                {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
+                <div className={`w-28 flex items-center justify-center gap-2${currentStep !== 0 ? ' invisible' : ''}`}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-white/35 text-[9px] font-mono">W</span>
+                    <div className="h-20 w-6 flex items-center justify-center">
+                      <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
+                        onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                        className="accent-slate-400 cursor-pointer touch-manipulation"
+                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
+                        aria-label="Guide box width" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-white/35 text-[9px] font-mono">H</span>
+                    <div className="h-20 w-6 flex items-center justify-center">
+                      <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
+                        onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                        className="accent-slate-400 cursor-pointer touch-manipulation"
+                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
+                        aria-label="Guide box height" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-10 flex-shrink-0" aria-hidden="true" />
+
+                {/* Shutter button */}
+                <button
+                  onClick={handleShutter}
+                  disabled={!cameraReady || isCapturing}
+                  className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                  aria-label="Capture scan frame"
+                >
+                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                    isCapturing ? 'bg-slate-500' : 'bg-slate-400 hover:bg-slate-300'
+                  }`} />
+                  {isCapturing && (
+                    <div className="absolute inset-0 rounded-full border-4 border-slate-400 animate-ping opacity-20" />
+                  )}
+                </button>
+
+                <div className="w-10 flex-shrink-0" aria-hidden="true" />
+
+                {/* Right zone: fixed equal width, 3D Mode label + stacked Rotate / Orbit buttons */}
+                <div className="w-28 flex items-center justify-center">
+                  <div className="flex flex-col items-start gap-1">
+                    <div className="flex items-center gap-1">
+                      <Box className={`w-3 h-3 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
+                      <span className="text-white/50 text-[9px] font-medium">3D Mode</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 bg-white/8 rounded-xl p-0.5">
+                      <button
+                        onClick={() => handleOrbitToggle(false)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                          !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
+                        }`}
+                      >
+                        Rotate
+                      </button>
+                      <button
+                        onClick={() => handleOrbitToggle(true)}
+                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                          isOrbitMode
+                            ? 'bg-slate-500 text-white shadow-sm shadow-slate-500/30'
+                            : 'text-white/35 hover:text-white/60'
+                        }`}
+                      >
+                        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                          <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                          <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
+                        </svg>
+                        Orbit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -1735,55 +1756,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         /* ── relief180: controls ── */
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
 
-          {/* Lighting toggle */}
-          <div className="flex items-center gap-2.5 w-full bg-white/6 rounded-2xl px-4 py-2.5 border border-white/8">
-            <Lightbulb className={`w-4 h-4 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
-            <span className="text-white/50 text-xs flex-1 font-medium">Lighting</span>
-            <div className="flex gap-0.5 bg-white/8 rounded-full p-0.5">
-              <button
-                onClick={() => setLightingMode('natural')}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                  lightingMode === 'natural'
-                    ? 'bg-white/20 text-white shadow-sm'
-                    : 'text-white/35 hover:text-white/60'
-                }`}
-              >
-                Natural
-              </button>
-              <button
-                onClick={() => setLightingMode('torch')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${
-                  lightingMode === 'torch'
-                    ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
-                    : 'text-white/35 hover:text-white/60'
-                }`}
-              >
-                <Zap className="w-2.5 h-2.5" />
-                Flashlight
-              </button>
-            </div>
-            {torchUnsupported && (
-              <span className="text-[9px] text-orange-400/65 whitespace-nowrap">unsupported</span>
-            )}
-          </div>
 
-          {/* Width + Height sliders — Step 1 only */}
-          {reliefStep === 0 && !allReliefCaptured && (
-            <div className="w-full px-1 flex items-center gap-2">
-              <span className="text-white/35 text-[9px] font-mono flex-shrink-0">W</span>
-              <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
-                onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                aria-label="Guide box width" />
-              <span className="text-orange-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxWidth}%</span>
-              <span className="text-white/35 text-[9px] font-mono flex-shrink-0 ml-1">H</span>
-              <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
-                onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                className="flex-1 h-1 rounded-full accent-orange-400 cursor-pointer touch-manipulation"
-                aria-label="Guide box height" />
-              <span className="text-orange-400/60 text-[9px] font-mono w-6 text-right flex-shrink-0">{guideBoxHeight}%</span>
-            </div>
-          )}
 
           {/* Positional HUD */}
           <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
@@ -1811,19 +1784,88 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {isUploading ? 'Uploading…' : 'Finish & Save Relief'}
             </button>
           ) : (
-            <button
-              onClick={handleShutter}
-              disabled={!cameraReady || isCapturing}
-              className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-              aria-label="Capture relief frame"
-            >
-              <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
-              }`} />
-              {isCapturing && (
-                <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
-              )}
-            </button>
+            <div className="w-full flex justify-center">
+              <div className="flex items-center">
+                {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
+                <div className={`w-28 flex items-center justify-center gap-2${reliefStep !== 0 ? ' invisible' : ''}`}>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-white/35 text-[9px] font-mono">W</span>
+                    <div className="h-20 w-6 flex items-center justify-center">
+                      <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
+                        onChange={e => setGuideBoxWidth(Number(e.target.value))}
+                        className="accent-orange-400 cursor-pointer touch-manipulation"
+                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
+                        aria-label="Guide box width" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="text-white/35 text-[9px] font-mono">H</span>
+                    <div className="h-20 w-6 flex items-center justify-center">
+                      <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
+                        onChange={e => setGuideBoxHeight(Number(e.target.value))}
+                        className="accent-orange-400 cursor-pointer touch-manipulation"
+                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
+                        aria-label="Guide box height" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-10 flex-shrink-0" aria-hidden="true" />
+
+                {/* Shutter button */}
+                <button
+                  onClick={handleShutter}
+                  disabled={!cameraReady || isCapturing}
+                  className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                  aria-label="Capture relief frame"
+                >
+                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                    isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
+                  }`} />
+                  {isCapturing && (
+                    <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
+                  )}
+                </button>
+
+                <div className="w-10 flex-shrink-0" aria-hidden="true" />
+
+                {/* Right zone: fixed equal width, Lighting label + stacked Natural / Flashlight buttons */}
+                <div className="w-28 flex items-center justify-center">
+                  <div className="flex flex-col items-start gap-1">
+                    <div className="flex items-center gap-1">
+                      <Lightbulb className={`w-3 h-3 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
+                      <span className="text-white/50 text-[9px] font-medium">Lighting</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5 bg-white/8 rounded-xl p-0.5">
+                      <button
+                        onClick={() => setLightingMode('natural')}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                          lightingMode === 'natural'
+                            ? 'bg-white/20 text-white shadow-sm'
+                            : 'text-white/35 hover:text-white/60'
+                        }`}
+                      >
+                        Natural
+                      </button>
+                      <button
+                        onClick={() => setLightingMode('torch')}
+                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                          lightingMode === 'torch'
+                            ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
+                            : 'text-white/35 hover:text-white/60'
+                        }`}
+                      >
+                        <Zap className="w-2.5 h-2.5" />
+                        Flashlight
+                      </button>
+                      {torchUnsupported && (
+                        <span className="text-[9px] text-orange-400/65 text-center">n/a</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -1857,9 +1899,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             )}
           </button>
 
-          <button className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors">
-            <Info className="w-5 h-5" />
-          </button>
+          {/* Spacer mirrors the gallery upload button to keep the shutter centered */}
+          <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
+
         </div>
       )}
     </div>

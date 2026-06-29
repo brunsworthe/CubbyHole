@@ -12,6 +12,10 @@ export default function ThemeToggle() {
 
   const isDark = resolvedTheme === 'dark'
 
+  if (!mounted) {
+    return <div className="w-9 h-9 rounded-xl" aria-hidden="true" />
+  }
+
   return (
     <button
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
@@ -27,10 +31,7 @@ export default function ThemeToggle() {
         hover:text-slate-900 dark:hover:text-zinc-100
       `}
     >
-      {/* Skeleton placeholder before mount to avoid layout shift */}
-      {!mounted ? (
-        <span className="w-4 h-4 rounded bg-slate-200 dark:bg-zinc-700 animate-pulse" />
-      ) : isDark ? (
+      {isDark ? (
         <Sun className="w-4 h-4 transition-transform duration-300 rotate-0" />
       ) : (
         <Moon className="w-4 h-4 transition-transform duration-300 rotate-0" />
