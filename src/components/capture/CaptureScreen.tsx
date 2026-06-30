@@ -1084,18 +1084,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         <button onClick={onClose} className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${cameraReady ? 'animate-pulse' : 'opacity-40'} ${
-            is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : isRelief ? 'bg-orange-400' : 'bg-slate-400'
-          }`} />
-          <span className="text-white/75 text-xs font-mono tracking-[0.15em] uppercase">
-            {cameraStatus === 'requesting'  ? 'Connecting…'
-           : cameraStatus === 'denied'      ? 'Access Denied'
-           : cameraStatus === 'unavailable' ? 'No Camera'
-           : cameraStatus === 'error'       ? 'Camera Error'
-           : is2D ? 'Vision AI Active' : isDocument ? 'OCR Engine Active' : isRelief ? 'Depth Sensor Active' : 'LiDAR Active'}
-          </span>
-        </div>
+        <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
         <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
       </div>
 
@@ -1123,6 +1112,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
         <div ref={cropContainerRef} className="relative overflow-hidden w-full h-full">
+
+        {/* Camera-active indicator dot — pinned to top-left of video content area */}
+        {cameraReady && videoAR != null && containerSize != null && (
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <div className={`absolute top-3 left-3 w-2 h-2 rounded-full animate-pulse ${
+                is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : isRelief ? 'bg-orange-400' : 'bg-slate-400'
+              }`} />
+            </div>
+          </div>
+        )}
 
         {/* Live camera feed — hidden (not stopped) while cropping so retake works */}
         <video
@@ -1231,8 +1231,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
         {/* Loading spinner */}
         {cameraStatus === 'requesting' && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 gap-3">
             <div className="w-10 h-10 rounded-full border-4 border-zinc-700 border-t-white/60 animate-spin" />
+            <span className="text-white/50 text-xs font-mono tracking-[0.15em] uppercase">Connecting…</span>
           </div>
         )}
 
