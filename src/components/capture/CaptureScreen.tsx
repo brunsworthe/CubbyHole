@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap } from 'lucide-react'
+import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 import { createClient } from '@/lib/supabase/client'
 
@@ -540,6 +540,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [isCapturing, setIsCapturing] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
@@ -628,7 +629,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
     setCameraStatus('requesting')
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .getUserMedia({ video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        aspectRatio: { ideal: window.innerHeight > window.innerWidth ? 3 / 4 : 4 / 3 },
+      }, audio: false })
       .then(s => {
         streamRef.current?.getTracks().forEach(t => t.stop())
         streamRef.current = s
@@ -679,6 +685,21 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     })
     ro.observe(el)
     return () => ro.disconnect()
+  }, [])
+
+  // Keep isFullscreen synced with the browser's actual fullscreen state (system gestures, ESC, etc.)
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement != null)
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {})
+    }
   }, [])
 
   // Reset all transient state when mode changes
@@ -1085,7 +1106,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <X className="w-5 h-5" />
         </button>
         <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
-        <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
+        <button onClick={toggleFullscreen}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white/75 flex-shrink-0"
+          aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'}>
+          {isFullscreen ? <Minimize className="w-[18px] h-[18px]" /> : <Maximize className="w-[18px] h-[18px]" />}
+        </button>
       </div>
 
       {/* Mode switcher */}
@@ -1157,26 +1182,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           />
         )}
 
-        {/* ── Relief alignment grid + stage indicator pill ──
-             The grid is constrained to videoContentStyle (the same dynamically-computed
-             width/height already used by the guide box below) rather than the full
-             cropContainerRef footprint, so it tracks the actual letterboxed video pixels
-             instead of stretching into any empty bars around the feed. ── */}
+        {/* ── Relief alignment grid ──
+             Constrained to videoContentStyle (the same dynamically-computed width/height
+             already used by the guide box below) rather than the full cropContainerRef
+             footprint, so it tracks the actual letterboxed video pixels instead of
+             stretching into any empty bars around the feed. ── */}
         {isRelief && (
-          <>
-            <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-              <div style={videoContentStyle} className="relative overflow-hidden">
-                <div className="absolute inset-0 grid grid-cols-5 divide-x divide-white/50">
-                  {Array.from({ length: 5 }).map((_, i) => <div key={i} />)}
-                </div>
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+            <div style={videoContentStyle} className="relative overflow-hidden">
+              <div className="absolute inset-0 grid grid-cols-5 divide-x divide-white/50">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} />)}
               </div>
             </div>
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
-              <span className="bg-black/60 backdrop-blur-sm text-white text-xs font-mono font-semibold px-3 py-1 rounded-full border border-white/20">
-                Frame {Math.min(reliefStep + 1, 6)} of 6
-              </span>
-            </div>
-          </>
+          </div>
         )}
 
         {/* Guide box: dashed bounding box + crosshair, shown in scan3d and relief modes */}
@@ -1211,6 +1229,54 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <span className="text-[9px] font-mono tracking-[0.12em] text-white/50">BOX LOCKED</span>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Compact multi-frame progress HUD — scan3d compass dial / relief cross-section guide.
+             Pinned to the bottom edge of the actual video content area so the bottom control
+             deck below stays a uniform height across all four capture modes. */}
+        {(isScan3d || isRelief) && cameraReady && videoAR != null && containerSize != null && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
+                <div>
+                  <p className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+                    {isScan3d
+                      ? (allFramesCaptured ? 'All 8 frames captured!' : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading)
+                      : (allReliefCaptured ? 'All 6 frames captured!' : RELIEF_STEPS[reliefStep]?.heading)}
+                  </p>
+                  <p className="text-white/50 text-[10px] text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+                    {isScan3d
+                      ? (allFramesCaptured
+                          ? 'Tap below to compile your 3D object'
+                          : isOrbitMode && currentStep === 0
+                          ? 'Use slider to frame subject, then capture baseline.'
+                          : isOrbitMode
+                          ? 'Box locked. Step right and fit subject back inside frame.'
+                          : (SCAN_STEPS[currentStep]?.sub ?? ''))
+                      : (allReliefCaptured ? 'Tap below to finish and save your Relief' : RELIEF_STEPS[reliefStep]?.sub)}
+                  </p>
+                </div>
+                {isScan3d ? (
+                  <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-16 h-16 drop-shadow-md" isOrbitMode={isOrbitMode} />
+                ) : (
+                  <div className="drop-shadow-md">
+                    <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2D Artwork / Document HUD — mirrors the scan3d/relief HUD pattern with instruction text only */}
+        {isFlat && !cropState && tipText && cameraReady && videoAR != null && containerSize != null && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
+                <p className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{tipText}</p>
               </div>
             </div>
           </div>
@@ -1556,13 +1622,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
       </div>
 
-      {/* ── Tip text (flat modes only, hidden during crop) ── */}
-      {isFlat && !cropState && (
-        <div className="flex-shrink-0 px-6 py-2">
-          <p className="text-center text-white/38 text-xs leading-relaxed tracking-wide">{tipText}</p>
-        </div>
-      )}
-
       {/* ── Crop confirmation controls ── */}
       {cropState ? (
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
@@ -1592,29 +1651,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       ) : isScan3d ? (
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-
-
-
-          {/* Positional HUD */}
-          <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-24 h-24" isOrbitMode={isOrbitMode} />
-
-          {/* Step heading + contextual helper text */}
-          <div className="text-center px-3">
-            <p className="text-white/90 font-semibold text-sm leading-tight">
-              {allFramesCaptured
-                ? 'All 8 frames captured!'
-                : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading}
-            </p>
-            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-              {allFramesCaptured
-                ? 'Tap below to compile your 3D object'
-                : isOrbitMode && currentStep === 0
-                ? 'Use slider to frame subject, then capture baseline.'
-                : isOrbitMode
-                ? 'Box locked. Step right and fit subject back inside frame.'
-                : (SCAN_STEPS[currentStep]?.sub ?? '')}
-            </p>
-          </div>
 
           {/* Compile CTA or shutter */}
           {allFramesCaptured ? (
@@ -1713,23 +1749,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       ) : isRelief ? (
         /* ── relief180: controls ── */
         <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-
-
-
-          {/* Positional HUD */}
-          <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
-
-          {/* Step guidance */}
-          <div className="text-center px-3">
-            <p className="text-white/90 font-semibold text-sm leading-tight">
-              {allReliefCaptured ? 'All 6 frames captured!' : RELIEF_STEPS[reliefStep]?.heading}
-            </p>
-            <p className="text-white/40 text-xs mt-0.5 leading-relaxed">
-              {allReliefCaptured
-                ? 'Tap below to finish and save your Relief'
-                : RELIEF_STEPS[reliefStep]?.sub}
-            </p>
-          </div>
 
           {/* Compile CTA or shutter */}
           {allReliefCaptured ? (
