@@ -382,6 +382,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [isRecording] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Physical device rotation, mirrored onto UI content via CSS transform (layout itself stays portrait-locked)
+  const [uiRotation, setUiRotation] = useState<0 | 90 | -90 | 180>(0)
 
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
@@ -426,6 +428,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const capturedFramesRef = useRef<(Blob | null)[]>(Array(8).fill(null))
   const ghostUrlRef = useRef<string | null>(null)
   const reliefFramesRef = useRef<(Blob | null)[]>(Array(6).fill(null))
+  const orientationTrackingRef = useRef(false)
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -446,9 +449,21 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const allFramesCaptured  = isScan3d  && currentStep >= 8
   const allReliefCaptured  = isRelief  && reliefStep  >= 6
 
-  const isLevel = (is2D || isDocument) && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
-  const bubbleX = Math.max(-11, Math.min(11, (levelGamma / 30) * 11))
-  const bubbleY = Math.max(-11, Math.min(11, (levelBeta  / 30) * 11))
+  // Bubble level axis swap: levelBeta/levelGamma are always the phone's raw, unfrozen front-back /
+  // left-right tilt — independent of uiRotation's flat-lock. When the UI is visually rotated 90°,
+  // "pitch" and "roll" trade places on screen, so the tilt vector is rotated by the same snapped
+  // angle to keep the bubble moving the direction the user actually tilts.
+  const { effBeta, effGamma } = (() => {
+    switch (uiRotation) {
+      case 90:   return { effBeta: -levelGamma, effGamma: levelBeta }
+      case -90:  return { effBeta: levelGamma,  effGamma: -levelBeta }
+      case 180:  return { effBeta: -levelBeta,  effGamma: -levelGamma }
+      default:   return { effBeta: levelBeta,   effGamma: levelGamma }
+    }
+  })()
+  const isLevel = (is2D || isDocument) && Math.abs(effBeta) < 8 && Math.abs(effGamma) < 8
+  const bubbleX = Math.max(-11, Math.min(11, (effGamma / 30) * 11))
+  const bubbleY = Math.max(-11, Math.min(11, (effBeta  / 30) * 11))
 
   // ── Camera init ───────────────────────────────────────────────────────────
   const initCamera = useCallback(() => {
@@ -523,11 +538,78 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
 
+  // Native-rotation illusion: mirror physical device orientation onto UI content via CSS transform,
+  // while the outer layout stays rigidly portrait-locked. Snapped to 90° increments.
+  const enableOrientationTracking = useCallback(() => {
+    if (orientationTrackingRef.current || typeof window === 'undefined') return
+    orientationTrackingRef.current = true
+    const handler = (e: DeviceOrientationEvent) => {
+      const beta = e.beta
+      const gamma = e.gamma
+      if (beta === null || gamma === null) return
+
+      // Renamed to avoid collision with the flat-mode flag.
+      // Expanded deadzone to 55 degrees to beat the 45-degree orientation snap.
+      const isDeviceFlat = (Math.abs(beta) < 55 || Math.abs(beta) > 125) && Math.abs(gamma) < 55
+      if (isDeviceFlat) return
+
+      let angle: 0 | 90 | -90 | 180 = 0
+      if (Math.abs(gamma) > 45) {
+        angle = gamma > 0 ? -90 : 90
+      } else if (Math.abs(beta) > 135) {
+        angle = 180
+      }
+      setUiRotation(prev => (prev === angle ? prev : angle))
+    }
+    window.addEventListener('deviceorientation', handler)
+  }, [])
+
+  // Android / other browsers: no explicit permission gate needed, so start tracking immediately.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
+    if (typeof DOE.requestPermission !== 'function') {
+      enableOrientationTracking()
+    }
+  }, [enableOrientationTracking])
+
   const toggleFullscreen = useCallback(() => {
+    // iOS 13+ requires the accelerometer permission prompt to originate from a direct user
+    // interaction — piggyback the request on this existing tap rather than a synthetic one.
+    if (typeof window !== 'undefined' && !orientationTrackingRef.current) {
+      const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
+      if (typeof DOE.requestPermission === 'function') {
+        DOE.requestPermission()
+          .then(perm => { if (perm === 'granted') enableOrientationTracking() })
+          .catch(() => {})
+      }
+    }
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {})
+      document.exitFullscreen()
+        .then(() => {
+          try { screen.orientation?.unlock?.() } catch { /* unsupported */ }
+        })
+        .catch(() => {})
     } else {
-      document.documentElement.requestFullscreen().catch(() => {})
+      document.documentElement.requestFullscreen()
+        .then(() => {
+          try {
+            const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+            orientation.lock?.('portrait-primary')?.catch(() => {})
+          } catch { /* unsupported */ }
+        })
+        .catch(() => {})
+    }
+  }, [enableOrientationTracking])
+
+  // Fail-safe: if the capture screen unmounts (user backs out, navigates away) while still
+  // fullscreen, force-exit and release the orientation lock instead of leaving the browser stuck.
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {})
+      }
+      try { screen.orientation?.unlock?.() } catch { /* unsupported */ }
     }
   }, [])
 
@@ -648,24 +730,63 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return () => URL.revokeObjectURL(url)
   }, [isRelief, reliefStep, reliefFrames])
 
+  // Snapshots the live video into a canvas, rotating the pixel data so the saved frame matches
+  // the user's visual horizon (uiRotation) rather than the phone's physical/portrait-locked sensor feed.
+  const drawRotatedFrame = useCallback((video: HTMLVideoElement): HTMLCanvasElement => {
+    const vw = video.videoWidth  || 1280
+    const vh = video.videoHeight || 720
+    const swapped = uiRotation === 90 || uiRotation === -90
+    const canvas = document.createElement('canvas')
+    canvas.width  = swapped ? vh : vw
+    canvas.height = swapped ? vw : vh
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.translate(canvas.width / 2, canvas.height / 2)
+      // Inverted: a counter-clockwise physical turn (uiRotation > 0) must spin the pixel
+      // data clockwise to land right-side-up, so the canvas rotates opposite to uiRotation.
+      ctx.rotate((-uiRotation * Math.PI) / 180)
+      ctx.drawImage(video, -vw / 2, -vh / 2, vw, vh)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+    }
+    return canvas
+  }, [uiRotation])
+
   // ── Flat-page capture (artwork2d + document) → enters crop state ─────────
   const captureDocPage = useCallback(() => {
     if (isCapturing || docOverlay || cropState) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
     setIsCapturing(true)
-    const canvas = document.createElement('canvas')
-    canvas.width  = video.videoWidth  || 1280
-    canvas.height = video.videoHeight || 720
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const objectUrl = URL.createObjectURL(blob)
-      setCropCorners({ tl: { x: 8, y: 8 }, tr: { x: 92, y: 8 }, bl: { x: 8, y: 92 }, br: { x: 92, y: 92 } })
+      // Default crop box, inset 8% within the image's *actual rendered (object-contain) bounds*
+      // rather than a fixed 8–92% of the whole container. A rotated (landscape) capture is heavily
+      // letterboxed inside the still-portrait crop container, so a fixed container-relative box
+      // would span mostly black bars instead of image content, producing a degenerate crop.
+      if (containerSize) {
+        const iAsp = canvas.width / canvas.height
+        const cAsp = containerSize.w / containerSize.h
+        const renderWPct = iAsp > cAsp ? 100 : (containerSize.h * iAsp) / containerSize.w * 100
+        const renderHPct = iAsp > cAsp ? (containerSize.w / iAsp) / containerSize.h * 100 : 100
+        const offXPct = (100 - renderWPct) / 2
+        const offYPct = (100 - renderHPct) / 2
+        const insetX = renderWPct * 0.08
+        const insetY = renderHPct * 0.08
+        setCropCorners({
+          tl: { x: offXPct + insetX,              y: offYPct + insetY },
+          tr: { x: offXPct + renderWPct - insetX, y: offYPct + insetY },
+          bl: { x: offXPct + insetX,              y: offYPct + renderHPct - insetY },
+          br: { x: offXPct + renderWPct - insetX, y: offYPct + renderHPct - insetY },
+        })
+      } else {
+        setCropCorners({ tl: { x: 8, y: 8 }, tr: { x: 92, y: 8 }, bl: { x: 8, y: 92 }, br: { x: 92, y: 92 } })
+      }
       setCropState({ blob, objectUrl })
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, docOverlay, cropState])
+  }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize])
 
   const finishDocument = useCallback(async () => {
     const allPages = docPages
@@ -695,10 +816,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     const video = videoRef.current
     if (!video || video.readyState < 2) return
     setIsCapturing(true)
-    const canvas = document.createElement('canvas')
-    canvas.width  = video.videoWidth  || 1280
-    canvas.height = video.videoHeight || 720
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const step = currentStep
@@ -711,7 +829,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setCurrentStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, currentStep])
+  }, [isCapturing, currentStep, drawRotatedFrame])
 
   const compileScan3D = useCallback(async () => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
@@ -750,10 +868,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     const video = videoRef.current
     if (!video || video.readyState < 2) return
     setIsCapturing(true)
-    const canvas = document.createElement('canvas')
-    canvas.width  = video.videoWidth  || 1280
-    canvas.height = video.videoHeight || 720
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const step = reliefStep
@@ -766,7 +881,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setReliefStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, reliefStep])
+  }, [isCapturing, reliefStep, drawRotatedFrame])
 
   const compileRelief = useCallback(async () => {
     const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
@@ -895,6 +1010,31 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       : { width: `${h * videoAR}px`, height: `${h}px` }            // height-constrained
   })()
 
+  // Same width/height numbers as videoContentStyle above, kept as plain numbers (not a CSS string)
+  // so overlays scoped to that box — rather than the full container — can compute their own
+  // ±90° rotate-and-scale-to-fit, matching fullBoxSpinStyle's approach at the container's scale.
+  const videoContentDims = (() => {
+    if (videoAR == null || containerSize == null) return null
+    const { w, h } = containerSize
+    return videoAR > w / h ? { w, h: w / videoAR } : { w: h * videoAR, h }
+  })()
+
+  // Native-rotation illusion: applied to UI content (icons, HUD text, controls) so it visually
+  // tracks the phone's physical orientation while the surrounding layout stays portrait-locked.
+  const uiSpinStyle: React.CSSProperties = { transform: `rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }
+
+  // Shared by two full-container overlays that both need to spin with uiRotation and, for a ±90°
+  // swap, rescale by the container's h/w ratio so the rotated box still fills the portrait bounds:
+  //  - onion-skin/silhouette ghosts, whose pixels already have ctx.rotate(-uiRotation) baked in by
+  //    drawRotatedFrame — rotating the display by the exact opposite (+uiRotation) cancels that out.
+  //  - the crop preview + drag overlay, which has no baked-in rotation but should still spin to
+  //    match the angle the user is physically holding the phone at while dragging corners.
+  const fullBoxSpinStyle: React.CSSProperties = (() => {
+    const swapped = uiRotation === 90 || uiRotation === -90
+    const scale = swapped && containerSize ? containerSize.h / containerSize.w : 1
+    return { transform: `rotate(${uiRotation}deg) scale(${scale})`, transition: 'transform 0.3s ease-out' }
+  })()
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
@@ -902,13 +1042,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       {/* Header */}
       <div className="flex items-center justify-between px-5 pb-2 flex-shrink-0" style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}>
         <button onClick={onClose} className="p-2 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors" aria-label="Close">
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" style={uiSpinStyle} />
         </button>
         <div className="w-9 h-9 flex-shrink-0" aria-hidden="true" />
         <button onClick={toggleFullscreen}
           className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white/75 flex-shrink-0"
           aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'}>
-          {isFullscreen ? <Minimize className="w-[18px] h-[18px]" /> : <Maximize className="w-[18px] h-[18px]" />}
+          {isFullscreen ? <Minimize className="w-[18px] h-[18px]" style={uiSpinStyle} /> : <Maximize className="w-[18px] h-[18px]" style={uiSpinStyle} />}
         </button>
       </div>
 
@@ -957,9 +1097,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           autoPlay playsInline muted
         />
 
-        {/* Crop mode: show captured still + draggable crop overlay */}
+        {/* Crop mode: show captured still + draggable crop overlay. Rotated as one rigid unit so
+             the user can see and drag corners aligned with the angle they're physically holding
+             the phone at — CropOverlay's own drag math reads screen-space getBoundingClientRect(),
+             so it stays correct under this transform without any changes to CropOverlay itself. */}
         {cropState && (
-          <>
+          <div className="absolute inset-0" style={fullBoxSpinStyle}>
             <img
               src={cropState.objectUrl}
               alt="Captured still"
@@ -970,14 +1113,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               onCornersChange={setCropCorners}
               accentColor={is2D ? 'rgb(196 181 253)' : 'rgb(125 211 252)'}
             />
-          </>
+          </div>
         )}
 
         {/* Ghost / onion-skin: previous frame at 25% opacity — rotate mode only */}
         {isScan3d && !isOrbitMode && ghostUrl && (
           <img src={ghostUrl} alt="" aria-hidden="true"
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-            style={{ opacity: 0.25 }}
+            style={{ opacity: 0.25, ...fullBoxSpinStyle }}
           />
         )}
 
@@ -1025,6 +1168,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
             <div className="relative" style={videoContentStyle}>
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
+                <div style={uiSpinStyle} className="flex flex-col items-center gap-1.5">
                 <div>
                   <p className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
                     {isScan3d
@@ -1050,6 +1194,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>
@@ -1060,7 +1205,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
             <div className="relative" style={videoContentStyle}>
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
-                <p className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{tipText}</p>
+                <p style={uiSpinStyle} className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{tipText}</p>
               </div>
             </div>
           </div>
@@ -1072,6 +1217,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             src={baseSilhouetteUrl}
             alt="" aria-hidden="true"
             className="absolute inset-0 w-full h-full object-contain opacity-30 z-10 pointer-events-none"
+            style={fullBoxSpinStyle}
           />
         )}
         {/* Dark fallback */}
@@ -1112,23 +1258,39 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         )}
 
         {/* ── Side-profile phone tilt icons for relief180 steps 1–5 (no grid lines —
-             the grid-cols-6 alignment grid below is the only divider overlay in Relief mode) ── */}
+             the grid-cols-6 alignment grid below is the only divider overlay in Relief mode).
+             The whole wrapper spins with uiRotation (pills AND labels together, as one rigid
+             layout) so it stays aligned with the user's actual horizon when held in landscape. */}
         {isRelief && reliefStep >= 1 && !allReliefCaptured && (
           <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-          <div style={{ ...videoContentStyle }} className="flex">
+          <div style={{ ...videoContentStyle }} className="relative">
+          <div
+            className="absolute inset-0 flex"
+            style={{
+              transform: `rotate(${uiRotation}deg) scale(${
+                (uiRotation === 90 || uiRotation === -90) && videoContentDims
+                  ? videoContentDims.h / videoContentDims.w
+                  : 1
+              })`,
+              transition: 'transform 0.3s ease-out',
+            }}
+          >
             {([
-              { step: 1, label: 'XL', rotation: 'rotate-[-60deg]' },
-              { step: 2, label: 'LC', rotation: 'rotate-[-30deg]' },
-              { step: 3, label: 'TD', rotation: 'rotate-0'        },
-              { step: 4, label: 'RC', rotation: 'rotate-[30deg]'  },
-              { step: 5, label: 'XR', rotation: 'rotate-[60deg]'  },
-            ] as const).map(({ step, label, rotation }) => {
+              { step: 1, label: 'XL', baseDeg: -60 },
+              { step: 2, label: 'LC', baseDeg: -30 },
+              { step: 3, label: 'TD', baseDeg: 0   },
+              { step: 4, label: 'RC', baseDeg: 30  },
+              { step: 5, label: 'XR', baseDeg: 60  },
+            ] as const).map(({ step, label, baseDeg }) => {
               const isActive   = step === reliefStep
               const isCaptured = reliefFrames[step] !== null
               return (
                 <div key={step} className="relative flex-1 flex flex-col items-center justify-center">
                   {isActive && (
-                    <div className={`w-12 h-2.5 bg-orange-400/90 rounded-full ${rotation}`} />
+                    <div
+                      className="w-12 h-2.5 bg-orange-400/90 rounded-full"
+                      style={{ transform: `rotate(${baseDeg}deg)` }}
+                    />
                   )}
                   <span className={`absolute bottom-3 text-[9px] font-mono ${
                     isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
@@ -1138,6 +1300,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 </div>
               )
             })}
+          </div>
           </div>
           </div>
         )}
@@ -1255,6 +1418,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center gap-2${currentStep !== 0 ? ' invisible' : ''}`}>
+                  <div style={uiSpinStyle} className="flex items-center gap-2">
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="text-white/35 text-[9px] font-mono">W</span>
                     <div className="h-20 w-6 flex items-center justify-center">
@@ -1274,6 +1438,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                         style={{ width: '5rem', transform: 'rotate(-90deg)' }}
                         aria-label="Guide box height" />
                     </div>
+                  </div>
                   </div>
                 </div>
 
@@ -1298,7 +1463,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Right zone: fixed equal width, 3D Mode label + stacked Rotate / Orbit buttons */}
                 <div className="w-28 flex items-center justify-center">
-                  <div className="flex flex-col items-start gap-1">
+                  <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-1">
                       <Box className={`w-3 h-3 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
                       <span className="text-white/50 text-[9px] font-medium">3D Mode</span>
@@ -1353,6 +1518,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center gap-2${reliefStep !== 0 ? ' invisible' : ''}`}>
+                  <div style={uiSpinStyle} className="flex items-center gap-2">
                   <div className="flex flex-col items-center gap-0.5">
                     <span className="text-white/35 text-[9px] font-mono">W</span>
                     <div className="h-20 w-6 flex items-center justify-center">
@@ -1372,6 +1538,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                         style={{ width: '5rem', transform: 'rotate(-90deg)' }}
                         aria-label="Guide box height" />
                     </div>
+                  </div>
                   </div>
                 </div>
 
@@ -1396,7 +1563,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Right zone: fixed equal width, Lighting label + stacked Natural / Flashlight buttons */}
                 <div className="w-28 flex items-center justify-center">
-                  <div className="flex flex-col items-start gap-1">
+                  <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-1">
                       <Lightbulb className={`w-3 h-3 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
                       <span className="text-white/50 text-[9px] font-medium">Lighting</span>
@@ -1448,7 +1615,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/55 hover:text-white transition-colors disabled:opacity-40"
                   aria-label="Upload from gallery"
                 >
-                  <Images className="w-5 h-5" />
+                  <Images className="w-5 h-5" style={uiSpinStyle} />
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelect} />
               </div>
@@ -1477,7 +1644,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {/* Right zone: level indicator (2D Artwork) or spacer (Document) */}
               <div className="w-28 flex items-center justify-center">
                 {(is2D || isDocument) && cameraReady ? (
-                  <div className="flex flex-col items-center gap-1">
+                  <div style={uiSpinStyle} className="flex flex-col items-center gap-1">
                     <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
                     }`}>
