@@ -43,20 +43,7 @@ const RELIEF_STEPS = [
   { pos: 'XR',   heading: 'Frame 6/6 — Extreme Right',      sub: 'Tilt phone far right — light rakes across from the left'              },
 ] as const
 
-const ORBIT_CX = 150, ORBIT_CY = 312, ORBIT_RX = 88, ORBIT_RY = 20
-const RING_CX = 150, RING_CY = 190, RING_R = 52
-const RING_CIRC = 2 * Math.PI * RING_R
-
-// 5 evenly-spaced angular positions along the upper semi-ellipse (in degrees, 0=top, ±90=endpoints)
-const RELIEF_ARC_ANGLES = [-72, -36, 0, 36, 72] as const
-
 type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
-
-function getSupportedMimeType(): string {
-  if (typeof MediaRecorder === 'undefined') return ''
-  const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
-  return types.find(t => MediaRecorder.isTypeSupported(t)) ?? ''
-}
 
 // ── Compass dial for 8-segment scan3d capture ─────────────────────────────────
 function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', isOrbitMode = false }: {
@@ -184,150 +171,6 @@ function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', 
           </g>
         )
       })()}
-    </svg>
-  )
-}
-
-// ── Arc dial for 6-step relief180 capture (1 base + 5 arc) ──────────────────
-function ReliefArcDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40' }: {
-  capturedFrames: (Blob | null)[]
-  currentStep: number
-  svgClassName?: string
-}) {
-  const cx = 100, cy = 95
-  const ro = 66, ri = 41
-  const GAP = 4
-  const STEP_DEG = 36
-
-  function pt(a: number, r: number): [number, number] {
-    const rad = a * Math.PI / 180
-    return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)]
-  }
-
-  function segPath(i: number): string {
-    const s = -90 + i * STEP_DEG + GAP
-    const e = -90 + (i + 1) * STEP_DEG - GAP
-    const [x1, y1] = pt(s, ro)
-    const [x2, y2] = pt(e, ro)
-    const [x3, y3] = pt(e, ri)
-    const [x4, y4] = pt(s, ri)
-    return `M ${x1} ${y1} A ${ro} ${ro} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${ri} ${ri} 0 0 0 ${x4} ${y4} Z`
-  }
-
-  const allCaptured = currentStep >= 6
-  const ARC_LABELS = ['XL', 'L', 'TD', 'R', 'XR']
-  // Midpoint angle for each arc segment (for phone guide placement)
-  const ARC_MID_ANGLES = [-72, -36, 0, 36, 72] as const
-
-  // BASE slot indicator
-  const baseFrame = capturedFrames[0]
-  const baseActive = currentStep === 0 && !allCaptured
-  const baseFill   = baseFrame  ? 'rgba(251,146,60,0.50)' : baseActive ? 'rgba(251,146,60,0.88)' : 'rgba(251,146,60,0.07)'
-  const baseStroke = baseFrame  ? 'rgba(251,146,60,0.65)' : baseActive ? 'rgba(251,146,60,1)'    : 'rgba(251,146,60,0.20)'
-
-  return (
-    <svg viewBox="0 0 200 200" className={svgClassName} aria-hidden="true">
-      {/* Outer guide arc */}
-      <path d={`M ${cx - ro - 7} ${cy} A ${ro + 7} ${ro + 7} 0 0 1 ${cx + ro + 7} ${cy}`}
-        fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-
-      {/* BASE slot — flat rectangle below arc centerline */}
-      <rect x={cx - 16} y={cy + 10} width="32" height="20" rx="4"
-        fill={baseFill} stroke={baseStroke} strokeWidth={baseActive ? 1.5 : 1} />
-      {baseActive && (
-        <rect x={cx - 16} y={cy + 10} width="32" height="20" rx="4"
-          fill="none" stroke="rgba(251,146,60,0.4)" strokeWidth="3">
-          <animate attributeName="opacity" values="0.7;0;0.7" dur="1.6s" repeatCount="indefinite" />
-        </rect>
-      )}
-      {baseFrame ? (
-        <path d={`M ${cx - 6} ${cy + 20} L ${cx - 3} ${cy + 23} L ${cx + 7} ${cy + 15}`}
-          fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.8"
-          strokeLinecap="round" strokeLinejoin="round" />
-      ) : (
-        <text x={cx} y={cy + 24} textAnchor="middle"
-          fill={baseActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.25)'}
-          fontSize="7.5" fontFamily="monospace" fontWeight={baseActive ? 'bold' : 'normal'}>BASE</text>
-      )}
-
-      {/* Arc segments (steps 1–5, mapped to frames[1]–frames[5]) */}
-      {[0, 1, 2, 3, 4].map(i => {
-        const frameIdx  = i + 1
-        const isCaptured = capturedFrames[frameIdx] !== null
-        const isActive   = frameIdx === currentStep && !allCaptured
-        const [mx, my]   = pt(-90 + (i + 0.5) * STEP_DEG, (ro + ri) / 2)
-        const [lx, ly]   = pt(-90 + (i + 0.5) * STEP_DEG, ro + 13)
-
-        const fill      = isCaptured ? 'rgba(251,146,60,0.50)' : isActive ? 'rgba(251,146,60,0.88)' : 'rgba(251,146,60,0.07)'
-        const stroke    = isCaptured ? 'rgba(251,146,60,0.65)' : isActive ? 'rgba(251,146,60,1)'    : 'rgba(251,146,60,0.20)'
-        const labelFill = isCaptured ? 'rgba(251,146,60,0.70)' : isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.22)'
-
-        return (
-          <g key={i}>
-            <path d={segPath(i)} fill={fill} stroke={stroke} strokeWidth={isActive ? 1.5 : 1} />
-            {isActive && (
-              <path d={segPath(i)} fill="none" stroke="rgba(251,146,60,0.4)" strokeWidth="3">
-                <animate attributeName="opacity" values="0.7;0;0.7" dur="1.6s" repeatCount="indefinite" />
-              </path>
-            )}
-            {isCaptured && (
-              <path d={`M ${mx - 4} ${my} L ${mx - 1} ${my + 3} L ${mx + 4.5} ${my - 3.5}`}
-                fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.8"
-                strokeLinecap="round" strokeLinejoin="round" />
-            )}
-            <text x={lx} y={ly + 3.5} textAnchor="middle" fill={labelFill}
-              fontSize="8.5" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
-              {ARC_LABELS[i]}
-            </text>
-          </g>
-        )
-      })}
-
-      {/* Phone placement guide — points to the NEXT position */}
-      {!allCaptured && (() => {
-        if (currentStep === 0) {
-          // BASE: flat/landscape phone icon centered below the arc
-          return (
-            <g transform={`translate(${cx}, ${cy + 20})`} opacity="0.82">
-              <rect x="-11" y="-7" width="22" height="14" rx="3"
-                fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.3" />
-              <rect x="-9" y="-5" width="18" height="10" rx="2"
-                fill="rgba(251,146,60,0.10)" stroke="rgba(251,146,60,0.38)" strokeWidth="0.6" />
-              <circle cx="8" cy="0" r="1.6" fill="rgba(251,146,60,0.70)" />
-            </g>
-          )
-        }
-        if (currentStep >= 1 && currentStep <= 5) {
-          const arcIdx = currentStep - 1
-          const angle = ARC_MID_ANGLES[arcIdx]
-          const [px, py] = pt(angle, (ro + ri) / 2)
-          return (
-            <g transform={`translate(${px}, ${py}) rotate(${angle})`} opacity="0.85">
-              <rect x="-6" y="-11" width="12" height="22" rx="3"
-                fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.3" />
-              <rect x="-4.5" y="-9" width="9" height="18" rx="2"
-                fill="rgba(251,146,60,0.10)" stroke="rgba(251,146,60,0.38)" strokeWidth="0.6" />
-              <circle cx="0" cy="-7" r="1.6" fill="rgba(251,146,60,0.70)" />
-            </g>
-          )
-        }
-        return null
-      })()}
-
-      {/* Counter */}
-      {allCaptured ? (
-        <>
-          <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(251,146,60,1)" fontSize="18" fontWeight="bold">✓</text>
-          <text x={cx} y={cy + 4} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="7.5" fontFamily="monospace">ALL DONE</text>
-        </>
-      ) : (
-        <>
-          <text x={cx} y={cy - 8} textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="monospace">
-            {currentStep + 1}
-          </text>
-          <text x={cx} y={cy + 3} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="8" fontFamily="monospace">/ 6</text>
-        </>
-      )}
     </svg>
   )
 }
@@ -535,10 +378,8 @@ interface Props {
 export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }: Props) {
   // ── Camera state ──────────────────────────────────────────────────────────
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('requesting')
-  const [orbitAngle, setOrbitAngle] = useState(0)
-  const [scanProgress, setScanProgress] = useState(0)
   const [isCapturing, setIsCapturing] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
+  const [isRecording] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -568,7 +409,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [reliefFrames, setReliefFrames] = useState<(Blob | null)[]>(() => Array(6).fill(null))
   const [reliefStep, setReliefStep] = useState(0)
   const [lightingMode, setLightingMode] = useState<'natural' | 'torch'>('natural')
-  const [torchActive, setTorchActive] = useState(false)
   const [torchUnsupported, setTorchUnsupported] = useState(false)
   const [baseSilhouetteUrl, setBaseSilhouetteUrl] = useState<string | null>(null)
 
@@ -577,11 +417,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [levelGamma, setLevelGamma] = useState(20)
 
   // ── Refs ──────────────────────────────────────────────────────────────────
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const cropContainerRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const recordingChunks = useRef<Blob[]>([])
   const recordingTimerRef = useRef<number | undefined>(undefined)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const capturedFramesRef = useRef<(Blob | null)[]>(Array(8).fill(null))
@@ -590,7 +429,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
-    (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el
+    videoRef.current = el
     if (el && streamRef.current) {
       el.srcObject = streamRef.current
     }
@@ -606,16 +445,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   const allFramesCaptured  = isScan3d  && currentStep >= 8
   const allReliefCaptured  = isRelief  && reliefStep  >= 6
-
-  const accent = is2D      ? 'rgb(196 181 253)'
-               : isDocument ? 'rgb(125 211 252)'
-               : isRelief   ? 'rgb(251 146 60)'
-               :               'rgb(251 191 36)'
-
-  const pointColor = is2D      ? 'rgb(196 181 253)'
-                   : isDocument ? 'rgb(125 211 252)'
-                   : isRelief   ? 'rgb(251 146 60)'
-                   :               'rgb(110 231 183)'
 
   const isLevel = (is2D || isDocument) && Math.abs(levelBeta) < 8 && Math.abs(levelGamma) < 8
   const bubbleX = Math.max(-11, Math.min(11, (levelGamma / 30) * 11))
@@ -728,7 +557,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setReliefFrames(freshRelief)
     setReliefStep(0)
     setLightingMode('natural')
-    setTorchActive(false)
     setTorchUnsupported(false)
     // Always attempt torch-off on mode switch (safe no-op if not supported)
     const track = streamRef.current?.getVideoTracks()[0]
@@ -769,23 +597,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     const enable = lightingMode === 'torch'
     track
       .applyConstraints({ advanced: [{ torch: enable } as unknown as MediaTrackConstraintSet] })
-      .then(() => setTorchActive(enable))
       .catch(() => {
         if (enable) setTorchUnsupported(true)
-        setTorchActive(false)
       })
   }, [lightingMode, isRelief, cameraReady])
-
-  // Orbit dot animation for relief idle SVG overlay
-  useEffect(() => {
-    let rafId: number, last = 0
-    const step = (t: number) => {
-      if (t - last > 14) { setOrbitAngle(a => (a + 0.9) % 360); last = t }
-      rafId = requestAnimationFrame(step)
-    }
-    rafId = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(rafId)
-  }, [])
 
   // Device orientation for 2D level indicator
   useEffect(() => {
@@ -871,7 +686,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   }, [docPages, onCapture])
 
   const dismissDocOverlay = useCallback(() => {
-    setScanProgress(0)
     setDocOverlay(false)
   }, [])
 
@@ -961,7 +775,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     if (track) {
       track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
     }
-    setTorchActive(false)
     const primaryBlob = frames[3]  // center (Top-Down) frame as primary thumbnail (index 3 of 6)
     setIsUploading(true)
     try {
@@ -1050,19 +863,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     else if (isFlat)   { if (!docOverlay && !isCapturing) captureDocPage() }
   }, [cropState, isScan3d, captureFrame3D, isRelief, captureReliefFrame, isFlat, docOverlay, isCapturing, captureDocPage])
 
-  // ── SVG calculations (flat/2D modes) ─────────────────────────────────────
-  const ringOffset = RING_CIRC * (1 - scanProgress / 100)
-
-  // Relief arc overlay: idle oscillating dot (kept for non-step overlay visual)
-  const reliefNorm     = orbitAngle % 360
-  const reliefOsc      = reliefNorm <= 180 ? reliefNorm : 360 - reliefNorm
-  const reliefIdleRad  = Math.PI * (1 - reliefOsc / 180)
-  const reliefIdleDotX = ORBIT_CX + ORBIT_RX * Math.cos(reliefIdleRad)
-  const reliefIdleDotY = ORBIT_CY - ORBIT_RY * Math.sin(reliefIdleRad)
-
   // ── UI text ───────────────────────────────────────────────────────────────
-  const hudLabel = is2D ? 'ALIGN ARTWORK' : isDocument ? 'ALIGN DOCUMENT' : isRelief ? 'ALIGN RELIEF' : 'ALIGN OBJECT'
-
   const tipText = docOverlay
     ? ''
     : isFlat && docPages.length > 0
@@ -1072,8 +873,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     : is2D       ? 'Lay artwork flat · Level indicator turns green when steady'
     : isDocument ? 'Place each page flat within the frame, then press shutter'
     :               ''
-
-  const scanLabel = isDocument ? 'CAPTURING' : isFlat ? 'CAPTURING' : 'SCANNING'
 
   const accentBtn = is2D
     ? { idle: 'bg-violet-400 hover:bg-violet-300', active: 'bg-violet-500' }
@@ -1180,21 +979,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             style={{ opacity: 0.25 }}
           />
-        )}
-
-        {/* ── Relief alignment grid ──
-             Constrained to videoContentStyle (the same dynamically-computed width/height
-             already used by the guide box below) rather than the full cropContainerRef
-             footprint, so it tracks the actual letterboxed video pixels instead of
-             stretching into any empty bars around the feed. ── */}
-        {isRelief && (
-          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-            <div style={videoContentStyle} className="relative overflow-hidden">
-              <div className="absolute inset-0 grid grid-cols-5 divide-x divide-white/50">
-                {Array.from({ length: 5 }).map((_, i) => <div key={i} />)}
-              </div>
-            </div>
-          </div>
         )}
 
         {/* Guide box: dashed bounding box + crosshair, shown in scan3d and relief modes */}
@@ -1325,202 +1109,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               </button>
             )}
           </div>
-        )}
-
-        {/* ── SVG scanning overlay ── */}
-        {!cropState && (cameraReady || cameraStatus === 'requesting') && (
-          <svg viewBox="0 0 300 440" className="absolute inset-0 w-full h-full pointer-events-none"
-            preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="1.8" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-            </defs>
-
-            {/* Feature point cloud */}
-            {([
-              [98,128,0.40],[158,108,0.50],[208,136,0.30],
-              [84,190,0.35],[186,168,0.45],[228,196,0.30],
-              [106,248,0.40],[172,256,0.35],[202,228,0.50],
-              [124,206,0.30],[152,150,0.45],[190,210,0.40],
-              [118,170,0.30],[238,162,0.35],[70,218,0.40],
-              [144,130,0.28],[220,240,0.38],[92,155,0.42],
-            ] as [number,number,number][]).map(([x,y,o],i) => (
-              <circle key={i} cx={x} cy={y} r="1.8" fill={pointColor} opacity={o} />
-            ))}
-
-            {/* Alignment frame */}
-            <rect x="58" y="72" width="184" height="236"
-              fill="none" stroke="white" strokeWidth="0.7" strokeOpacity="0.22" strokeDasharray="6 4" />
-
-            {/* Base mesh grid */}
-            <g opacity="0.09" stroke="white" strokeWidth="0.5">
-              {[90,120,150,180,210].map(x => <line key={x} x1={x} y1="72" x2={x} y2="308" />)}
-              {[108,148,188,228,268].map(y => <line key={y} x1="58" y1={y} x2="242" y2={y} />)}
-            </g>
-
-            {/* 2D Masterpiece: rule-of-thirds grid */}
-            {is2D && (
-              <g>
-                <g stroke={accent} strokeWidth="0.7" opacity="0.22">
-                  <line x1="119" y1="72" x2="119" y2="308" />
-                  <line x1="181" y1="72" x2="181" y2="308" />
-                  <line x1="58"  y1="151" x2="242" y2="151" />
-                  <line x1="58"  y1="229" x2="242" y2="229" />
-                </g>
-                <g stroke={accent} strokeWidth="0.8" opacity="0.40">
-                  <line x1="145" y1="190" x2="155" y2="190" />
-                  <line x1="150" y1="185" x2="150" y2="195" />
-                </g>
-              </g>
-            )}
-
-            {/* 360°: Wireframe sphere dome */}
-            {isScan3d && (
-              <g>
-                <circle cx="150" cy="190" r="90" fill="none" stroke={accent} strokeWidth="0.8"
-                  strokeOpacity="0.30" strokeDasharray="3 2.5" />
-                <ellipse cx="150" cy="190" rx="90" ry="21"   fill="none" stroke={accent} strokeWidth="0.90" strokeOpacity="0.50" />
-                <ellipse cx="150" cy="145" rx="78" ry="18"   fill="none" stroke={accent} strokeWidth="0.75" strokeOpacity="0.42" />
-                <ellipse cx="150" cy="112" rx="45" ry="10.5" fill="none" stroke={accent} strokeWidth="0.65" strokeOpacity="0.35" />
-                <ellipse cx="150" cy="102" rx="16" ry="3.8"  fill="none" stroke={accent} strokeWidth="0.50" strokeOpacity="0.28" />
-                <ellipse cx="150" cy="235" rx="78" ry="18"   fill="none" stroke={accent} strokeWidth="0.75" strokeOpacity="0.38" />
-                <ellipse cx="150" cy="268" rx="45" ry="10.5" fill="none" stroke={accent} strokeWidth="0.65" strokeOpacity="0.30" />
-                <ellipse cx="150" cy="190" rx="31" ry="90"   fill="none" stroke={accent} strokeWidth="0.65" strokeOpacity="0.28" />
-                <ellipse cx="150" cy="190" rx="69" ry="90"   fill="none" stroke={accent} strokeWidth="0.65" strokeOpacity="0.28" />
-                <ellipse cx="150" cy="190" rx="88" ry="90"   fill="none" stroke={accent} strokeWidth="0.65" strokeOpacity="0.28" />
-                <text x="150" y="295" fill={accent} fontSize="7" fontFamily="monospace"
-                  opacity="0.55" textAnchor="middle" letterSpacing="1.2">360° SCAN VOLUME</text>
-              </g>
-            )}
-
-            {/* Relief 180°: 5-position arc with per-step status dots */}
-            {isRelief && (
-              <g>
-                {/* Static guide arc */}
-                <path
-                  d={`M ${ORBIT_CX - ORBIT_RX} ${ORBIT_CY} A ${ORBIT_RX} ${ORBIT_RY} 0 0 1 ${ORBIT_CX + ORBIT_RX} ${ORBIT_CY}`}
-                  fill="none" stroke={accent} strokeWidth="1.2" strokeOpacity="0.28" strokeDasharray="5 4"
-                />
-                {/* End-stop markers */}
-                <line x1={ORBIT_CX - ORBIT_RX} y1={ORBIT_CY - 14} x2={ORBIT_CX - ORBIT_RX} y2={ORBIT_CY + 14}
-                  stroke={accent} strokeWidth="2" strokeOpacity="0.55" strokeLinecap="round" />
-                <line x1={ORBIT_CX + ORBIT_RX} y1={ORBIT_CY - 14} x2={ORBIT_CX + ORBIT_RX} y2={ORBIT_CY + 14}
-                  stroke={accent} strokeWidth="2" strokeOpacity="0.55" strokeLinecap="round" />
-                <text x={ORBIT_CX} y={ORBIT_CY - ORBIT_RY - 10} fill={accent} fontSize="7.5" fontFamily="monospace"
-                  opacity="0.60" letterSpacing="1" textAnchor="middle">180° ARC</text>
-
-                {/* 5 arc position dots (mapped to frames[1]–frames[5]) */}
-                {RELIEF_ARC_ANGLES.map((angle, i) => {
-                  const rad = angle * Math.PI / 180
-                  const x = ORBIT_CX + ORBIT_RX * Math.sin(rad)
-                  const y = ORBIT_CY - ORBIT_RY * Math.cos(rad)
-                  const captured = reliefFrames[i + 1] !== null
-                  const active   = (i + 1) === reliefStep && !allReliefCaptured
-                  return (
-                    <g key={i}>
-                      <circle
-                        cx={x} cy={y}
-                        r={active ? 5.5 : captured ? 4.5 : 3}
-                        fill={captured || active ? accent : 'rgba(255,255,255,0.35)'}
-                        opacity={active ? 0.95 : captured ? 0.75 : 0.50}
-                      />
-                      {active && (
-                        <circle cx={x} cy={y} r="9" fill="none" stroke={accent} strokeWidth="1.2" opacity="0">
-                          <animate attributeName="r" values="5.5;13" dur="1.4s" repeatCount="indefinite" />
-                          <animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite" />
-                        </circle>
-                      )}
-                    </g>
-                  )
-                })}
-
-                {/* BASE step indicator: flat overhead icon */}
-                {reliefStep === 0 && !allReliefCaptured && (
-                  <g>
-                    <rect x={ORBIT_CX - 18} y={ORBIT_CY + 18} width="36" height="22" rx="5"
-                      fill={accent} fillOpacity="0.12" stroke={accent} strokeWidth="1.2" strokeOpacity="0.70" />
-                    <text x={ORBIT_CX} y={ORBIT_CY + 33} textAnchor="middle"
-                      fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.85">FLAT ABOVE</text>
-                    <circle cx={ORBIT_CX} cy={ORBIT_CY + 18} r="4" fill={accent} opacity="0.80">
-                      <animate attributeName="opacity" values="0.80;0.20;0.80" dur="1.4s" repeatCount="indefinite" />
-                    </circle>
-                  </g>
-                )}
-
-              </g>
-            )}
-
-            {/* Corner brackets */}
-            <g filter="url(#glow)" stroke={accent} strokeWidth="2.5" strokeLinecap="round" fill="none">
-              <path d="M 58 112 L 58 72 L 98 72" />
-              <path d="M 202 72 L 242 72 L 242 112" />
-              <path d="M 58 268 L 58 308 L 98 308" />
-              <path d="M 202 308 L 242 308 L 242 268" />
-            </g>
-
-            {/* Animated scan line */}
-            <line x1="60" x2="240" stroke={accent} strokeWidth="1" strokeOpacity="0.75">
-              <animate attributeName="y1" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
-              <animate attributeName="y2" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
-            </line>
-            <line x1="60" x2="240" stroke="white" strokeWidth="0.35" strokeOpacity="0.5">
-              <animate attributeName="y1" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
-              <animate attributeName="y2" values="74;306;74" dur="2.6s" repeatCount="indefinite" />
-            </line>
-
-            {/* HUD labels */}
-            <text x="60" y="65" fill={accent} fontSize="7.5" fontFamily="monospace" opacity="0.65" letterSpacing="1">{hudLabel}</text>
-            <text x="240" y="65" fill="white" fontSize="7.5" fontFamily="monospace" opacity="0.40" letterSpacing="0.5" textAnchor="end">
-              {isFlat ? 'FLAT · 0°' : isRelief ? `${reliefStep}/6` : isScan3d ? `${currentStep}/8` : '~0.4 m'}
-            </text>
-
-            {/* Mode-specific indicators */}
-            {isFlat ? (
-              <>
-                <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke="white" strokeWidth="0.8" strokeOpacity="0.16" />
-                <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none"
-                  stroke={accent} strokeWidth="2.5" strokeLinecap="round"
-                  strokeDasharray={RING_CIRC} strokeDashoffset={ringOffset}
-                  transform={`rotate(-90 ${RING_CX} ${RING_CY})`}
-                  opacity={scanProgress > 0 ? 0.9 : 0}
-                  style={{ transition: 'opacity 200ms, stroke-dashoffset 60ms linear' }}
-                />
-                <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
-                  <circle cx={RING_CX} cy={RING_CY} r="3.5" />
-                  <line x1={RING_CX - 9} y1={RING_CY} x2={RING_CX + 9} y2={RING_CY} />
-                  <line x1={RING_CX} y1={RING_CY - 9} x2={RING_CX} y2={RING_CY + 9} />
-                </g>
-                {isCapturing && (
-                  <circle cx={RING_CX} cy={RING_CY} r={RING_R} fill="none" stroke={accent} strokeWidth="1" opacity="0.5">
-                    <animate attributeName="r" values={`${RING_R};${RING_R + 22}`} dur="1.6s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.5;0" dur="1.6s" repeatCount="indefinite" />
-                  </circle>
-                )}
-              </>
-            ) : (isScan3d || isRelief) ? (
-              <g stroke="white" strokeWidth="0.8" strokeOpacity="0.45" fill="none">
-                <circle cx="150" cy="190" r="3.5" />
-                <line x1="141" y1="190" x2="159" y2="190" />
-                <line x1="150" y1="181" x2="150" y2="199" />
-              </g>
-            ) : null}
-
-            {/* Progress overlay (flat modes) */}
-            {isCapturing && isFlat && (
-              <>
-                <rect x="94" y="172" width="112" height="40" rx="5" fill="black" fillOpacity="0.65" />
-                <text x="150" y="187" fill={accent}
-                  fontSize="7.5" fontFamily="monospace" textAnchor="middle" letterSpacing="2">
-                  {scanLabel}
-                </text>
-                <text x="150" y="203" fill="white" fontSize="13" fontFamily="monospace" textAnchor="middle" fontWeight="bold">
-                  {`${Math.round(scanProgress)}%`}
-                </text>
-              </>
-            )}
-          </svg>
         )}
 
         {/* ── Side-profile phone tilt icons for relief180 steps 1–5 (no grid lines —
