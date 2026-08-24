@@ -6,6 +6,12 @@ import { ArrowLeftRight, AlertTriangle, ImageOff } from 'lucide-react'
 const PIXELS_PER_FRAME = 28
 const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315]
 
+// Positive drag/scroll/key input should visually rotate the object the same way
+// ThreeViewer's OrbitControls does (drag right → object turns right, matching its
+// gesture direction) — the underlying frame index moves opposite to a rightward
+// pixel delta, hence -1 here.
+const DIRECTION_SIGN = -1
+
 // Momentum tuning — velocity is tracked in frames/ms.
 const FRICTION = 0.92          // per ~16ms tick, normalized to actual elapsed time
 const MIN_FLICK_VELOCITY = 0.03 // release speed below this settles immediately, no coast
@@ -147,7 +153,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
     if (!isDragging || !totalFrames) return
     const now = performance.now()
     const delta = e.clientX - dragStartX.current
-    const rawPosition = dragStartFrame.current + delta / PIXELS_PER_FRAME
+    const rawPosition = dragStartFrame.current + DIRECTION_SIGN * delta / PIXELS_PER_FRAME
     positionRef.current = rawPosition
     setFrameIndex(wrapFrame(Math.round(rawPosition), totalFrames))
 
@@ -155,7 +161,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
     // sharp flick reflects only the flick — not an average over the whole drag.
     const dt = now - lastMoveTimeRef.current
     if (dt > 0) {
-      velocityRef.current = (e.clientX - lastMoveXRef.current) / PIXELS_PER_FRAME / dt
+      velocityRef.current = DIRECTION_SIGN * (e.clientX - lastMoveXRef.current) / PIXELS_PER_FRAME / dt
     }
     lastMoveTimeRef.current = now
     lastMoveXRef.current = e.clientX
@@ -171,7 +177,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
     cancelAnimation()
-    const dir = e.deltaY > 0 ? 1 : -1
+    const dir = DIRECTION_SIGN * (e.deltaY > 0 ? 1 : -1)
     positionRef.current = frameIndex + dir
     setFrameIndex(prev => wrapFrame(prev + dir, totalFrames))
     dismiss()
@@ -180,11 +186,11 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowLeft') {
       cancelAnimation()
-      setFrameIndex(prev => wrapFrame(prev - 1, totalFrames))
+      setFrameIndex(prev => wrapFrame(prev - DIRECTION_SIGN, totalFrames))
       dismiss()
     } else if (e.key === 'ArrowRight') {
       cancelAnimation()
-      setFrameIndex(prev => wrapFrame(prev + 1, totalFrames))
+      setFrameIndex(prev => wrapFrame(prev + DIRECTION_SIGN, totalFrames))
       dismiss()
     }
   }, [totalFrames, dismiss, cancelAnimation])
@@ -233,9 +239,14 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
             key={i}
             src={url}
             alt=""
-            decoding="async"
             className="absolute inset-0 w-full h-full object-contain"
-            style={{ opacity: i === frameIndex ? 1 : 0, pointerEvents: 'none' }}
+            style={{
+              opacity: i === frameIndex ? 1 : 0,
+              pointerEvents: 'none',
+              willChange: 'opacity',
+              transform: 'translateZ(0)',
+              transition: 'none',
+            }}
             draggable={false}
           />
         )

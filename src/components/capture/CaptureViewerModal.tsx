@@ -171,7 +171,7 @@ export default function CaptureViewerModal({ capture, onClose, onRename, onDelet
       {/* LAYER 1: Base layer — the WebGL/image viewer, full-bleed */}
       <div className="absolute inset-0 z-0 flex items-center justify-center">
         {canThreeView && showThreeViewer
-          ? <ThreeViewer imageUrls={threeViewerImageUrls} />
+          ? <ThreeViewer imageUrls={threeViewerImageUrls} isRelief={isRelief} />
           : isScan3d && hasSpinFrames
           ? <SpinSequenceViewer imageUrls={spinFrameUrls} />
           : isRelief && hasReliefFrames
