@@ -360,6 +360,10 @@ function CropOverlay({ corners, onCornersChange, accentColor }: {
   )
 }
 
+const triggerHaptic = (duration: number) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(duration)
+}
+
 async function uploadCaptureToStorage(imageData: Blob | string): Promise<string> {
   const supabase = createClient()
   const filePath = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
@@ -395,6 +399,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [zoom, setZoom] = useState(1)
   const [zoomLimits, setZoomLimits] = useState<ZoomLimits | null>(null)
   const [supportsZoom, setSupportsZoom] = useState(false)
+
+  // ── Shutter flash state ───────────────────────────────────────────────────
+  const [flashOpacity, setFlashOpacity] = useState(0)
 
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
@@ -442,6 +449,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const orientationTrackingRef = useRef(false)
   const pinchStartDistRef = useRef<number | null>(null)
   const pinchStartZoomRef = useRef(1)
+  const prevIsLevelRef = useRef(false)
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -781,6 +789,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return () => cleanup?.()
   }, [is2D])
 
+  // Micro-vibration "snap" the instant the bubble crosses into level — fires only on the
+  // false→true transition (tracked via prevIsLevelRef), never while it remains level and
+  // never when it un-levels, so it reads as a tactile detent rather than a buzz.
+  useEffect(() => {
+    if (isLevel && !prevIsLevelRef.current) {
+      triggerHaptic(20)
+    }
+    prevIsLevelRef.current = isLevel
+  }, [isLevel])
+
   // Create/revoke object URL for BASE silhouette overlay (relief steps 1–5)
   useEffect(() => {
     if (!isRelief || reliefStep < 1) { setBaseSilhouetteUrl(null); return }
@@ -812,11 +830,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     return canvas
   }, [uiRotation])
 
+  // Visual flash + haptic tick fired at the moment of capture, shared across all 4 modes.
+  const playShutterEffect = useCallback(() => {
+    triggerHaptic(35)
+    setFlashOpacity(1)
+    // Hold at full white for 50ms before fading, so the browser has a guaranteed
+    // paint of the opaque flash before the opacity transition kicks in — setting
+    // 1 then 0 back-to-back can otherwise get batched into a single React commit.
+    setTimeout(() => setFlashOpacity(0), 50)
+  }, [])
+
   // ── Flat-page capture (artwork2d + document) → enters crop state ─────────
   const captureDocPage = useCallback(() => {
     if (isCapturing || docOverlay || cropState) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
+    playShutterEffect()
     setIsCapturing(true)
     const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
@@ -847,7 +876,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setCropState({ blob, objectUrl })
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize])
+  }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize, playShutterEffect])
 
   const finishDocument = useCallback(async () => {
     const allPages = docPages
@@ -876,6 +905,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     if (isCapturing || currentStep >= 8) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
+    playShutterEffect()
     setIsCapturing(true)
     const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
@@ -890,7 +920,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setCurrentStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, currentStep, drawRotatedFrame])
+  }, [isCapturing, currentStep, drawRotatedFrame, playShutterEffect])
 
   const compileScan3D = useCallback(async () => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
@@ -928,6 +958,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     if (isCapturing || reliefStep >= 6) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
+    playShutterEffect()
     setIsCapturing(true)
     const canvas = drawRotatedFrame(video)
     canvas.toBlob(blob => {
@@ -942,7 +973,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setReliefStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, reliefStep, drawRotatedFrame])
+  }, [isCapturing, reliefStep, drawRotatedFrame, playShutterEffect])
 
   const compileRelief = useCallback(async () => {
     const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
@@ -1179,6 +1210,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   <Minus className="w-3.5 h-3.5" style={uiSpinStyle} />
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Shutter flash — full video-content-area white flash, fired by playShutterEffect()
+             across all 4 capture modes. pointer-events-none throughout so it never blocks
+             pinch-to-zoom or any other viewfinder touch handling. */}
+        {videoAR != null && containerSize != null && (
+          <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <div className="absolute inset-0 bg-white pointer-events-none z-40 transition-opacity duration-[175ms] ease-out" style={{ opacity: flashOpacity }} />
             </div>
           </div>
         )}
