@@ -403,6 +403,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Shutter flash state ───────────────────────────────────────────────────
   const [flashOpacity, setFlashOpacity] = useState(0)
 
+  // ── Tap-to-focus reticle state (visual-only — no MediaStreamTrack focus constraints) ──
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
+
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
   const [docOverlay, setDocOverlay] = useState(false)
@@ -439,6 +442,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Refs ──────────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const cropContainerRef = useRef<HTMLDivElement>(null)
+  const videoFeedRef = useRef<HTMLDivElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingTimerRef = useRef<number | undefined>(undefined)
@@ -450,6 +454,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const pinchStartDistRef = useRef<number | null>(null)
   const pinchStartZoomRef = useRef(1)
   const prevIsLevelRef = useRef(false)
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -570,6 +575,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   const handlePinchEnd = useCallback(() => {
     pinchStartDistRef.current = null
+  }, [])
+
+  // Tap-to-focus reticle — purely visual, no MediaStreamTrack focus constraints (iOS Safari
+  // has no manual-focus API, so this stays a UX-only affordance on every platform). Coordinates
+  // are measured against videoFeedRef (the videoContentStyle-sized box) rather than the outer
+  // cropContainerRef, so the reticle lands on the actual image and not the letterbox bars.
+  const handleFocusTap = useCallback((e: React.PointerEvent) => {
+    if (!e.isPrimary || cropState || (isFlat && docOverlay) || !videoFeedRef.current) return
+    const r = videoFeedRef.current.getBoundingClientRect()
+    setFocusPoint({ x: e.clientX - r.left, y: e.clientY - r.top })
+    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current)
+    focusTimeoutRef.current = setTimeout(() => setFocusPoint(null), 2000)
+  }, [cropState, isFlat, docOverlay])
+
+  useEffect(() => {
+    return () => { if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current) }
   }, [])
 
   // Capture the video's native aspect ratio so the guide box overlay can be
@@ -1214,13 +1235,34 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* Shutter flash — full video-content-area white flash, fired by playShutterEffect()
-             across all 4 capture modes. pointer-events-none throughout so it never blocks
-             pinch-to-zoom or any other viewfinder touch handling. */}
+        {/* Tap-to-focus hit layer — invisible, scoped to videoFeedRef (the videoContentStyle
+             box) so tap coordinates land on the actual image, not the letterbox bars. Kept
+             at z-20 — below the zoom HUD's z-30 stacking context — so the zoom pill's buttons
+             still win hit-testing over their own footprint; everywhere else on the live feed,
+             this layer catches the tap. Pinch-to-zoom is untouched: it's still handled by the
+             outer cropContainerRef's touch listeners, which this layer's taps still bubble to.
+             Not rendered during crop mode / the doc-page overlay — CropOverlay's own drag
+             handles need those touches, and this box has no z-index-aware way to yield to
+             them otherwise. */}
+        {videoAR != null && containerSize != null && !cropState && !(isFlat && docOverlay) && (
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+            <div ref={videoFeedRef} className="relative w-full h-full pointer-events-auto" style={videoContentStyle} onPointerDown={handleFocusTap} />
+          </div>
+        )}
+
+        {/* Shutter flash + tap-to-focus reticle — purely decorative (pointer-events-none
+             throughout), scoped to the same videoContentStyle box so they sit directly over
+             the live image. High z-index so both paint above the video, onion skins, and HUDs. */}
         {videoAR != null && containerSize != null && (
-          <div className="absolute inset-0 z-40 pointer-events-none flex items-center justify-center">
+          <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center">
             <div className="relative" style={videoContentStyle}>
               <div className="absolute inset-0 bg-white pointer-events-none z-40 transition-opacity duration-[175ms] ease-out" style={{ opacity: flashOpacity }} />
+              {focusPoint && (
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-2 border-yellow-400 pointer-events-none z-50 animate-pulse"
+                  style={{ left: focusPoint.x, top: focusPoint.y }}
+                />
+              )}
             </div>
           </div>
         )}
