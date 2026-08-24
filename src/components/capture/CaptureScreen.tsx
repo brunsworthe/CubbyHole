@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus, Timer } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
-import { createClient } from '@/lib/supabase/client'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: 'scan3d',    label: '360° Object',    icon: Box      },
@@ -364,19 +363,6 @@ const triggerHaptic = (duration: number) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(duration)
 }
 
-async function uploadCaptureToStorage(imageData: Blob | string): Promise<string> {
-  const supabase = createClient()
-  const filePath = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
-  const blobToUpload = typeof imageData === 'string'
-    ? await fetch(imageData).then(res => res.blob())
-    : imageData
-  const { data, error } = await supabase.storage.from('raw_captures').upload(filePath, blobToUpload, { contentType: 'image/jpeg' })
-  if (error) throw error
-  void data
-  const { data: urlData } = supabase.storage.from('raw_captures').getPublicUrl(filePath)
-  return urlData.publicUrl
-}
-
 // ── SVG progress ring for multi-shot shutter buttons (scan3d / relief180) ────────────────
 const RING_CIRCUMFERENCE = 289 // 2 * PI * r(46), rounded
 
@@ -474,7 +460,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('requesting')
   const [isCapturing, setIsCapturing] = useState(false)
   const [isRecording] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   // Physical device rotation, mirrored onto UI content via CSS transform (layout itself stays portrait-locked)
   const [uiRotation, setUiRotation] = useState<0 | 90 | -90 | 180>(0)
@@ -993,22 +978,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize, playShutterEffect])
 
-  const finishDocument = useCallback(async () => {
+  const finishDocument = useCallback(() => {
     const allPages = docPages
     if (!allPages.length) return
     const primaryBlob = allPages[0]
-    setIsUploading(true)
-    try {
-      const url = await uploadCaptureToStorage(primaryBlob)
-      setDocPages([])
-      setDocOverlay(false)
-      onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
-    } catch (error) {
-      console.error('SUPABASE UPLOAD ERROR:', error)
-      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
-    } finally {
-      setIsUploading(false)
-    }
+    // Local preview only — no network round-trip. The real upload (to capsule-assets)
+    // happens later in CaptureFlow once the user confirms naming/metadata.
+    const url = URL.createObjectURL(primaryBlob)
+    setDocPages([])
+    setDocOverlay(false)
+    onCapture({ blob: primaryBlob, url, mediaType: 'image', pages: allPages })
   }, [docPages, onCapture])
 
   const dismissDocOverlay = useCallback(() => {
@@ -1037,20 +1016,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, currentStep, drawRotatedFrame, playShutterEffect])
 
-  const compileScan3D = useCallback(async () => {
+  const compileScan3D = useCallback(() => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 8) return
     const primaryBlob = frames[0]
-    setIsUploading(true)
-    try {
-      const url = await uploadCaptureToStorage(primaryBlob)
-      onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
-    } catch (error) {
-      console.error('SUPABASE UPLOAD ERROR:', error)
-      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
-    } finally {
-      setIsUploading(false)
-    }
+    // Local preview only — no network round-trip. The real upload (to capsule-assets)
+    // happens later in CaptureFlow once the user confirms naming/metadata.
+    const url = URL.createObjectURL(primaryBlob)
+    onCapture({ blob: primaryBlob, url, mediaType: 'image', frames })
   }, [onCapture])
 
   const handleOrbitToggle = useCallback((orbit: boolean) => {
@@ -1090,7 +1063,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }, 'image/jpeg', 0.92)
   }, [isCapturing, reliefStep, drawRotatedFrame, playShutterEffect])
 
-  const compileRelief = useCallback(async () => {
+  const compileRelief = useCallback(() => {
     const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 6) return
     const track = streamRef.current?.getVideoTracks()[0]
@@ -1098,16 +1071,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
     }
     const primaryBlob = frames[3]  // center (Top-Down) frame as primary thumbnail (index 3 of 6)
-    setIsUploading(true)
-    try {
-      const url = await uploadCaptureToStorage(primaryBlob)
-      onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
-    } catch (error) {
-      console.error('SUPABASE UPLOAD ERROR:', error)
-      alert('Upload Failed: ' + ((error as Error).message || JSON.stringify(error)))
-    } finally {
-      setIsUploading(false)
-    }
+    // Local preview only — no network round-trip. The real upload (to capsule-assets)
+    // happens later in CaptureFlow once the user confirms naming/metadata.
+    const url = URL.createObjectURL(primaryBlob)
+    onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
   }, [onCapture])
 
   // ── Crop confirmation ─────────────────────────────────────────────────────
@@ -1669,11 +1636,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 </button>
                 <button
                   onClick={finishDocument}
-                  disabled={isUploading}
-                  className="w-full flex items-center justify-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium text-sm py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 transition-colors disabled:opacity-60"
+                  className="w-full flex items-center justify-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-medium text-sm py-3 rounded-2xl border border-slate-200 dark:border-zinc-700 transition-colors"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  {isUploading ? 'Uploading…' : `Finish & Save (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
+                  {`Finish & Save (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
                 </button>
               </div>
             </div>
@@ -1702,11 +1668,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             </button>
             <button
               onClick={confirmCrop}
-              disabled={isUploading}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors disabled:opacity-60 ${accentTailwind}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-white font-bold text-sm transition-colors ${accentTailwind}`}
             >
               <CheckCircle2 className="w-4 h-4" />
-              {isUploading ? 'Uploading…' : 'Confirm Crop'}
+              Confirm Crop
             </button>
           </div>
         </div>
@@ -1718,11 +1683,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {allFramesCaptured ? (
             <button
               onClick={compileScan3D}
-              disabled={isUploading}
-              className="w-full flex items-center justify-center gap-2.5 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-slate-500/20"
+              className="w-full flex items-center justify-center gap-2.5 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-slate-500/20"
             >
               <Box className="w-5 h-5" />
-              {isUploading ? 'Uploading…' : 'Compile & Save 3D Object'}
+              Compile & Save 3D Object
             </button>
           ) : (
             <div className="w-full flex justify-center">
@@ -1819,11 +1783,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           {allReliefCaptured ? (
             <button
               onClick={compileRelief}
-              disabled={isUploading}
-              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 disabled:opacity-60 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
+              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
             >
               <Mountain className="w-5 h-5" />
-              {isUploading ? 'Uploading…' : 'Finish & Save Relief'}
+              Finish & Save Relief
             </button>
           ) : (
             <div className="w-full flex justify-center">

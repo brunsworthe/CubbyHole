@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import CaptureScreen from './CaptureScreen'
 import NamingScreen from './NamingScreen'
 import ProcessingState from './ProcessingState'
@@ -208,6 +208,17 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
     clearCaptures().catch(() => {})
     goToCapture()
   }, [goToCapture])
+
+  // Fail-safe revoke for the local preview object URL CaptureScreen creates for
+  // NamingScreen/ScanResultViewer. The "discard & re-scan" path already revokes it
+  // above (goToCapture); this covers every other exit — closing mid-flow, or the
+  // flow unmounting after a successful add-to-capsule — via capturedMediaRef so it
+  // always sees the latest URL without needing capturedMedia as a dependency.
+  useEffect(() => {
+    return () => {
+      if (capturedMediaRef.current?.url) URL.revokeObjectURL(capturedMediaRef.current.url)
+    }
+  }, [])
 
   return (
     <>
