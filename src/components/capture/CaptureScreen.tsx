@@ -397,6 +397,70 @@ function ShutterProgressRing({ progress }: { progress: number }) {
   )
 }
 
+// ── 2D trackpad for guide-box width/height, replacing the old dual-slider control ────────
+const BOX_DIM_MIN = 25
+const BOX_DIM_MAX = 95
+
+function BoxTrackpad({ width, height, onChange, disabled }: {
+  width: number
+  height: number
+  onChange: (w: number, h: number) => void
+  disabled?: boolean
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef(false)
+
+  const updateFromPoint = useCallback((clientX: number, clientY: number) => {
+    const el = containerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const xPct = Math.max(0, Math.min(1, (clientX - r.left) / r.width))
+    const yPct = Math.max(0, Math.min(1, (clientY - r.top) / r.height))
+    const range = BOX_DIM_MAX - BOX_DIM_MIN
+    const w = BOX_DIM_MIN + xPct * range
+    const h = BOX_DIM_MAX - yPct * range // screen top = max height, screen bottom = min height
+    onChange(Math.round(w), Math.round(h))
+  }, [onChange])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (disabled) return
+    draggingRef.current = true
+    e.currentTarget.setPointerCapture(e.pointerId)
+    updateFromPoint(e.clientX, e.clientY)
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (disabled || !draggingRef.current) return
+    updateFromPoint(e.clientX, e.clientY)
+  }
+  const onPointerUp = (e: React.PointerEvent) => {
+    draggingRef.current = false
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
+  }
+
+  const range = BOX_DIM_MAX - BOX_DIM_MIN
+  const puckLeftPct = ((width - BOX_DIM_MIN) / range) * 100
+  const puckBottomPct = ((height - BOX_DIM_MIN) / range) * 100
+
+  return (
+    <div
+      ref={containerRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`relative w-20 h-20 rounded-xl bg-white/10 border border-white/30 touch-none ${
+        disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
+      }`}
+      aria-label="Guide box size — drag to adjust width and height"
+    >
+      <div
+        className="w-6 h-6 rounded-full bg-white shadow-lg absolute -translate-x-1/2 translate-y-1/2 pointer-events-none"
+        style={{ left: `${puckLeftPct}%`, bottom: `${puckBottomPct}%` }}
+      />
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   mode: CaptureMode
@@ -1663,29 +1727,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           ) : (
             <div className="w-full flex justify-center">
               <div className="flex items-center">
-                {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
-                <div className={`w-28 flex items-center justify-center gap-2${currentStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle} className="flex items-center gap-2">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-white/35 text-[9px] font-mono">W</span>
-                    <div className="h-20 w-6 flex items-center justify-center">
-                      <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
-                        onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                        className="accent-slate-400 cursor-pointer touch-manipulation"
-                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
-                        aria-label="Guide box width" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-white/35 text-[9px] font-mono">H</span>
-                    <div className="h-20 w-6 flex items-center justify-center">
-                      <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
-                        onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                        className="accent-slate-400 cursor-pointer touch-manipulation"
-                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
-                        aria-label="Guide box height" />
-                    </div>
-                  </div>
+                {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
+                <div className={`w-28 flex items-center justify-center${currentStep !== 0 ? ' invisible' : ''}`}>
+                  <div style={uiSpinStyle}>
+                    <BoxTrackpad
+                      width={guideBoxWidth}
+                      height={guideBoxHeight}
+                      onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
+                      disabled={currentStep !== 0}
+                    />
                   </div>
                 </div>
 
@@ -1778,29 +1828,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           ) : (
             <div className="w-full flex justify-center">
               <div className="flex items-center">
-                {/* Left zone: fixed equal width, W and H sliders; invisible after step 0 */}
-                <div className={`w-28 flex items-center justify-center gap-2${reliefStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle} className="flex items-center gap-2">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-white/35 text-[9px] font-mono">W</span>
-                    <div className="h-20 w-6 flex items-center justify-center">
-                      <input type="range" min="25" max="95" step="1" value={guideBoxWidth}
-                        onChange={e => setGuideBoxWidth(Number(e.target.value))}
-                        className="accent-orange-400 cursor-pointer touch-manipulation"
-                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
-                        aria-label="Guide box width" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-white/35 text-[9px] font-mono">H</span>
-                    <div className="h-20 w-6 flex items-center justify-center">
-                      <input type="range" min="25" max="95" step="1" value={guideBoxHeight}
-                        onChange={e => setGuideBoxHeight(Number(e.target.value))}
-                        className="accent-orange-400 cursor-pointer touch-manipulation"
-                        style={{ width: '5rem', transform: 'rotate(-90deg)' }}
-                        aria-label="Guide box height" />
-                    </div>
-                  </div>
+                {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
+                <div className={`w-28 flex items-center justify-center${reliefStep !== 0 ? ' invisible' : ''}`}>
+                  <div style={uiSpinStyle}>
+                    <BoxTrackpad
+                      width={guideBoxWidth}
+                      height={guideBoxHeight}
+                      onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
+                      disabled={reliefStep !== 0}
+                    />
                   </div>
                 </div>
 
