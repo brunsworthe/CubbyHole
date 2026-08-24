@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus } from 'lucide-react'
+import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus, Timer } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 import { createClient } from '@/lib/supabase/client'
 
@@ -406,6 +406,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Tap-to-focus reticle state (visual-only — no MediaStreamTrack focus constraints) ──
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
 
+  // ── Capture delay timer state ─────────────────────────────────────────────
+  const [timerOn, setTimerOn] = useState(false)
+  const [countdown, setCountdown] = useState<number | null>(null)
+
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
   const [docOverlay, setDocOverlay] = useState(false)
@@ -455,6 +459,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const pinchStartZoomRef = useRef(1)
   const prevIsLevelRef = useRef(false)
   const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -711,6 +716,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
     setDocPages([])
     setDocOverlay(false)
+
+    // Cancel any in-flight capture-timer countdown — its interval closes over the
+    // previous mode's handleShutter, so it must not fire into a now-hidden mode.
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null }
+    setCountdown(null)
 
     // Reset scan3d
     const freshFrames = Array(8).fill(null) as (Blob | null)[]
@@ -1091,6 +1101,37 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     else if (isFlat)   { if (!docOverlay && !isCapturing) captureDocPage() }
   }, [cropState, isScan3d, captureFrame3D, isRelief, captureReliefFrame, isFlat, docOverlay, isCapturing, captureDocPage])
 
+  // Shutter entry point bound to the actual buttons — decides whether to capture immediately
+  // (timer off) or kick off a 3-2-1 countdown first (timer on), then delegates to the
+  // existing handleShutter/capture functions unchanged, so the flash + final haptic they
+  // already trigger fire exactly the same way whether the timer was used or not.
+  const handleShutterClick = useCallback(() => {
+    if (!timerOn) { handleShutter(); return }
+    if (countdown !== null) return // ignore taps while a countdown is already running
+    triggerHaptic(30)
+    setCountdown(3)
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdown(prev => {
+        const next = (prev ?? 1) - 1
+        if (next <= 0) {
+          if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null }
+          handleShutter()
+          return null
+        }
+        triggerHaptic(30)
+        return next
+      })
+    }, 1000)
+  }, [timerOn, countdown, handleShutter])
+
+  // Fail-safe: clear any in-flight countdown interval on unmount so it can't keep firing
+  // (and eventually call handleShutter) after the user has navigated away.
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    }
+  }, [])
+
   // ── UI text ───────────────────────────────────────────────────────────────
   const tipText = docOverlay
     ? ''
@@ -1262,6 +1303,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   className="absolute -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full border-2 border-yellow-400 pointer-events-none z-50 animate-pulse"
                   style={{ left: focusPoint.x, top: focusPoint.y }}
                 />
+              )}
+              {countdown !== null && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+                  <span className="font-bold text-white/70 drop-shadow-lg" style={{ ...uiSpinStyle, fontSize: '250px', lineHeight: 1 }}>
+                    {countdown}
+                  </span>
+                </div>
               )}
             </div>
           </div>
@@ -1625,7 +1673,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Shutter button */}
                 <button
-                  onClick={handleShutter}
+                  onClick={handleShutterClick}
                   disabled={!cameraReady || isCapturing}
                   className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
                   aria-label="Capture scan frame"
@@ -1640,8 +1688,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-                {/* Right zone: fixed equal width, 3D Mode label + stacked Rotate / Orbit buttons */}
-                <div className="w-28 flex items-center justify-center">
+                {/* Right zone: fixed equal width, timer toggle + 3D Mode label + stacked Rotate / Orbit buttons */}
+                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                  <button
+                    onClick={() => setTimerOn(v => !v)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
+                    style={{
+                      color: timerOn ? '#22c55e' : '#ef4444',
+                      backgroundColor: timerOn ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.2)',
+                      borderColor: timerOn ? '#22c55e' : '#ef4444',
+                    }}
+                    aria-label={timerOn ? 'Disable capture timer' : 'Enable 3-second capture timer'}
+                  >
+                    <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
+                  </button>
                   <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-1">
                       <Box className={`w-3 h-3 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
@@ -1725,7 +1785,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Shutter button */}
                 <button
-                  onClick={handleShutter}
+                  onClick={handleShutterClick}
                   disabled={!cameraReady || isCapturing}
                   className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
                   aria-label="Capture relief frame"
@@ -1740,8 +1800,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-                {/* Right zone: fixed equal width, Lighting label + stacked Natural / Flashlight buttons */}
-                <div className="w-28 flex items-center justify-center">
+                {/* Right zone: fixed equal width, timer toggle + Lighting label + stacked Natural / Flashlight buttons */}
+                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                  <button
+                    onClick={() => setTimerOn(v => !v)}
+                    className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
+                    style={{
+                      color: timerOn ? '#22c55e' : '#ef4444',
+                      backgroundColor: timerOn ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.2)',
+                      borderColor: timerOn ? '#22c55e' : '#ef4444',
+                    }}
+                    aria-label={timerOn ? 'Disable capture timer' : 'Enable 3-second capture timer'}
+                  >
+                    <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
+                  </button>
                   <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-1">
                       <Lightbulb className={`w-3 h-3 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
@@ -1803,7 +1875,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
               {/* Shutter button */}
               <button
-                onClick={handleShutter}
+                onClick={handleShutterClick}
                 disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
                 className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
                 aria-label={isFlat ? 'Capture page' : 'Take photo'}
@@ -1820,8 +1892,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
               <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-              {/* Right zone: level indicator (2D Artwork) or spacer (Document) */}
-              <div className="w-28 flex items-center justify-center">
+              {/* Right zone: timer toggle + level indicator (2D Artwork) or spacer (Document) */}
+              <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                <button
+                  onClick={() => setTimerOn(v => !v)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
+                  style={{
+                    color: timerOn ? '#22c55e' : '#ef4444',
+                    backgroundColor: timerOn ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.2)',
+                    borderColor: timerOn ? '#22c55e' : '#ef4444',
+                  }}
+                  aria-label={timerOn ? 'Disable capture timer' : 'Enable 3-second capture timer'}
+                >
+                  <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
+                </button>
                 {(is2D || isDocument) && cameraReady ? (
                   <div style={uiSpinStyle} className="flex flex-col items-center gap-1">
                     <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
