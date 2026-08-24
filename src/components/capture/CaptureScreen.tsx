@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize } from 'lucide-react'
+import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 import { createClient } from '@/lib/supabase/client'
 
@@ -44,6 +44,12 @@ const RELIEF_STEPS = [
 ] as const
 
 type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
+
+// Hardware zoom isn't in the standard MediaTrackCapabilities/Settings TS lib types yet
+// (same non-standard-field pattern already used for `torch` elsewhere in this file).
+type ZoomCapabilities = MediaTrackCapabilities & { zoom?: { min: number; max: number; step: number } }
+type ZoomSettings = MediaTrackSettings & { zoom?: number }
+type ZoomLimits = { min: number; max: number; step: number }
 
 // ── Compass dial for 8-segment scan3d capture ─────────────────────────────────
 function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', isOrbitMode = false }: {
@@ -385,6 +391,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // Physical device rotation, mirrored onto UI content via CSS transform (layout itself stays portrait-locked)
   const [uiRotation, setUiRotation] = useState<0 | 90 | -90 | 180>(0)
 
+  // ── Hardware zoom state ───────────────────────────────────────────────────
+  const [zoom, setZoom] = useState(1)
+  const [zoomLimits, setZoomLimits] = useState<ZoomLimits | null>(null)
+  const [supportsZoom, setSupportsZoom] = useState(false)
+
   // ── Document multi-page state ─────────────────────────────────────────────
   const [docPages, setDocPages] = useState<Blob[]>([])
   const [docOverlay, setDocOverlay] = useState(false)
@@ -429,6 +440,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const ghostUrlRef = useRef<string | null>(null)
   const reliefFramesRef = useRef<(Blob | null)[]>(Array(6).fill(null))
   const orientationTrackingRef = useRef(false)
+  const pinchStartDistRef = useRef<number | null>(null)
+  const pinchStartZoomRef = useRef(1)
 
   // Callback ref: attaches the stream the instant the <video> element mounts (or remounts)
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
@@ -484,6 +497,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         streamRef.current = s
         if (videoRef.current) videoRef.current.srcObject = s
         setCameraStatus('active')
+
+        // Hardware zoom feature detection — iOS Safari has no `zoom` capability, so this
+        // stays false there and the zoom UI simply never renders (graceful degradation).
+        const track = s.getVideoTracks()[0]
+        const caps = track?.getCapabilities?.() as ZoomCapabilities | undefined
+        if (caps?.zoom) {
+          const { min, max, step } = caps.zoom
+          setZoomLimits({ min, max, step: step || 0.1 })
+          setSupportsZoom(true)
+          const settings = track.getSettings() as ZoomSettings
+          setZoom(settings.zoom ?? min)
+        } else {
+          setSupportsZoom(false)
+          setZoomLimits(null)
+          setZoom(1)
+        }
       })
       .catch(err => {
         const status: CameraStatus =
@@ -502,6 +531,38 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       if (ghostUrlRef.current) URL.revokeObjectURL(ghostUrlRef.current)
     }
   }, [initCamera])
+
+  // Bounds newZoom to the hardware's supported range, then applies it via applyConstraints
+  // on the already-active track — never re-triggers getUserMedia.
+  const handleZoomChange = useCallback((newZoom: number) => {
+    if (!supportsZoom || !zoomLimits) return
+    const track = streamRef.current?.getVideoTracks()[0]
+    if (!track) return
+    const bounded = Math.max(zoomLimits.min, Math.min(zoomLimits.max, newZoom))
+    setZoom(bounded)
+    track.applyConstraints({ advanced: [{ zoom: bounded }] } as unknown as MediaTrackConstraints).catch(() => {})
+  }, [supportsZoom, zoomLimits])
+
+  // Pinch-to-zoom: tracks the initial two-finger distance, then scales zoom by the
+  // ratio of current distance to that baseline. No-ops entirely on unsupported hardware.
+  const handlePinchStart = useCallback((e: React.TouchEvent) => {
+    if (!supportsZoom || cropState || (isFlat && docOverlay) || e.touches.length !== 2) return
+    const [t1, t2] = [e.touches[0], e.touches[1]]
+    pinchStartDistRef.current = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+    pinchStartZoomRef.current = zoom
+  }, [supportsZoom, cropState, isFlat, docOverlay, zoom])
+
+  const handlePinchMove = useCallback((e: React.TouchEvent) => {
+    if (!supportsZoom || pinchStartDistRef.current == null || e.touches.length !== 2) return
+    const [t1, t2] = [e.touches[0], e.touches[1]]
+    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+    const scale = dist / pinchStartDistRef.current
+    handleZoomChange(pinchStartZoomRef.current * scale)
+  }, [supportsZoom, handleZoomChange])
+
+  const handlePinchEnd = useCallback(() => {
+    pinchStartDistRef.current = null
+  }, [])
 
   // Capture the video's native aspect ratio so the guide box overlay can be
   // constrained to the actual video content area (not the full container width).
@@ -1075,7 +1136,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       {/* Viewfinder */}
       <div className="flex-1 overflow-hidden flex items-center justify-center min-h-0">
-        <div ref={cropContainerRef} className="relative overflow-hidden w-full h-full">
+        <div ref={cropContainerRef} className="relative overflow-hidden w-full h-full"
+          onTouchStart={handlePinchStart} onTouchMove={handlePinchMove}
+          onTouchEnd={handlePinchEnd} onTouchCancel={handlePinchEnd}>
 
         {/* Camera-active indicator dot — pinned to top-left of video content area */}
         {cameraReady && videoAR != null && containerSize != null && (
@@ -1084,6 +1147,38 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className={`absolute top-3 left-3 w-2 h-2 rounded-full animate-pulse ${
                 is2D ? 'bg-violet-400' : isDocument ? 'bg-sky-400' : isRelief ? 'bg-orange-400' : 'bg-slate-400'
               }`} />
+            </div>
+          </div>
+        )}
+
+        {/* Hardware zoom HUD — bottom-right of video content area. Only renders when the
+             active track's capabilities report zoom support (never on iOS Safari). Outer
+             layers stay pointer-events-none so the pill doesn't swallow pinch touches
+             elsewhere on the viewfinder; only the pill itself (and its buttons) opts back in. */}
+        {supportsZoom && zoomLimits && cameraReady && videoAR != null && containerSize != null && !cropState && !(isFlat && docOverlay) && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <div className="absolute bottom-4 right-4 pointer-events-auto flex flex-col items-center gap-2 bg-black/30 backdrop-blur-md border border-white/20 rounded-full p-2">
+                <button
+                  onClick={() => handleZoomChange(zoom + zoomLimits.step)}
+                  disabled={zoom >= zoomLimits.max}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  aria-label="Zoom in"
+                >
+                  <Plus className="w-3.5 h-3.5" style={uiSpinStyle} />
+                </button>
+                <span className="text-white text-[10px] font-mono font-semibold tabular-nums [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]" style={uiSpinStyle}>
+                  {zoom.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => handleZoomChange(zoom - zoomLimits.step)}
+                  disabled={zoom <= zoomLimits.min}
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  aria-label="Zoom out"
+                >
+                  <Minus className="w-3.5 h-3.5" style={uiSpinStyle} />
+                </button>
+              </div>
             </div>
           </div>
         )}
