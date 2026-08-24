@@ -377,6 +377,26 @@ async function uploadCaptureToStorage(imageData: Blob | string): Promise<string>
   return urlData.publicUrl
 }
 
+// ── SVG progress ring for multi-shot shutter buttons (scan3d / relief180) ────────────────
+const RING_CIRCUMFERENCE = 289 // 2 * PI * r(46), rounded
+
+function ShutterProgressRing({ progress }: { progress: number }) {
+  const offset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * progress) / 100
+  return (
+    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full -rotate-90 origin-center pointer-events-none" aria-hidden="true">
+      <circle cx="50" cy="50" r="46" fill="transparent" stroke="currentColor" className="text-white/20" strokeWidth="4" />
+      <circle
+        cx="50" cy="50" r="46" fill="transparent" stroke="currentColor"
+        className="text-yellow-400 transition-all duration-300 ease-out"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeDasharray="289"
+        strokeDashoffset={offset}
+      />
+    </svg>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface Props {
   mode: CaptureMode
@@ -1671,20 +1691,23 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-                {/* Shutter button */}
-                <button
-                  onClick={handleShutterClick}
-                  disabled={!cameraReady || isCapturing}
-                  className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                  aria-label="Capture scan frame"
-                >
-                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                    isCapturing ? 'bg-slate-500' : 'bg-slate-400 hover:bg-slate-300'
-                  }`} />
-                  {isCapturing && (
-                    <div className="absolute inset-0 rounded-full border-4 border-slate-400 animate-ping opacity-20" />
-                  )}
-                </button>
+                {/* Shutter button, wrapped in a progress ring showing frames captured / 8 */}
+                <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+                  <ShutterProgressRing progress={(currentStep / 8) * 100} />
+                  <button
+                    onClick={handleShutterClick}
+                    disabled={!cameraReady || isCapturing}
+                    className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                    aria-label="Capture scan frame"
+                  >
+                    <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                      isCapturing ? 'bg-slate-500' : 'bg-slate-400 hover:bg-slate-300'
+                    }`} />
+                    {isCapturing && (
+                      <div className="absolute inset-0 rounded-full border-4 border-slate-400 animate-ping opacity-20" />
+                    )}
+                  </button>
+                </div>
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
@@ -1783,20 +1806,23 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-                {/* Shutter button */}
-                <button
-                  onClick={handleShutterClick}
-                  disabled={!cameraReady || isCapturing}
-                  className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                  aria-label="Capture relief frame"
-                >
-                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                    isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
-                  }`} />
-                  {isCapturing && (
-                    <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
-                  )}
-                </button>
+                {/* Shutter button, wrapped in a progress ring showing frames captured / 6 */}
+                <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+                  <ShutterProgressRing progress={(reliefStep / 6) * 100} />
+                  <button
+                    onClick={handleShutterClick}
+                    disabled={!cameraReady || isCapturing}
+                    className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                    aria-label="Capture relief frame"
+                  >
+                    <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                      isCapturing ? 'bg-orange-500' : 'bg-orange-400 hover:bg-orange-300'
+                    }`} />
+                    {isCapturing && (
+                      <div className="absolute inset-0 rounded-full border-4 border-orange-400 animate-ping opacity-20" />
+                    )}
+                  </button>
+                </div>
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
