@@ -54,16 +54,20 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
   const [added, setAdded] = useState(false)
   const [docPageUrls, setDocPageUrls] = useState<string[]>([])
 
-  // Create blob URLs for all captured document pages, revoke on change/unmount
+  // Create blob URLs for all captured document pages, revoke on change/unmount.
+  // Scoped to capturedMedia?.pages specifically — see the frames effect below for why.
   useEffect(() => {
     const pages = capturedMedia?.pages
     if (!pages?.length) { setDocPageUrls([]); return }
     const urls = pages.map(b => URL.createObjectURL(b))
     setDocPageUrls(urls)
     return () => urls.forEach(u => URL.revokeObjectURL(u))
-  }, [capturedMedia])
+  }, [capturedMedia?.pages])
 
-  // Create blob URLs for the 8 scan3d frames, revoke on change/unmount
+  // Create blob URLs for the 8 scan3d frames, revoke on change/unmount.
+  // Scoped to capturedMedia?.frames specifically (not the whole capturedMedia object)
+  // so a metadata-only update (e.g. title merge upstream in CaptureFlow) doesn't
+  // needlessly revoke and recreate identical URLs for unchanged frame blobs.
   const [spinFrameUrls, setSpinFrameUrls] = useState<string[]>([])
   useEffect(() => {
     const frames = capturedMedia?.frames
@@ -71,9 +75,10 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
     const urls = frames.map(b => URL.createObjectURL(b))
     setSpinFrameUrls(urls)
     return () => urls.forEach(u => URL.revokeObjectURL(u))
-  }, [capturedMedia])
+  }, [capturedMedia?.frames])
 
-  // Create blob URLs for the 5 relief180 lenticular frames, revoke on change/unmount
+  // Create blob URLs for the 5 relief180 lenticular frames, revoke on change/unmount.
+  // Scoped to capturedMedia?.reliefFrames specifically — see the frames effect above.
   const [reliefFrameUrls, setReliefFrameUrls] = useState<string[]>([])
   useEffect(() => {
     const frames = capturedMedia?.reliefFrames
@@ -81,7 +86,7 @@ export default function ScanResultViewer({ mode, capturedMedia, onAddToCapsule, 
     const urls = frames.map(b => URL.createObjectURL(b))
     setReliefFrameUrls(urls)
     return () => urls.forEach(u => URL.revokeObjectURL(u))
-  }, [capturedMedia])
+  }, [capturedMedia?.reliefFrames])
 
   const is2D = mode === 'artwork2d'
   const isDocument = mode === 'document'
