@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Scan, Cpu, Layers, Sparkles, CheckCircle2, Eye, Brush, Wand2, Sun, Crop, FileText, Copy, SunMedium, Mountain } from 'lucide-react'
+import { Layers, Sparkles, CheckCircle2, RotateCcw, Orbit, Focus, Sun, Mountain, Crop, Palette, SunMedium, Copy, FileCheck } from 'lucide-react'
 import type { CaptureMode } from './CaptureFlow'
 
 interface Props {
@@ -22,127 +22,117 @@ type Stage = {
 
 const STAGES_3D: Stage[] = [
   {
-    id: 'scanning',
-    label: 'Scanning',
-    sublabel: 'Capturing depth data from LiDAR array',
-    icon: Scan,
-    duration: 2200,
+    id: 'aligning',
+    label: 'Aligning Your Photos',
+    sublabel: 'Matching up all 8 angles you captured',
+    icon: Layers,
+    duration: 1400,
     activeColor: 'text-sky-500 dark:text-sky-400',
     barColor: 'bg-sky-500',
     iconBg: 'bg-sky-50 dark:bg-sky-950/50',
   },
   {
-    id: 'pointcloud',
-    label: 'Processing Point Cloud',
-    sublabel: 'Aligning 12,847 depth points into 3D space',
-    icon: Cpu,
-    duration: 2800,
+    id: 'sequencing',
+    label: 'Sequencing the Spin',
+    sublabel: 'Ordering frames into a smooth 360° rotation',
+    icon: RotateCcw,
+    duration: 1600,
     activeColor: 'text-violet-500 dark:text-violet-400',
     barColor: 'bg-violet-500',
     iconBg: 'bg-violet-50 dark:bg-violet-950/50',
   },
   {
-    id: 'mesh',
-    label: 'Generating Mesh',
-    sublabel: 'Building watertight surface geometry',
-    icon: Layers,
-    duration: 2400,
-    activeColor: 'text-slate-500 dark:text-slate-400',
-    barColor: 'bg-slate-500',
-    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
-  },
-  {
-    id: 'textures',
-    label: 'Optimizing Textures',
-    sublabel: 'Applying color and material finish',
+    id: 'optimizing',
+    label: 'Optimizing Each Frame',
+    sublabel: 'Balancing color and sharpness across the set',
     icon: Sparkles,
-    duration: 1800,
+    duration: 1400,
     activeColor: 'text-emerald-500 dark:text-emerald-400',
     barColor: 'bg-emerald-500',
     iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+  },
+  {
+    id: 'viewer',
+    label: 'Building the Spin Viewer',
+    sublabel: 'Getting your object ready to explore',
+    icon: Orbit,
+    duration: 1200,
+    activeColor: 'text-slate-500 dark:text-slate-400',
+    barColor: 'bg-slate-500',
+    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
 ]
 
 const STAGES_2D: Stage[] = [
   {
-    id: 'edges',
-    label: 'Isolating Artwork Edges',
-    sublabel: 'Tracing the outline from the canvas border',
-    icon: Eye,
-    duration: 2000,
+    id: 'framing',
+    label: 'Framing Your Artwork',
+    sublabel: 'Cropping to the edges of your canvas',
+    icon: Crop,
+    duration: 1500,
     activeColor: 'text-rose-500 dark:text-rose-400',
     barColor: 'bg-rose-500',
     iconBg: 'bg-rose-50 dark:bg-rose-950/50',
   },
   {
-    id: 'brushstrokes',
-    label: 'Analyzing Brushstrokes & Texture',
-    sublabel: 'Reading every line, smudge and color blend',
-    icon: Brush,
-    duration: 2600,
+    id: 'color',
+    label: 'Balancing Color',
+    sublabel: 'Adjusting tone and saturation for accuracy',
+    icon: Palette,
+    duration: 1700,
     activeColor: 'text-fuchsia-500 dark:text-fuchsia-400',
     barColor: 'bg-fuchsia-500',
     iconBg: 'bg-fuchsia-50 dark:bg-fuchsia-950/50',
   },
   {
-    id: 'depthcanvas',
-    label: 'Generating Depth Canvas',
-    sublabel: 'Lifting layers off the page for a 3D feel',
-    icon: Wand2,
-    duration: 2200,
+    id: 'lighting',
+    label: 'Optimizing Lighting',
+    sublabel: 'Evening out shadows and highlights',
+    icon: Sun,
+    duration: 1600,
     activeColor: 'text-violet-500 dark:text-violet-400',
     barColor: 'bg-violet-500',
     iconBg: 'bg-violet-50 dark:bg-violet-950/50',
-  },
-  {
-    id: 'shadows',
-    label: 'Baking Interactive Shadows',
-    sublabel: 'Adding light that responds to every tilt',
-    icon: Sun,
-    duration: 1800,
-    activeColor: 'text-slate-500 dark:text-slate-400',
-    barColor: 'bg-slate-500',
-    iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
 ]
 
 const STAGES_DOCUMENT: Stage[] = [
   {
     id: 'edges',
-    label: 'Detecting Document Edges',
-    sublabel: 'Finding the page boundary and correcting perspective',
+    label: 'Aligning Page Edges',
+    sublabel: 'Straightening and cropping to the page border',
     icon: Crop,
-    duration: 1800,
+    duration: 1400,
     activeColor: 'text-sky-500 dark:text-sky-400',
     barColor: 'bg-sky-500',
     iconBg: 'bg-sky-50 dark:bg-sky-950/50',
   },
   {
-    id: 'page1',
-    label: 'Scanning Page 1',
-    sublabel: 'Capturing crisp detail at full resolution',
-    icon: FileText,
-    duration: 2000,
+    id: 'contrast',
+    label: 'Enhancing Contrast',
+    sublabel: 'Sharpening text and balancing exposure',
+    icon: SunMedium,
+    duration: 1600,
     activeColor: 'text-blue-500 dark:text-blue-400',
     barColor: 'bg-blue-500',
     iconBg: 'bg-blue-50 dark:bg-blue-950/50',
   },
   {
-    id: 'page2',
-    label: 'Scanning Page 2',
-    sublabel: 'Capturing crisp detail at full resolution',
+    id: 'pages',
+    label: 'Compiling Pages',
+    sublabel: 'Bringing your pages together in order',
     icon: Copy,
-    duration: 2000,
+    duration: 1400,
     activeColor: 'text-indigo-500 dark:text-indigo-400',
     barColor: 'bg-indigo-500',
     iconBg: 'bg-indigo-50 dark:bg-indigo-950/50',
   },
   {
-    id: 'contrast',
-    label: 'Enhancing Text Contrast',
-    sublabel: 'Sharpening characters and balancing exposure',
-    icon: SunMedium,
-    duration: 1800,
+    id: 'finalizing',
+    label: 'Finalizing Document',
+    sublabel: 'Preparing your document for saving',
+    icon: FileCheck,
+    duration: 1200,
     activeColor: 'text-emerald-500 dark:text-emerald-400',
     barColor: 'bg-emerald-500',
     iconBg: 'bg-emerald-50 dark:bg-emerald-950/50',
@@ -151,34 +141,44 @@ const STAGES_DOCUMENT: Stage[] = [
 
 const STAGES_RELIEF: Stage[] = [
   {
-    id: 'topography',
-    label: 'Mapping Surface Topography',
-    sublabel: 'Reading every ridge, bump, and texture variation',
-    icon: Mountain,
-    duration: 2200,
+    id: 'base',
+    label: 'Reading the Base Image',
+    sublabel: 'Using your straight-on shot as the foundation',
+    icon: Focus,
+    duration: 1300,
     activeColor: 'text-orange-500 dark:text-orange-400',
     barColor: 'bg-orange-500',
     iconBg: 'bg-orange-50 dark:bg-orange-950/50',
   },
   {
-    id: 'arc',
-    label: 'Capturing 180° Arc',
-    sublabel: 'Sweeping the front hemisphere for full depth coverage',
-    icon: Scan,
-    duration: 2600,
+    id: 'angles',
+    label: 'Mapping the 5 Angles',
+    sublabel: 'Comparing light and shadow across each shot',
+    icon: Sun,
+    duration: 1800,
     activeColor: 'text-slate-500 dark:text-slate-400',
     barColor: 'bg-slate-500',
     iconBg: 'bg-slate-50 dark:bg-slate-950/50',
   },
   {
-    id: 'extrude',
-    label: 'Extruding Depth Map',
-    sublabel: 'Lifting each layer into a navigable 3D relief',
-    icon: Layers,
-    duration: 2000,
+    id: 'texture',
+    label: 'Building Surface Texture',
+    sublabel: 'Turning light changes into a textured relief',
+    icon: Mountain,
+    duration: 1600,
     activeColor: 'text-rose-500 dark:text-rose-400',
     barColor: 'bg-rose-500',
     iconBg: 'bg-rose-50 dark:bg-rose-950/50',
+  },
+  {
+    id: 'viewer',
+    label: 'Building Relief Viewer',
+    sublabel: 'Getting your relief ready to explore',
+    icon: Layers,
+    duration: 1200,
+    activeColor: 'text-violet-500 dark:text-violet-400',
+    barColor: 'bg-violet-500',
+    iconBg: 'bg-violet-50 dark:bg-violet-950/50',
   },
 ]
 
@@ -233,17 +233,23 @@ export default function ProcessingState({ mode, onComplete }: Props) {
   const isDone = activeStage >= STAGES.length
 
   const titleText = isDone
-    ? (is2D ? 'Artwork Transformed' : isDocument ? 'Document Ready' : isRelief ? 'Relief Captured' : 'Model Ready')
-    : (is2D ? 'Bringing Your Artwork to Life' : isDocument ? 'Digitizing Your Document' : isRelief ? 'Mapping Your Relief' : 'Building Your Model')
+    ? (is2D ? 'Artwork Saved' : isDocument ? 'Document Saved' : isRelief ? 'Relief Ready' : '360° View Ready')
+    : (is2D ? 'Optimizing Artwork' : isDocument ? 'Processing Document' : isRelief ? 'Mapping Relief Angles' : 'Building 360° View')
   const subtitleText = isDone
     ? (is2D
-        ? 'Your drawing now has depth, light and texture.'
+        ? 'Your artwork has been cropped and color-balanced.'
         : isDocument
-          ? 'Your pages have been cleaned, cropped and enhanced.'
+          ? 'Your pages have been aligned and enhanced.'
           : isRelief
-            ? 'Your textured artwork is ready to explore in 3D.'
-            : 'Your 3D object has been captured successfully.')
-    : 'This takes about 10 seconds…'
+            ? 'Your textured relief is ready to explore.'
+            : 'Your 360° spin view is ready to explore.')
+    : (is2D
+        ? 'Polishing your artwork…'
+        : isDocument
+          ? 'Cleaning up your pages…'
+          : isRelief
+            ? 'Mapping every angle…'
+            : 'Sequencing your captures…')
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-zinc-950 flex flex-col items-center justify-center px-6 py-12">

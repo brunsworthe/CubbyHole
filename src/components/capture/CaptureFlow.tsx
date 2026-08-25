@@ -204,6 +204,15 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
     setStep('capture')
   }, [])
 
+  // Naming-stage "Discard & Retake": confirms once, then reuses the same reset goToCapture
+  // already performs for the post-processing "Rescan" path (revoke preview URL, clear
+  // capturedMedia, step back to 'capture').
+  const handleDiscard = useCallback(() => {
+    if (window.confirm('Are you sure you want to discard this capture and start over?')) {
+      goToCapture()
+    }
+  }, [goToCapture])
+
   const handleClearCache = useCallback(() => {
     clearCaptures().catch(() => {})
     goToCapture()
@@ -237,6 +246,7 @@ export default function CaptureFlow({ onClose, onAddToCapsule, capsuleId }: Prop
           mediaType={capturedMedia.mediaType}
           initialCapsuleId={capsuleId}
           onConfirm={runUpload}
+          onDiscard={handleDiscard}
         />
       )}
       {step === 'uploading' && (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import type { CaptureMode, CaptureMetadata } from './CaptureFlow'
 
@@ -34,9 +34,10 @@ interface Props {
   // the user's most recently created capsule once the list loads.
   initialCapsuleId?: string
   onConfirm: (metadata: CaptureMetadata) => void
+  onDiscard: () => void
 }
 
-export default function NamingScreen({ mode, previewUrl, mediaType, initialCapsuleId, onConfirm }: Props) {
+export default function NamingScreen({ mode, previewUrl, mediaType, initialCapsuleId, onConfirm, onDiscard }: Props) {
   const now = new Date()
   const todayISO = now.toISOString().split('T')[0]
   const nowHHMM  = now.toTimeString().slice(0, 5)
@@ -267,6 +268,14 @@ export default function NamingScreen({ mode, previewUrl, mediaType, initialCapsu
             className="w-full text-zinc-500 hover:text-zinc-400 text-sm py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Skip naming
+          </button>
+          <button
+            onClick={onDiscard}
+            disabled={isUploading}
+            className="w-full flex items-center justify-center gap-1.5 text-red-500/70 hover:text-red-400 text-sm py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Discard & Retake
           </button>
         </div>
       </div>

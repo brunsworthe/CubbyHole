@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus, Timer } from 'lucide-react'
+import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus, Timer, Trash2 } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -922,6 +922,40 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     onCapture({ blob: primaryBlob, url, mediaType: 'image', reliefFrames: frames })
   }, [onCapture])
 
+  // "Discard & Retake" at the pre-naming review moment (all frames/pages captured, but
+  // onCapture hasn't fired yet — CaptureFlow has no relevant state at this point, so this
+  // stays fully local rather than routing through CaptureFlow's onRescan/handleDiscard).
+  // Confirms once, then clears exactly the same fields the mode-change reset effect above
+  // clears, sending the shooting sequence back to its first frame.
+  const handleDiscardCapture = useCallback(() => {
+    if (!window.confirm('Are you sure you want to discard this capture and start over?')) return
+
+    if (isScan3d) {
+      const freshFrames = Array(8).fill(null) as (Blob | null)[]
+      capturedFramesRef.current = freshFrames
+      setCapturedFrames(freshFrames)
+      setCurrentStep(0)
+      setGuideBoxWidth(65)
+      setGuideBoxHeight(75)
+      if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
+      setGhostUrl(null)
+    } else if (isRelief) {
+      const freshRelief = Array(6).fill(null) as (Blob | null)[]
+      reliefFramesRef.current = freshRelief
+      setReliefFrames(freshRelief)
+      setReliefStep(0)
+      setLightingMode('natural')
+      setTorchUnsupported(false)
+      const track = streamRef.current?.getVideoTracks()[0]
+      if (track) {
+        track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
+      }
+    } else if (isFlat) {
+      setDocPages([])
+      setDocOverlay(false)
+    }
+  }, [isScan3d, isRelief, isFlat])
+
   // ── Crop confirmation ─────────────────────────────────────────────────────
   const confirmCrop = useCallback(() => {
     if (!cropState || !cropContainerRef.current) return
@@ -1521,6 +1555,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   {`Finish & Save (${docPages.length} ${docPages.length === 1 ? 'page' : 'pages'})`}
                 </button>
+                <button
+                  onClick={handleDiscardCapture}
+                  className="w-full flex items-center justify-center gap-1.5 text-red-500/70 hover:text-red-400 text-sm py-2 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Discard & Retake
+                </button>
               </div>
             </div>
           </div>
@@ -1561,13 +1602,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Compile CTA or shutter */}
           {allFramesCaptured ? (
-            <button
-              onClick={compileScan3D}
-              className="w-full flex items-center justify-center gap-2.5 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-slate-500/20"
-            >
-              <Box className="w-5 h-5" />
-              Compile & Save 3D Object
-            </button>
+            <div className="w-full space-y-1.5">
+              <button
+                onClick={compileScan3D}
+                className="w-full flex items-center justify-center gap-2.5 bg-slate-500 hover:bg-slate-400 active:bg-slate-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-slate-500/20"
+              >
+                <Box className="w-5 h-5" />
+                Compile & Save 3D Object
+              </button>
+              <button
+                onClick={handleDiscardCapture}
+                className="w-full flex items-center justify-center gap-1.5 text-red-400/70 hover:text-red-400 text-sm py-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Discard & Retake
+              </button>
+            </div>
           ) : (
             <div className="w-full flex justify-center">
               <div className="flex items-center">
@@ -1667,13 +1717,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
           {/* Compile CTA or shutter */}
           {allReliefCaptured ? (
-            <button
-              onClick={compileRelief}
-              className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
-            >
-              <Mountain className="w-5 h-5" />
-              Finish & Save Relief
-            </button>
+            <div className="w-full space-y-1.5">
+              <button
+                onClick={compileRelief}
+                className="w-full flex items-center justify-center gap-2.5 bg-orange-500 hover:bg-orange-400 active:bg-orange-600 text-white font-bold text-sm py-3.5 rounded-2xl transition-colors shadow-lg shadow-orange-500/20"
+              >
+                <Mountain className="w-5 h-5" />
+                Finish & Save Relief
+              </button>
+              <button
+                onClick={handleDiscardCapture}
+                className="w-full flex items-center justify-center gap-1.5 text-red-400/70 hover:text-red-400 text-sm py-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Discard & Retake
+              </button>
+            </div>
           ) : (
             <div className="w-full flex justify-center">
               <div className="flex items-center">
