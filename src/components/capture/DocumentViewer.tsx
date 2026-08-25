@@ -101,7 +101,7 @@ export default function DocumentViewer({ imageUrl, imageUrls }: Props) {
   const goNext = () => setPageIndex((i) => clamp(i + 1, 0, pageCount - 1))
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center px-8" style={{ perspective: '1500px' }}>
+    <div className="relative w-full h-full flex items-center justify-center px-8 pb-16" style={{ perspective: '1500px' }}>
       {/* Ambient stage glow — fills the empty space as the document is zoomed out */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none -z-20 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -180,28 +180,35 @@ export default function DocumentViewer({ imageUrl, imageUrls }: Props) {
         />
       </div>
 
-      {/* Pagination controls — hidden for single-page real captures */}
-      {pageCount > 1 && <div className="absolute bottom-5 left-5 z-10 flex items-center gap-1 bg-black/55 backdrop-blur-sm border border-white/10 rounded-full px-1.5 py-1.5">
-        <button
-          onClick={goPrev}
-          disabled={pageIndex === 0}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <span className="text-white/70 text-xs font-medium px-1.5 select-none tabular-nums whitespace-nowrap">
-          Page {pageIndex + 1} of {pageCount}
-        </span>
-        <button
-          onClick={goNext}
-          disabled={pageIndex === pageCount - 1}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-          aria-label="Next page"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>}
+      {/* Pagination controls — hidden for single-page real captures. Arrows live at the
+           vertical center of the full viewport (not just the card) so they never collide
+           with ScanResultViewer's metadata stat chips anchored at the bottom of the screen;
+           the page-count pill moved up to the card's top edge for the same reason. */}
+      {pageCount > 1 && (
+        <>
+          <button
+            onClick={goPrev}
+            disabled={pageIndex === 0}
+            className="absolute top-1/2 -translate-y-1/2 left-3 z-20 w-10 h-10 rounded-full flex items-center justify-center text-white bg-black/50 backdrop-blur-md border border-white/10 hover:bg-black/65 disabled:opacity-30 disabled:hover:bg-black/50 transition-colors"
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={goNext}
+            disabled={pageIndex === pageCount - 1}
+            className="absolute top-1/2 -translate-y-1/2 right-3 z-20 w-10 h-10 rounded-full flex items-center justify-center text-white bg-black/50 backdrop-blur-md border border-white/10 hover:bg-black/65 disabled:opacity-30 disabled:hover:bg-black/50 transition-colors"
+            aria-label="Next page"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-black/55 backdrop-blur-sm border border-white/10 rounded-full px-3 py-1">
+            <span className="text-white/70 text-xs font-medium select-none tabular-nums whitespace-nowrap">
+              Page {pageIndex + 1} of {pageCount}
+            </span>
+          </div>
+        </>
+      )}
 
       {/* Zoom controls */}
       <div className="absolute bottom-5 right-5 z-10 flex flex-col items-stretch gap-0.5 bg-black/55 backdrop-blur-sm border border-white/10 rounded-2xl p-1.5">
