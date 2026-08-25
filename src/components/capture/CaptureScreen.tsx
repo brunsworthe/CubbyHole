@@ -1028,17 +1028,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
   }, [])
 
-  // ── UI text ───────────────────────────────────────────────────────────────
-  const tipText = docOverlay
-    ? ''
-    : isFlat && docPages.length > 0
-    ? `Page ${docPages.length} saved — tap shutter to add another`
-    : isCapturing
-    ? is2D ? 'Hold steady — capturing every brushstroke and texture' : 'Hold steady — scanning'
-    : is2D       ? 'Lay artwork flat · Level indicator turns green when steady'
-    : isDocument ? 'Place each page flat within the frame, then press shutter'
-    :               ''
-
   const accentBtn = is2D
     ? { idle: 'bg-violet-400 hover:bg-violet-300', active: 'bg-violet-500' }
     : isDocument
@@ -1275,12 +1264,17 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* 2D Artwork / Document HUD — mirrors the scan3d/relief HUD pattern with instruction text only */}
-        {isFlat && !cropState && tipText && cameraReady && videoAR != null && containerSize != null && (
+        {/* Document page-count badge — wordless status cue (icon + number only, no narrative
+             tip text). artwork2d has no equivalent cue: the level bubble, tap reticle, and
+             hardware zoom are already sufficient for a single unguided shot. */}
+        {isDocument && docPages.length > 0 && !docOverlay && !cropState && cameraReady && videoAR != null && containerSize != null && (
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
             <div className="relative" style={videoContentStyle}>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
-                <p style={uiSpinStyle} className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">{tipText}</p>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 bg-black/30 backdrop-blur-md border border-white/10 rounded-full px-3 py-1.5">
+                <Images className="w-3 h-3 text-sky-400" style={uiSpinStyle} />
+                <span style={uiSpinStyle} className="text-white/85 text-[11px] font-mono font-semibold tabular-nums [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+                  {docPages.length}
+                </span>
               </div>
             </div>
           </div>
