@@ -1363,75 +1363,109 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             { step: 5, label: 'XR', baseDeg: 60  },
           ] as const
           const isLandscape = uiRotation === 90 || uiRotation === -90
+          // rotate(90deg) is clockwise on screen and maps "bottom" to the LEFT edge with
+          // top-to-bottom order preserved; rotate(-90deg) maps it to the RIGHT edge, reversed.
+          const landscapeOrder = uiRotation === 90 ? POSITIONS : [...POSITIONS].reverse()
 
           return (
-            <div
-              className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
-              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-            >
-              <div style={{ ...videoContentStyle }} className="relative">
-                {isLandscape ? (
-                  // Explicit h-[80%] (not just top/bottom insets) so the flex-col container's
-                  // height is unambiguous, plus justify-evenly on non-growing children so the 5
-                  // positions spread across that full length instead of bunching at one end.
-                  <div
-                    className={`absolute top-1/2 h-[80%] flex flex-col justify-evenly ${uiRotation === 90 ? 'left-1' : 'right-1'}`}
-                    style={{ transform: 'translateY(-50%)' }}
-                  >
-                    {(uiRotation === 90 ? POSITIONS : [...POSITIONS].reverse()).map(({ step, label, baseDeg }) => {
-                      const isActive   = step === reliefStep
-                      const isCaptured = reliefFrames[step] !== null
-                      return (
-                        <div key={step} className="relative flex flex-col items-center justify-center">
-                          {isActive && (
-                            <div
-                              className="w-12 h-2.5 bg-orange-400/90 rounded-full"
-                              style={{ transform: `rotate(${uiRotation + baseDeg}deg)`, transition: 'transform 0.3s ease-out' }}
-                            />
-                          )}
+            <>
+              {/* Layer 1 — text labels only: a tight, fixed-width cluster near the bottom edge
+                   (portrait) or the active side edge (landscape). Each label sits in an identical
+                   w-10 box so "XL"/"TD"/etc never shift the row's center regardless of glyph
+                   width — with 5 equal-width slots and a centered container, "TD" (the middle
+                   slot) lands exactly on the container's own center, i.e. the viewfinder's. */}
+              <div
+                className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
+                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+              >
+                <div style={{ ...videoContentStyle }} className="relative">
+                  {isLandscape ? (
+                    <div
+                      className={`absolute top-1/2 flex flex-col items-center justify-center gap-3 ${uiRotation === 90 ? 'left-1' : 'right-1'}`}
+                      style={{ transform: 'translateY(-50%)' }}
+                    >
+                      {landscapeOrder.map(({ step, label }) => {
+                        const isActive   = step === reliefStep
+                        const isCaptured = reliefFrames[step] !== null
+                        return (
                           <span
-                            className={`text-[9px] font-mono ${
+                            key={step}
+                            className={`w-10 text-center text-[9px] font-mono ${
                               isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
                             }`}
                             style={{ transform: `rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
                           >
                             {label}
                           </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  // Compressed to max-w-[70%] and centered (left-1/2 + inline translateX, since
-                  // Tailwind's translate-x utility would be clobbered by the inline rotate() below
-                  // sharing the same `transform` property) so "XR" clears the bottom-right zoom pill.
-                  <div
-                    className="absolute inset-y-0 left-1/2 w-full max-w-[70%] flex"
-                    style={{ transform: `translateX(-50%) rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
-                  >
-                    {POSITIONS.map(({ step, label, baseDeg }) => {
-                      const isActive   = step === reliefStep
-                      const isCaptured = reliefFrames[step] !== null
-                      return (
-                        <div key={step} className="relative flex-1 flex flex-col items-center justify-center">
-                          {isActive && (
-                            <div
-                              className="w-12 h-2.5 bg-orange-400/90 rounded-full"
-                              style={{ transform: `rotate(${baseDeg}deg)` }}
-                            />
-                          )}
-                          <span className={`absolute bottom-3 text-[9px] font-mono ${
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div
+                      className="absolute inset-y-0 left-1/2 flex items-end justify-center gap-3 pb-3"
+                      style={{ transform: `translateX(-50%) rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
+                    >
+                      {POSITIONS.map(({ step, label }) => {
+                        const isActive   = step === reliefStep
+                        const isCaptured = reliefFrames[step] !== null
+                        return (
+                          <span key={step} className={`w-10 text-center text-[9px] font-mono ${
                             isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
                           }`}>
                             {label}
                           </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+
+              {/* Layer 2 — tilt-angle overlays only: vertically centered in the viewfinder
+                   (top-1/2 -translate-y-1/2) and stretched edge-to-edge across the full width
+                   (portrait) or full long edge (landscape) via justify-between, so XL sits at
+                   the far start, TD dead center, XR at the far end. Every position renders a
+                   fixed-size slot (w-12 h-12) at all times — only the active one draws a visible
+                   pill — so justify-between always spaces 5 real flex children rather than
+                   collapsing around whichever single pill happens to be visible. */}
+              <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+                <div style={{ ...videoContentStyle }} className="relative">
+                  {isLandscape ? (
+                    <div className="absolute inset-y-0 left-1/2 flex flex-col justify-between items-center py-2" style={{ transform: 'translateX(-50%)' }}>
+                      {landscapeOrder.map(({ step, baseDeg }) => {
+                        const isActive = step === reliefStep
+                        return (
+                          <div key={step} className="w-12 h-12 flex items-center justify-center">
+                            {isActive && (
+                              <div
+                                className="w-12 h-2.5 bg-orange-400/90 rounded-full"
+                                style={{ transform: `rotate(${uiRotation + baseDeg}deg)`, transition: 'transform 0.3s ease-out' }}
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="absolute inset-x-0 top-1/2 flex justify-between items-center px-2" style={{ transform: 'translateY(-50%)' }}>
+                      {POSITIONS.map(({ step, baseDeg }) => {
+                        const isActive = step === reliefStep
+                        return (
+                          <div key={step} className="w-12 h-12 flex items-center justify-center">
+                            {isActive && (
+                              <div
+                                className="w-12 h-2.5 bg-orange-400/90 rounded-full"
+                                style={{ transform: `rotate(${baseDeg}deg)` }}
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )
         })()}
 
