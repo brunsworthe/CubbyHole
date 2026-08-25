@@ -11,37 +11,6 @@ const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ class
   { id: 'document',  label: 'Document',        icon: FileText },
 ]
 
-const SCAN_STEPS = [
-  { dir: 'N',  heading: 'Frame 1 / 8 — Front (0°)',        sub: 'Face the front of the object toward the camera'  },
-  { dir: 'NE', heading: 'Frame 2 / 8 — Front-Right (45°)', sub: 'Rotate the object 45° clockwise from front'       },
-  { dir: 'E',  heading: 'Frame 3 / 8 — Right Side (90°)',  sub: 'Right side of the object now faces the camera'    },
-  { dir: 'SE', heading: 'Frame 4 / 8 — Rear-Right (135°)', sub: 'Continue rotating another 45° clockwise'          },
-  { dir: 'S',  heading: 'Frame 5 / 8 — Rear View (180°)',  sub: "Object's back now faces the camera"              },
-  { dir: 'SW', heading: 'Frame 6 / 8 — Rear-Left (225°)',  sub: 'Continue rotating another 45° clockwise'          },
-  { dir: 'W',  heading: 'Frame 7 / 8 — Left Side (270°)',  sub: 'Left side of the object now faces the camera'     },
-  { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Final frame — almost done!'                       },
-] as const
-
-const ORBIT_STEPS = [
-  { dir: 'N',  heading: 'Frame 1 / 8 — Front (0°)',        sub: 'Face the exact front of the object.'          },
-  { dir: 'NE', heading: 'Frame 2 / 8 — Front-Right (45°)', sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'E',  heading: 'Frame 3 / 8 — Right Side (90°)',  sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'SE', heading: 'Frame 4 / 8 — Rear-Right (135°)', sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'S',  heading: 'Frame 5 / 8 — Rear View (180°)',  sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'SW', heading: 'Frame 6 / 8 — Rear-Left (225°)',  sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'W',  heading: 'Frame 7 / 8 — Left Side (270°)',  sub: 'Take a step right. Keep the object centered.' },
-  { dir: 'NW', heading: 'Frame 8 / 8 — Front-Left (315°)', sub: 'Take a step right. Keep the object centered.' },
-] as const
-
-const RELIEF_STEPS = [
-  { pos: 'BASE', heading: 'Frame 1/6 — Base Texture',      sub: 'Hold phone flat & parallel directly overhead — capture the full albedo (base colour) before any light raking'  },
-  { pos: 'XL',   heading: 'Frame 2/6 — Extreme Left',      sub: 'Tilt phone far left — light rakes across the texture from the right'  },
-  { pos: 'LC',   heading: 'Frame 3/6 — Left-Center',        sub: 'Move phone slightly right toward center'                              },
-  { pos: 'TD',   heading: 'Frame 4/6 — Top-Down Center',    sub: 'Hold directly above, camera facing straight down at the artwork'      },
-  { pos: 'RC',   heading: 'Frame 5/6 — Right-Center',       sub: 'Move phone slightly left of rightmost position'                       },
-  { pos: 'XR',   heading: 'Frame 6/6 — Extreme Right',      sub: 'Tilt phone far right — light rakes across from the left'              },
-] as const
-
 type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
 
 // Hardware zoom isn't in the standard MediaTrackCapabilities/Settings TS lib types yet
@@ -49,226 +18,6 @@ type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
 type ZoomCapabilities = MediaTrackCapabilities & { zoom?: { min: number; max: number; step: number } }
 type ZoomSettings = MediaTrackSettings & { zoom?: number }
 type ZoomLimits = { min: number; max: number; step: number }
-
-// ── Compass dial for 8-segment scan3d capture ─────────────────────────────────
-function CompassDial({ capturedFrames, currentStep, svgClassName = 'w-40 h-40', isOrbitMode = false }: {
-  capturedFrames: (Blob | null)[]
-  currentStep: number
-  svgClassName?: string
-  isOrbitMode?: boolean
-}) {
-  const cx = 100, cy = 100
-  const ro = 84, ri = 46
-  const GAP = 3
-  const OFFSET = -112.5
-
-  function segPath(i: number) {
-    const s = (i * 45 + GAP + OFFSET) * Math.PI / 180
-    const e = ((i + 1) * 45 - GAP + OFFSET) * Math.PI / 180
-    const x1 = cx + ro * Math.cos(s), y1 = cy + ro * Math.sin(s)
-    const x2 = cx + ro * Math.cos(e), y2 = cy + ro * Math.sin(e)
-    const x3 = cx + ri * Math.cos(e), y3 = cy + ri * Math.sin(e)
-    const x4 = cx + ri * Math.cos(s), y4 = cy + ri * Math.sin(s)
-    return `M ${x1} ${y1} A ${ro} ${ro} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${ri} ${ri} 0 0 0 ${x4} ${y4} Z`
-  }
-
-  function midPt(i: number, r: number): [number, number] {
-    const mid = (i * 45 + 22.5 + OFFSET) * Math.PI / 180
-    return [cx + r * Math.cos(mid), cy + r * Math.sin(mid)]
-  }
-
-  const allCaptured = currentStep >= 8
-
-  return (
-    <svg viewBox="0 0 200 200" className={svgClassName} aria-hidden="true">
-      <circle cx={cx} cy={cy} r={ro + 9} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
-
-      {SCAN_STEPS.map((step, i) => {
-        const isCaptured = capturedFrames[i] !== null
-        const isActive   = i === currentStep && !allCaptured
-        const [mx, my]   = midPt(i, (ro + ri) / 2)
-        const [lx, ly]   = midPt(i, ro + 13)
-
-        const fill   = isCaptured ? 'rgba(251,191,36,0.50)'
-                     : isActive   ? 'rgba(251,191,36,0.88)'
-                     :               'rgba(251,191,36,0.18)'
-        const stroke = isCaptured ? 'rgba(251,191,36,0.65)'
-                     : isActive   ? 'rgba(251,191,36,1)'
-                     :               'rgba(251,191,36,0.40)'
-        const labelFill = isCaptured ? 'rgba(251,191,36,0.70)'
-                        : isActive   ? 'rgba(255,255,255,0.95)'
-                        :               'rgba(255,255,255,0.45)'
-
-        return (
-          <g key={i}>
-            <path d={segPath(i)} fill={fill} stroke={stroke} strokeWidth={isActive ? 1.5 : 1} />
-            {isActive && (
-              <path d={segPath(i)} fill="none" stroke="rgba(251,191,36,0.4)" strokeWidth="3">
-                <animate attributeName="opacity" values="0.7;0;0.7" dur="1.6s" repeatCount="indefinite" />
-              </path>
-            )}
-            {isCaptured && (
-              <path
-                d={`M ${mx - 4} ${my} L ${mx - 1} ${my + 3} L ${mx + 4.5} ${my - 3.5}`}
-                fill="none" stroke="rgba(251,191,36,0.95)" strokeWidth="1.8"
-                strokeLinecap="round" strokeLinejoin="round"
-              />
-            )}
-            <text x={lx} y={ly + 3.5} textAnchor="middle" fill={labelFill}
-              fontSize="8.5" fontFamily="monospace" fontWeight={isActive ? 'bold' : 'normal'}>
-              {step.dir}
-            </text>
-          </g>
-        )
-      })}
-
-      <circle cx={cx} cy={cy} r={ri - 3} fill="rgba(0,0,0,0.55)" />
-      <circle cx={cx} cy={cy} r={ri - 3} fill="none" stroke="rgba(251,191,36,0.35)" strokeWidth="1" />
-
-      {allCaptured ? (
-        <>
-          <text x={cx} y={cy + 5}  textAnchor="middle" fill="rgba(251,191,36,1)" fontSize="18" fontWeight="bold">✓</text>
-          <text x={cx} y={cy + 16} textAnchor="middle" fill="rgba(255,255,255,0.45)" fontSize="7.5" fontFamily="monospace">ALL DONE</text>
-        </>
-      ) : isOrbitMode ? (
-        <>
-          {/* Fixed object icon: camera orbits around this */}
-          <rect x={cx - 9} y={cy - 12} width="18" height="24" rx="3"
-            fill="rgba(251,191,36,0.10)" stroke="rgba(251,191,36,0.50)" strokeWidth="1.4" />
-          <text x={cx} y={cy + 22} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="7.5" fontFamily="monospace">
-            {currentStep + 1}/8
-          </text>
-        </>
-      ) : (
-        <>
-          {/* Object icon rotates 45° per step to show current face toward camera */}
-          <g transform={`rotate(${currentStep * 45} ${cx} ${cy})`}>
-            <rect x={cx - 7} y={cy - 10} width="14" height="20" rx="2.5"
-              fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.38)" strokeWidth="1.2" />
-            <circle cx={cx} cy={cy - 4} r="1.8" fill="rgba(251,191,36,0.45)" />
-          </g>
-          <text x={cx} y={cy + 5}  textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="monospace">
-            {currentStep + 1}
-          </text>
-          <text x={cx} y={cy + 16} textAnchor="middle" fill="rgba(255,255,255,0.38)" fontSize="8" fontFamily="monospace">
-            / 8
-          </text>
-        </>
-      )}
-
-      {/* Fixed camera icon at south (0° / bottom) — rotate mode */}
-      {!allCaptured && !isOrbitMode && (
-        <g transform={`translate(${cx}, ${cy + ro + 11})`} opacity="0.75">
-          <rect x="-8" y="-5.5" width="16" height="11" rx="2.5"
-            fill="rgba(251,191,36,0.18)" stroke="rgba(251,191,36,0.85)" strokeWidth="1.3" />
-          <circle cx="0" cy="0" r="2.5" fill="none" stroke="rgba(251,191,36,0.70)" strokeWidth="1.1" />
-        </g>
-      )}
-
-      {/* Camera marker moves to active orbital position — orbit mode */}
-      {!allCaptured && isOrbitMode && (() => {
-        const [mx, my] = midPt(currentStep, (ro + ri) / 2)
-        return (
-          <g transform={`translate(${mx}, ${my})`} opacity="0.88">
-            <rect x="-4.5" y="-7" width="9" height="14" rx="2"
-              fill="rgba(0,0,0,0.35)" stroke="rgba(251,191,36,0.95)" strokeWidth="1.1" />
-            <circle cx="0" cy="-3" r="1.3" fill="rgba(251,191,36,0.80)" />
-          </g>
-        )
-      })()}
-    </svg>
-  )
-}
-
-// ── Cross-section arc HUD for relief180 (side-view tilt guide) ───────────────
-function ReliefCrossSectionHUD({ currentStep, capturedFrames }: {
-  currentStep: number
-  capturedFrames: (Blob | null)[]
-}) {
-  const cx = 100, cy = 78, r = 52
-  const allCaptured = currentStep >= 6
-
-  const NODES = [
-    { step: 1, nodeAngle: 0,   label: 'XL' },
-    { step: 2, nodeAngle: 45,  label: 'LC' },
-    { step: 3, nodeAngle: 90,  label: 'TD' },
-    { step: 4, nodeAngle: 135, label: 'RC' },
-    { step: 5, nodeAngle: 180, label: 'XR' },
-  ] as const
-
-  const nPos = (na: number) => {
-    const rad = (180 - na) * Math.PI / 180
-    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) }
-  }
-
-  return (
-    <svg viewBox="0 0 200 96" className="w-52 h-16" aria-hidden="true">
-      {/* Ground surface */}
-      <line x1="14" y1={cy} x2="186" y2={cy}
-        stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" strokeLinecap="round" />
-      {[28, 46, 64, 82, 100, 118, 136, 154, 172].map(x => (
-        <line key={x} x1={x} y1={cy} x2={x - 4} y2={cy + 6}
-          stroke="rgba(255,255,255,0.28)" strokeWidth="1" />
-      ))}
-      {/* Dashed arc */}
-      <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-        fill="none" stroke="rgba(251,146,60,0.55)" strokeWidth="1.2" strokeDasharray="4 3" />
-      {/* Overhead guide */}
-      <line x1={cx} y1={cy - r - 4} x2={cx} y2={cy}
-        stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" strokeDasharray="2 2" />
-
-      {NODES.map(({ step, nodeAngle, label }) => {
-        const { x, y } = nPos(nodeAngle)
-        const captured = capturedFrames[step] !== null
-        const active   = step === currentStep && !allCaptured
-        const atGround = nodeAngle === 0 || nodeAngle === 180
-        const labelY   = atGround ? cy + 13 : y - 8
-        const phoneRot = (nodeAngle - 90) * (2 / 3)
-        return (
-          <g key={step}>
-            {active && (
-              <circle cx={x} cy={y} r="6" fill="none" stroke="rgba(251,146,60,0.40)" strokeWidth="1">
-                <animate attributeName="r" values="6;14" dur="1.4s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.55;0" dur="1.4s" repeatCount="indefinite" />
-              </circle>
-            )}
-            <circle cx={x} cy={y}
-              r={active ? 6 : captured ? 5 : 3.5}
-              fill={active ? 'rgba(251,146,60,0.95)' : captured ? 'rgba(251,146,60,0.58)' : 'rgba(255,255,255,0.50)'} />
-            {captured && (
-              <path d={`M ${x - 3} ${y} L ${x - 1} ${y + 2.5} L ${x + 3.5} ${y - 3}`}
-                fill="none" stroke="rgba(251,146,60,0.95)" strokeWidth="1.5"
-                strokeLinecap="round" strokeLinejoin="round" />
-            )}
-            {active && (
-              <g transform={`translate(${x}, ${y}) rotate(${phoneRot})`} opacity="0.90">
-                <rect x="-9" y="-2.5" width="18" height="5" rx="1.5"
-                  fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.90)" strokeWidth="1.2" />
-                <circle cx="7" cy="0" r="1.4" fill="rgba(251,146,60,0.75)" />
-              </g>
-            )}
-            <text x={x} y={labelY} textAnchor="middle"
-              fill={active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.60)'}
-              fontSize="7" fontFamily="monospace" fontWeight={active ? 'bold' : 'normal'}>
-              {label}
-            </text>
-          </g>
-        )
-      })}
-
-      {/* BASE step: pulsing flat-camera icon at apex */}
-      {currentStep === 0 && !allCaptured && (
-        <g transform={`translate(${cx}, ${cy - r})`} opacity="0.82">
-          <rect x="-7" y="-5" width="14" height="10" rx="2"
-            fill="rgba(251,146,60,0.18)" stroke="rgba(251,146,60,0.88)" strokeWidth="1.2">
-            <animate attributeName="opacity" values="0.82;0.30;0.82" dur="1.6s" repeatCount="indefinite" />
-          </rect>
-          <circle cx="0" cy="0" r="2.2" fill="rgba(251,146,60,0.70)" />
-        </g>
-      )}
-    </svg>
-  )
-}
 
 // ── Interactive crop overlay for artwork2d / document ─────────────────────────
 type CropCorners = {
@@ -363,22 +112,118 @@ const triggerHaptic = (duration: number) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(duration)
 }
 
-// ── SVG progress ring for multi-shot shutter buttons (scan3d / relief180) ────────────────
+// ── Unified SVG progress + directional-guide ring for scan3d / relief180 shutter buttons ──
+// Outer ring: continuous stroke-dashoffset arc = step counter (frames captured / total),
+// identical math to the old ShutterProgressRing. Inner ring: per-segment paths = wordless
+// directional guide — filled/dim segments show capture progress, the next segment pulses
+// with a leading chevron so rotation/sweep direction reads without any text.
 const RING_CIRCUMFERENCE = 289 // 2 * PI * r(46), rounded
+const GUIDE_RADIUS = 36
 
-function ShutterProgressRing({ progress }: { progress: number }) {
-  const offset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * progress) / 100
+// deg 0 = 12 o'clock, increasing clockwise — matches the existing clockwise capture convention.
+function polarPt(r: number, deg: number): { x: number; y: number } {
+  const rad = ((deg - 90) * Math.PI) / 180
+  return { x: 50 + r * Math.cos(rad), y: 50 + r * Math.sin(rad) }
+}
+function guideArcPath(r: number, startDeg: number, endDeg: number): string {
+  const s = polarPt(r, startDeg)
+  const e = polarPt(r, endDeg)
+  const largeArc = endDeg - startDeg > 180 ? 1 : 0
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`
+}
+// Small filled chevron at radius r, tip pointing toward increasing deg (the direction of travel).
+function chevronPath(r: number, deg: number): string {
+  const tip = polarPt(r, deg + 7)
+  const a = polarPt(r - 4, deg - 2)
+  const b = polarPt(r + 4, deg - 2)
+  return `M ${a.x} ${a.y} L ${tip.x} ${tip.y} L ${b.x} ${b.y} Z`
+}
+
+function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, reliefFrames }: {
+  mode: 'scan3d' | 'relief180'
+  currentStep: number
+  capturedFrames: (Blob | null)[]
+  reliefStep: number
+  reliefFrames: (Blob | null)[]
+}) {
+  const total = mode === 'scan3d' ? 8 : 6
+  const progress = mode === 'scan3d' ? currentStep : reliefStep
+  const outerOffset = RING_CIRCUMFERENCE - RING_CIRCUMFERENCE * (progress / total)
+  const allDone = progress >= total
+  const accent = mode === 'scan3d' ? 'rgba(251,191,36' : 'rgba(251,146,60'   // amber / orange
+  const accentClass = mode === 'scan3d' ? 'text-slate-300' : 'text-orange-400'
+
+  // relief180's frame 0 is the straight-on Albedo (base) shot — no rotation/tilt involved, so
+  // the 5-segment directional arc stays fully dormant (no active pulse, no chevron) until it's
+  // captured. A center bullseye cues "stay centered, shoot straight-on" instead. Once reliefStep
+  // advances past 0, the bullseye hides and the arc takes over exactly as before.
+  const isAlbedoStep = mode === 'relief180' && reliefStep === 0 && !allDone
+
+  // scan3d: 8 equal segments around the full circle.
+  // relief180: 5 segments across a top 180° arc (-90°..+90°) for the XL→LC→TD→RC→XR sweep.
+  const segments = mode === 'scan3d'
+    ? Array.from({ length: 8 }, (_, i) => ({
+        key: i,
+        start: i * 45 + 4,
+        end: (i + 1) * 45 - 4,
+        captured: capturedFrames[i] !== null,
+        active: i === currentStep && !allDone,
+      }))
+    : Array.from({ length: 5 }, (_, i) => ({
+        key: i,
+        start: -90 + i * 36 + 3,
+        end: -90 + (i + 1) * 36 - 3,
+        captured: reliefFrames[i + 1] !== null,
+        active: !isAlbedoStep && i === Math.min(reliefStep - 1, 4) && !allDone,
+      }))
+
   return (
-    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full -rotate-90 origin-center pointer-events-none" aria-hidden="true">
-      <circle cx="50" cy="50" r="46" fill="transparent" stroke="currentColor" className="text-white/20" strokeWidth="4" />
-      <circle
-        cx="50" cy="50" r="46" fill="transparent" stroke="currentColor"
-        className="text-yellow-400 transition-all duration-300 ease-out"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeDasharray="289"
-        strokeDashoffset={offset}
-      />
+    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
+      {/* Outer ring — step counter */}
+      <g transform="rotate(-90 50 50)">
+        <circle cx="50" cy="50" r="46" fill="transparent" stroke="currentColor" className="text-white/20" strokeWidth="4" />
+        <circle
+          cx="50" cy="50" r="46" fill="transparent" stroke="currentColor"
+          className={`${accentClass} transition-all duration-300 ease-out`}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          strokeDashoffset={outerOffset}
+        />
+      </g>
+
+      {/* Inner ring — wordless directional guide */}
+      {segments.map(seg => (
+        <g key={seg.key}>
+          <path
+            d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end)}
+            fill="none"
+            stroke={seg.captured ? `${accent},0.85)` : seg.active ? `${accent},1)` : 'rgba(255,255,255,0.22)'}
+            strokeWidth={seg.active ? 3.5 : 2.5}
+            strokeLinecap="round"
+          />
+          {seg.active && (
+            <>
+              <path d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end)} fill="none" stroke={`${accent},0.45)`} strokeWidth="7" strokeLinecap="round">
+                <animate attributeName="opacity" values="0.6;0;0.6" dur="1.4s" repeatCount="indefinite" />
+              </path>
+              <path d={chevronPath(GUIDE_RADIUS, seg.end)} fill={`${accent},1)`} />
+            </>
+          )}
+        </g>
+      ))}
+
+      {/* Center bullseye — relief180 Albedo (frame 0) cue: stay centered, shoot straight-on.
+           True dead-center (r < ~29 units) sits behind the shutter button's opaque inner disc,
+           so the pulse ring is sized to live in the visible transparent gap between that disc
+           and the button's translucent border (roughly r 29–37), reading as a ring around the
+           button rather than a literal center dot. */}
+      {isAlbedoStep && (
+        <circle cx="50" cy="50" r="31" fill="none" stroke={`${accent},0.9)`} strokeWidth="3">
+          <animate attributeName="r" values="29.5;33.5;29.5" dur="1.6s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.9;0.35;0.9" dur="1.6s" repeatCount="indefinite" />
+        </circle>
+      )}
     </svg>
   )
 }
@@ -1215,15 +1060,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       : { width: `${h * videoAR}px`, height: `${h}px` }            // height-constrained
   })()
 
-  // Same width/height numbers as videoContentStyle above, kept as plain numbers (not a CSS string)
-  // so overlays scoped to that box — rather than the full container — can compute their own
-  // ±90° rotate-and-scale-to-fit, matching fullBoxSpinStyle's approach at the container's scale.
-  const videoContentDims = (() => {
-    if (videoAR == null || containerSize == null) return null
-    const { w, h } = containerSize
-    return videoAR > w / h ? { w, h: w / videoAR } : { w: h * videoAR, h }
-  })()
-
   // Native-rotation illusion: applied to UI content (icons, HUD text, controls) so it visually
   // tracks the phone's physical orientation while the surrounding layout stays portrait-locked.
   const uiSpinStyle: React.CSSProperties = { transform: `rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }
@@ -1242,7 +1078,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
+    <div className="fixed inset-0 h-[100dvh] z-50 bg-black flex flex-col select-none">
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 pb-2 flex-shrink-0" style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}>
@@ -1439,45 +1275,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* Compact multi-frame progress HUD — scan3d compass dial / relief cross-section guide.
-             Pinned to the bottom edge of the actual video content area so the bottom control
-             deck below stays a uniform height across all four capture modes. */}
-        {(isScan3d || isRelief) && cameraReady && videoAR != null && containerSize != null && (
-          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
-            <div className="relative" style={videoContentStyle}>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-auto flex flex-col items-center gap-1.5 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
-                <div style={uiSpinStyle} className="flex flex-col items-center gap-1.5">
-                <div>
-                  <p className="text-white/80 text-xs font-medium text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
-                    {isScan3d
-                      ? (allFramesCaptured ? 'All 8 frames captured!' : (isOrbitMode ? ORBIT_STEPS : SCAN_STEPS)[currentStep]?.heading)
-                      : (allReliefCaptured ? 'All 6 frames captured!' : RELIEF_STEPS[reliefStep]?.heading)}
-                  </p>
-                  <p className="text-white/50 text-[10px] text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
-                    {isScan3d
-                      ? (allFramesCaptured
-                          ? 'Tap below to compile your 3D object'
-                          : isOrbitMode && currentStep === 0
-                          ? 'Use slider to frame subject, then capture baseline.'
-                          : isOrbitMode
-                          ? 'Box locked. Step right and fit subject back inside frame.'
-                          : (SCAN_STEPS[currentStep]?.sub ?? ''))
-                      : (allReliefCaptured ? 'Tap below to finish and save your Relief' : RELIEF_STEPS[reliefStep]?.sub)}
-                  </p>
-                </div>
-                {isScan3d ? (
-                  <CompassDial capturedFrames={capturedFrames} currentStep={currentStep} svgClassName="w-16 h-16 drop-shadow-md" isOrbitMode={isOrbitMode} />
-                ) : (
-                  <div className="drop-shadow-md">
-                    <ReliefCrossSectionHUD capturedFrames={reliefFrames} currentStep={reliefStep} />
-                  </div>
-                )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 2D Artwork / Document HUD — mirrors the scan3d/relief HUD pattern with instruction text only */}
         {isFlat && !cropState && tipText && cameraReady && videoAR != null && containerSize != null && (
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
@@ -1535,53 +1332,108 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
           </div>
         )}
 
-        {/* ── Side-profile phone tilt icons for relief180 steps 1–5 (no grid lines —
-             the grid-cols-6 alignment grid below is the only divider overlay in Relief mode).
-             The whole wrapper spins with uiRotation (pills AND labels together, as one rigid
-             layout) so it stays aligned with the user's actual horizon when held in landscape. */}
-        {isRelief && reliefStep >= 1 && !allReliefCaptured && (
-          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-          <div style={{ ...videoContentStyle }} className="relative">
-          <div
-            className="absolute inset-0 flex"
-            style={{
-              transform: `rotate(${uiRotation}deg) scale(${
-                (uiRotation === 90 || uiRotation === -90) && videoContentDims
-                  ? videoContentDims.h / videoContentDims.w
-                  : 1
-              })`,
-              transition: 'transform 0.3s ease-out',
-            }}
-          >
-            {([
-              { step: 1, label: 'XL', baseDeg: -60 },
-              { step: 2, label: 'LC', baseDeg: -30 },
-              { step: 3, label: 'TD', baseDeg: 0   },
-              { step: 4, label: 'RC', baseDeg: 30  },
-              { step: 5, label: 'XR', baseDeg: 60  },
-            ] as const).map(({ step, label, baseDeg }) => {
-              const isActive   = step === reliefStep
-              const isCaptured = reliefFrames[step] !== null
-              return (
-                <div key={step} className="relative flex-1 flex flex-col items-center justify-center">
-                  {isActive && (
-                    <div
-                      className="w-12 h-2.5 bg-orange-400/90 rounded-full"
-                      style={{ transform: `rotate(${baseDeg}deg)` }}
-                    />
-                  )}
-                  <span className={`absolute bottom-3 text-[9px] font-mono ${
-                    isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
-                  }`}>
-                    {label}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          </div>
-          </div>
-        )}
+        {/* ── Side-profile phone tilt icons for relief180 steps 1–5.
+             Portrait/upside-down (uiRotation 0 or 180): unchanged — a horizontal row bottom-
+             anchored inside the videoContentStyle box, rotated as one rigid block. That block
+             rotation is dimension-safe for 0/180 (a point's distance from center is preserved,
+             width/height aren't swapped), so it stays fully inside the box.
+
+             Landscape hold (uiRotation ±90 — the "row vanishes off the bottom" bug): a bulk
+             90° rotate of that same bottom-anchored row is NOT safe — the row sits far from the
+             box's center (near the bottom edge), and rotating swaps width/height, so that
+             far-from-center content swings out to a horizontal offset of ~box-height/2, well
+             past the box's own (much narrower) width and off past cropContainerRef's
+             overflow-hidden clip. No scale factor fixes that; it's a wrong-shape problem, not a
+             wrong-size one. Fix: stop bulk-rotating the row's layout at all. Instead lay the 5
+             positions out natively as a vertical column pinned near the physical edge the
+             rotation would have swung "bottom" onto, and counter-rotate only each small
+             label/pill glyph in place (composed with its own baseDeg) — the same per-element
+             "uiSpinStyle" pattern used everywhere else in this file — so the row still reads
+             level to the user without ever moving a large mass of content far from center.
+             rotate(90deg) is clockwise on screen, which maps bottom-center to the LEFT edge
+             (top-to-bottom order preserved); rotate(-90deg) maps it to the RIGHT edge (order
+             reversed) — both derived from the standard 2D rotation matrix in screen (y-down)
+             coordinates. */}
+        {isRelief && reliefStep >= 1 && !allReliefCaptured && (() => {
+          const POSITIONS = [
+            { step: 1, label: 'XL', baseDeg: -60 },
+            { step: 2, label: 'LC', baseDeg: -30 },
+            { step: 3, label: 'TD', baseDeg: 0   },
+            { step: 4, label: 'RC', baseDeg: 30  },
+            { step: 5, label: 'XR', baseDeg: 60  },
+          ] as const
+          const isLandscape = uiRotation === 90 || uiRotation === -90
+
+          return (
+            <div
+              className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+            >
+              <div style={{ ...videoContentStyle }} className="relative">
+                {isLandscape ? (
+                  // Explicit h-[80%] (not just top/bottom insets) so the flex-col container's
+                  // height is unambiguous, plus justify-evenly on non-growing children so the 5
+                  // positions spread across that full length instead of bunching at one end.
+                  <div
+                    className={`absolute top-1/2 h-[80%] flex flex-col justify-evenly ${uiRotation === 90 ? 'left-1' : 'right-1'}`}
+                    style={{ transform: 'translateY(-50%)' }}
+                  >
+                    {(uiRotation === 90 ? POSITIONS : [...POSITIONS].reverse()).map(({ step, label, baseDeg }) => {
+                      const isActive   = step === reliefStep
+                      const isCaptured = reliefFrames[step] !== null
+                      return (
+                        <div key={step} className="relative flex flex-col items-center justify-center">
+                          {isActive && (
+                            <div
+                              className="w-12 h-2.5 bg-orange-400/90 rounded-full"
+                              style={{ transform: `rotate(${uiRotation + baseDeg}deg)`, transition: 'transform 0.3s ease-out' }}
+                            />
+                          )}
+                          <span
+                            className={`text-[9px] font-mono ${
+                              isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
+                            }`}
+                            style={{ transform: `rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // Compressed to max-w-[70%] and centered (left-1/2 + inline translateX, since
+                  // Tailwind's translate-x utility would be clobbered by the inline rotate() below
+                  // sharing the same `transform` property) so "XR" clears the bottom-right zoom pill.
+                  <div
+                    className="absolute inset-y-0 left-1/2 w-full max-w-[70%] flex"
+                    style={{ transform: `translateX(-50%) rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
+                  >
+                    {POSITIONS.map(({ step, label, baseDeg }) => {
+                      const isActive   = step === reliefStep
+                      const isCaptured = reliefFrames[step] !== null
+                      return (
+                        <div key={step} className="relative flex-1 flex flex-col items-center justify-center">
+                          {isActive && (
+                            <div
+                              className="w-12 h-2.5 bg-orange-400/90 rounded-full"
+                              style={{ transform: `rotate(${baseDeg}deg)` }}
+                            />
+                          )}
+                          <span className={`absolute bottom-3 text-[9px] font-mono ${
+                            isActive ? 'text-orange-400/90 font-bold' : isCaptured ? 'text-orange-400/55' : 'text-white/20'
+                          }`}>
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── Between-pages overlay (artwork2d + document) ── */}
         {isFlat && docOverlay && (
@@ -1707,7 +1559,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Shutter button, wrapped in a progress ring showing frames captured / 8 */}
                 <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
-                  <ShutterProgressRing progress={(currentStep / 8) * 100} />
+                  <CaptureProgressRing
+                    mode="scan3d"
+                    currentStep={currentStep}
+                    capturedFrames={capturedFrames}
+                    reliefStep={reliefStep}
+                    reliefFrames={reliefFrames}
+                  />
                   <button
                     onClick={handleShutterClick}
                     disabled={!cameraReady || isCapturing}
@@ -1807,7 +1665,13 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 {/* Shutter button, wrapped in a progress ring showing frames captured / 6 */}
                 <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
-                  <ShutterProgressRing progress={(reliefStep / 6) * 100} />
+                  <CaptureProgressRing
+                    mode="relief180"
+                    currentStep={currentStep}
+                    capturedFrames={capturedFrames}
+                    reliefStep={reliefStep}
+                    reliefFrames={reliefFrames}
+                  />
                   <button
                     onClick={handleShutterClick}
                     disabled={!cameraReady || isCapturing}
