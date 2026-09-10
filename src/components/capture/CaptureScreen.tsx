@@ -167,30 +167,52 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
   // advances past 0, the bullseye hides and the arc takes over exactly as before.
   const isAlbedoStep = mode === 'relief180' && reliefStep === 0 && !allDone
 
+  // relief180's Base Image (frame 0) gets its own dedicated segment centered dead-on at 12
+  // o'clock — non-directional (no chevron), so it reads as a distinct "step 1 of 6" rather than
+  // part of the left-to-right sweep. It sits right where the sweep's own top-dead-center (TD)
+  // segment later lands, so the hand-off from "base captured" to "TD active" feels continuous
+  // rather than like a jump to an unrelated position.
+  const frame0Segment = mode === 'relief180'
+    ? [{
+        key: 'base',
+        start: -18 + 3,
+        end: 18 - 3,
+        captured: reliefFrames[0] !== null,
+        active: isAlbedoStep,
+        arrow: false,
+      }]
+    : []
+
   // scan3d: 8 equal segments around the full circle, each centered on its i*45° mark (offset by
   // -22.5° so segment 0 straddles 6 o'clock symmetrically — a "dead on" starting position rather
   // than starting the sweep AT 6 o'clock) — ordered by orbitDir so Orbit mode reads
   // counterclockwise from that 6 o'clock center while Rotate mode stays clockwise.
-  // relief180: 5 segments across a top 180° arc (-90°..+90°) for the XL→LC→TD→RC→XR sweep.
+  // relief180: the frame0Segment above, followed by 5 segments across a top 180° arc
+  // (-90°..+90°) for the XL→LC→TD→RC→XR sweep (frames 1-5).
   const segments = mode === 'scan3d'
     ? Array.from({ length: 8 }, (_, i) => {
         const rawStart = orbitDir * (i * 45 - 22.5)
         const rawEnd = orbitDir * (i * 45 + 22.5)
         return {
-          key: i,
+          key: i as number | string,
           start: Math.min(rawStart, rawEnd) + 4,
           end: Math.max(rawStart, rawEnd) - 4,
           captured: capturedFrames[i] !== null,
           active: i === currentStep && !allDone,
+          arrow: !hideArrows,
         }
       })
-    : Array.from({ length: 5 }, (_, i) => ({
-        key: i,
-        start: -90 + i * 36 + 3,
-        end: -90 + (i + 1) * 36 - 3,
-        captured: reliefFrames[i + 1] !== null,
-        active: !isAlbedoStep && i === Math.min(reliefStep - 1, 4) && !allDone,
-      }))
+    : [
+        ...frame0Segment,
+        ...Array.from({ length: 5 }, (_, i) => ({
+          key: i as number | string,
+          start: -90 + i * 36 + 3,
+          end: -90 + (i + 1) * 36 - 3,
+          captured: reliefFrames[i + 1] !== null,
+          active: !isAlbedoStep && i === Math.min(reliefStep - 1, 4) && !allDone,
+          arrow: true,
+        })),
+      ]
 
   return (
     <svg
@@ -214,7 +236,7 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
               <path d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end, phase)} fill="none" stroke={`${accent},0.45)`} strokeWidth="7" strokeLinecap="round">
                 <animate attributeName="opacity" values="0.6;0;0.6" dur="1.4s" repeatCount="indefinite" />
               </path>
-              {!hideArrows && (
+              {seg.arrow && (
                 <path d={chevronPath(GUIDE_RADIUS, seg.end, phase)} fill={`${accent},1)`} />
               )}
             </>
