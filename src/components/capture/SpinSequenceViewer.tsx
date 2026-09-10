@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { ArrowLeftRight, AlertTriangle, ImageOff } from 'lucide-react'
+import { ArrowLeftRight, AlertTriangle, ImageOff, Plus, Minus } from 'lucide-react'
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, clamp } from './useTiltZoom'
 
 const PIXELS_PER_FRAME = 28
 const ANGLES = [0, 45, 90, 135, 180, 225, 270, 315]
@@ -36,6 +37,12 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
   const [isDragging, setIsDragging] = useState(false)
   const [hintDismissed, setHintDismissed] = useState(false)
   const [frameStatuses, setFrameStatuses] = useState<FrameStatus[]>(() => imageUrls.map(() => 'pending'))
+  // Zoom is purely a CSS scale on the frame-stack layer below — pointer-drag rotation
+  // reads raw e.clientX deltas (screen space), so it's unaffected by this transform.
+  const [zoomScale, setZoomScale] = useState(1)
+  const adjustZoom = useCallback((delta: number) => {
+    setZoomScale((z) => clamp(Math.round((z + delta) * 100) / 100, MIN_ZOOM, MAX_ZOOM))
+  }, [])
 
   const dragStartX = useRef(0)
   const dragStartFrame = useRef(0)
@@ -71,6 +78,7 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
     velocityRef.current = 0
     autoSpinPlayedRef.current = false
     setFrameIndex(0)
+    setZoomScale(1)
     setFrameStatuses(imageUrls.map(() => 'pending'))
     imageUrls.forEach((url, i) => {
       const img = new Image()
@@ -223,34 +231,40 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
       />
 
       {/* Frame stack — all images stacked; only the active frame is visible.
-           A frame that failed to load renders a placeholder tile instead of a raw <img>. */}
-      {imageUrls.map((url, i) => (
-        frameStatuses[i] === 'error' ? (
-          <div
-            key={i}
-            className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-900"
-            style={{ opacity: i === frameIndex ? 1 : 0 }}
-          >
-            <ImageOff className="w-8 h-8 text-zinc-600" />
-            <span className="text-zinc-600 text-[10px] font-mono">Frame {i + 1} unavailable</span>
-          </div>
-        ) : (
-          <img
-            key={i}
-            src={url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-contain"
-            style={{
-              opacity: i === frameIndex ? 1 : 0,
-              pointerEvents: 'none',
-              willChange: 'opacity',
-              transform: 'translateZ(0)',
-              transition: 'none',
-            }}
-            draggable={false}
-          />
-        )
-      ))}
+           A frame that failed to load renders a placeholder tile instead of a raw <img>.
+           Wrapped so zoom scales just the visual layer, not the drag/HUD chrome around it. */}
+      <div
+        className="absolute inset-0 w-full h-full"
+        style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center center' }}
+      >
+        {imageUrls.map((url, i) => (
+          frameStatuses[i] === 'error' ? (
+            <div
+              key={i}
+              className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-zinc-900"
+              style={{ opacity: i === frameIndex ? 1 : 0 }}
+            >
+              <ImageOff className="w-8 h-8 text-zinc-600" />
+              <span className="text-zinc-600 text-[10px] font-mono">Frame {i + 1} unavailable</span>
+            </div>
+          ) : (
+            <img
+              key={i}
+              src={url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-contain"
+              style={{
+                opacity: i === frameIndex ? 1 : 0,
+                pointerEvents: 'none',
+                willChange: 'opacity',
+                transform: 'translateZ(0)',
+                transition: 'none',
+              }}
+              draggable={false}
+            />
+          )
+        ))}
+      </div>
 
       {/* Loading overlay — waits for every frame to settle (load OR error), not just load */}
       {!allSettled && (
@@ -307,6 +321,31 @@ export default function SpinSequenceViewer({ imageUrls }: Props) {
               {currentAngle}°
             </span>
           </div>
+        </div>
+      )}
+
+      {/* Zoom controls — bottom-right corner, clear of the bottom-center HUD above */}
+      {allSettled && (
+        <div className="absolute bottom-5 right-5 z-10 flex flex-col items-stretch gap-0.5 bg-black/55 backdrop-blur-sm border border-white/10 rounded-2xl p-1.5">
+          <button
+            onClick={() => adjustZoom(ZOOM_STEP)}
+            disabled={zoomScale >= MAX_ZOOM}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            aria-label="Zoom in"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <span className="text-center text-white/50 text-[10px] font-mono py-0.5 select-none tabular-nums">
+            {Math.round(zoomScale * 100)}%
+          </span>
+          <button
+            onClick={() => adjustZoom(-ZOOM_STEP)}
+            disabled={zoomScale <= MIN_ZOOM}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            aria-label="Zoom out"
+          >
+            <Minus className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
