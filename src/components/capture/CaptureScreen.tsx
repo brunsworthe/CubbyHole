@@ -112,46 +112,54 @@ const triggerHaptic = (duration: number) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(duration)
 }
 
-// ── Unified SVG progress + directional-guide ring for scan3d / relief180 shutter buttons ──
-// Outer ring: continuous stroke-dashoffset arc = step counter (frames captured / total),
-// identical math to the old ShutterProgressRing. Inner ring: per-segment paths = wordless
-// directional guide — filled/dim segments show capture progress, the next segment pulses
-// with a leading chevron so rotation/sweep direction reads without any text.
-const RING_CIRCUMFERENCE = 289 // 2 * PI * r(46), rounded
+// ── Unified SVG directional-guide ring for scan3d / relief180 shutter buttons ──
+// Per-segment paths = wordless directional guide — filled/dim segments show capture progress,
+// the next segment pulses with a leading chevron so rotation/sweep direction reads without text.
 const GUIDE_RADIUS = 36
 
 // deg 0 = 12 o'clock, increasing clockwise — matches the existing clockwise capture convention.
-function polarPt(r: number, deg: number): { x: number; y: number } {
-  const rad = ((deg - 90) * Math.PI) / 180
+// An optional phase shift rebases the zero point elsewhere on the clock face without touching
+// the clockwise-positive direction convention (scan3d uses phase 180 to start at 6 o'clock,
+// grounding the ring to the user's POV; relief180 leaves phase at 0 for its top-arc sweep).
+function polarPt(r: number, deg: number, phaseDeg = 0): { x: number; y: number } {
+  const rad = ((deg + phaseDeg - 90) * Math.PI) / 180
   return { x: 50 + r * Math.cos(rad), y: 50 + r * Math.sin(rad) }
 }
-function guideArcPath(r: number, startDeg: number, endDeg: number): string {
-  const s = polarPt(r, startDeg)
-  const e = polarPt(r, endDeg)
+function guideArcPath(r: number, startDeg: number, endDeg: number, phaseDeg = 0): string {
+  const s = polarPt(r, startDeg, phaseDeg)
+  const e = polarPt(r, endDeg, phaseDeg)
   const largeArc = endDeg - startDeg > 180 ? 1 : 0
   return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}`
 }
 // Small filled chevron at radius r, tip pointing toward increasing deg (the direction of travel).
-function chevronPath(r: number, deg: number): string {
-  const tip = polarPt(r, deg + 7)
-  const a = polarPt(r - 4, deg - 2)
-  const b = polarPt(r + 4, deg - 2)
+function chevronPath(r: number, deg: number, phaseDeg = 0): string {
+  const tip = polarPt(r, deg + 7, phaseDeg)
+  const a = polarPt(r - 4, deg - 2, phaseDeg)
+  const b = polarPt(r + 4, deg - 2, phaseDeg)
   return `M ${a.x} ${a.y} L ${tip.x} ${tip.y} L ${b.x} ${b.y} Z`
 }
 
-function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, reliefFrames }: {
+function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, reliefFrames, isOrbitMode, uiRotation }: {
   mode: 'scan3d' | 'relief180'
   currentStep: number
   capturedFrames: (Blob | null)[]
   reliefStep: number
   reliefFrames: (Blob | null)[]
+  isOrbitMode: boolean
+  uiRotation: 0 | 90 | -90 | 180
 }) {
   const total = mode === 'scan3d' ? 8 : 6
   const progress = mode === 'scan3d' ? currentStep : reliefStep
-  const outerOffset = RING_CIRCUMFERENCE - RING_CIRCUMFERENCE * (progress / total)
   const allDone = progress >= total
   const accent = mode === 'scan3d' ? 'rgba(251,191,36' : 'rgba(251,146,60'   // amber / orange
-  const accentClass = mode === 'scan3d' ? 'text-slate-300' : 'text-orange-400'
+
+  // scan3d grounds its sequence to the user's POV, starting at 6 o'clock instead of 12; relief180
+  // keeps the original top-arc (12 o'clock-based) convention for its XL→LC→TD→RC→XR sweep.
+  const phase = mode === 'scan3d' ? 180 : 0
+  // Rotate sub-mode fills clockwise (dir +1, unchanged convention). Orbit sub-mode — the user
+  // physically walks around the object — reverses to counterclockwise (dir -1): 6 -> 5 -> 4 o'clock.
+  const orbitDir = mode === 'scan3d' && isOrbitMode ? -1 : 1
+  const hideArrows = mode === 'scan3d' && isOrbitMode
 
   // relief180's frame 0 is the straight-on Albedo (base) shot — no rotation/tilt involved, so
   // the 5-segment directional arc stays fully dormant (no active pulse, no chevron) until it's
@@ -159,16 +167,23 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
   // advances past 0, the bullseye hides and the arc takes over exactly as before.
   const isAlbedoStep = mode === 'relief180' && reliefStep === 0 && !allDone
 
-  // scan3d: 8 equal segments around the full circle.
+  // scan3d: 8 equal segments around the full circle, each centered on its i*45° mark (offset by
+  // -22.5° so segment 0 straddles 6 o'clock symmetrically — a "dead on" starting position rather
+  // than starting the sweep AT 6 o'clock) — ordered by orbitDir so Orbit mode reads
+  // counterclockwise from that 6 o'clock center while Rotate mode stays clockwise.
   // relief180: 5 segments across a top 180° arc (-90°..+90°) for the XL→LC→TD→RC→XR sweep.
   const segments = mode === 'scan3d'
-    ? Array.from({ length: 8 }, (_, i) => ({
-        key: i,
-        start: i * 45 + 4,
-        end: (i + 1) * 45 - 4,
-        captured: capturedFrames[i] !== null,
-        active: i === currentStep && !allDone,
-      }))
+    ? Array.from({ length: 8 }, (_, i) => {
+        const rawStart = orbitDir * (i * 45 - 22.5)
+        const rawEnd = orbitDir * (i * 45 + 22.5)
+        return {
+          key: i,
+          start: Math.min(rawStart, rawEnd) + 4,
+          end: Math.max(rawStart, rawEnd) - 4,
+          captured: capturedFrames[i] !== null,
+          active: i === currentStep && !allDone,
+        }
+      })
     : Array.from({ length: 5 }, (_, i) => ({
         key: i,
         start: -90 + i * 36 + 3,
@@ -178,25 +193,17 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
       }))
 
   return (
-    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
-      {/* Outer ring — step counter */}
-      <g transform="rotate(-90 50 50)">
-        <circle cx="50" cy="50" r="46" fill="transparent" stroke="currentColor" className="text-white/20" strokeWidth="4" />
-        <circle
-          cx="50" cy="50" r="46" fill="transparent" stroke="currentColor"
-          className={`${accentClass} transition-all duration-300 ease-out`}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={RING_CIRCUMFERENCE}
-          strokeDashoffset={outerOffset}
-        />
-      </g>
-
-      {/* Inner ring — wordless directional guide */}
+    <svg
+      viewBox="0 0 100 100"
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ transform: `rotate(${uiRotation}deg)`, transition: 'transform 0.3s ease-out' }}
+      aria-hidden="true"
+    >
+      {/* Segmented directional guide */}
       {segments.map(seg => (
         <g key={seg.key}>
           <path
-            d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end)}
+            d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end, phase)}
             fill="none"
             stroke={seg.captured ? `${accent},0.85)` : seg.active ? `${accent},1)` : 'rgba(255,255,255,0.22)'}
             strokeWidth={seg.active ? 3.5 : 2.5}
@@ -204,10 +211,12 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
           />
           {seg.active && (
             <>
-              <path d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end)} fill="none" stroke={`${accent},0.45)`} strokeWidth="7" strokeLinecap="round">
+              <path d={guideArcPath(GUIDE_RADIUS, seg.start, seg.end, phase)} fill="none" stroke={`${accent},0.45)`} strokeWidth="7" strokeLinecap="round">
                 <animate attributeName="opacity" values="0.6;0;0.6" dur="1.4s" repeatCount="indefinite" />
               </path>
-              <path d={chevronPath(GUIDE_RADIUS, seg.end)} fill={`${accent},1)`} />
+              {!hideArrows && (
+                <path d={chevronPath(GUIDE_RADIUS, seg.end, phase)} fill={`${accent},1)`} />
+              )}
             </>
           )}
         </g>
@@ -1643,6 +1652,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     capturedFrames={capturedFrames}
                     reliefStep={reliefStep}
                     reliefFrames={reliefFrames}
+                    isOrbitMode={isOrbitMode}
+                    uiRotation={uiRotation}
                   />
                   <button
                     onClick={handleShutterClick}
@@ -1758,6 +1769,8 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     capturedFrames={capturedFrames}
                     reliefStep={reliefStep}
                     reliefFrames={reliefFrames}
+                    isOrbitMode={isOrbitMode}
+                    uiRotation={uiRotation}
                   />
                   <button
                     onClick={handleShutterClick}
