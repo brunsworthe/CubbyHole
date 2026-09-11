@@ -464,16 +464,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // Pitch (beta) always drives the vertical offset — a tabletop bullseye and a picture-hanging
   // level both read "tilted toward/away from me" the same way.
   const bubbleY = Math.max(-11, Math.min(11, (effBeta / 30) * 11))
-  // Flat (tabletop, looking down): roll shows as a second translation axis, same as pitch —
-  // a bullseye where gamma drives X and beta drives Y.
-  // Upright (wall/easel, looking forward): roll instead reads as a horizon-line rotation, the
-  // way a picture-hanging level works, so the dot itself doesn't drift sideways on roll alone.
-  const bubbleX = capturePlane === 'flat'
-    ? Math.max(-11, Math.min(11, (effGamma / 30) * 11))
-    : 0
-  const bubbleRotationDeg = capturePlane === 'upright'
-    ? Math.max(-25, Math.min(25, effGamma))
-    : 0
+  // Flat-plane-only: tabletop bullseye, where gamma drives the dot's X position directly.
+  const bubbleX = Math.max(-11, Math.min(11, (effGamma / 30) * 11))
+  // Upright-plane-only: roll instead reads as a horizon-line rotation, the way a
+  // picture-hanging level works, rather than the dot drifting sideways.
+  const bubbleRotationDeg = Math.max(-25, Math.min(25, effGamma))
 
   // ── Camera init ───────────────────────────────────────────────────────────
   const initCamera = useCallback(() => {
@@ -615,16 +610,22 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // Native-rotation illusion: mirror physical device orientation onto UI content via CSS transform,
   // while the outer layout stays rigidly portrait-locked. Snapped to 90° increments.
   //
-  // Raw beta/gamma are noisy, and near the flat/tabletop pitch (beta ≈ 0° or ±180°) the
-  // alpha/beta/gamma decomposition approaches a singularity: a fraction of a degree of real
-  // tilt can read back as a large, sign-flipping swing in gamma. Two defenses, both keyed off
-  // the *previous* rotation so the decision is sticky rather than re-derived from scratch on
-  // every event:
-  //   1. A light EMA smooths frame-to-frame jitter before any threshold check runs.
-  //   2. Hysteresis — the gamma bar to *enter* a landscape rotation is higher than the bar to
-  //      *stay* in one, and a "pole lock" raises that enter-bar steeply whenever beta sits close
-  //      to the flat pitch, biasing hard toward staying put (or portrait) unless the roll is
-  //      large enough to be an unmistakably deliberate landscape turn.
+  // Android/Chrome convention: beta = 0 flat face-up, 90 held perfectly vertical, >90 tilting
+  // backward toward the user. A Pixel 9 Pro test surfaced two concrete failures in an earlier
+  // version of this logic:
+  //   1. Tilting backward past vertical (beta 90°–135°) was being read as approaching upside-down
+  //      and instantly flipped the UI to 180°.
+  //   2. A small left/right tilt past vertical was instantly snapping into landscape.
+  // Fixed with a strict, ordered decision tree (still EMA-smoothed to cut frame-to-frame jitter):
+  //   - Landscape only ever engages past a hard 45° roll, and drops back out below 35° — that
+  //     10° gap is the hysteresis band that stops boundary flicker.
+  //   - Any beta in (45°, 135°) — the entire comfortably-upright "camera grip" range, including
+  //     tilting back toward the user — is pole-locked to Portrait whenever roll is under 45°,
+  //     unconditionally overriding whatever the rotation previously was. This is the direct fix
+  //     for failure #1.
+  //   - 180° is reserved for the case that's mathematically undeniable: pitched almost fully
+  //     over (beta past 150°) with roll settled near zero. Every other pitch — including the
+  //     entire flat-on-a-table range — defaults to Portrait rather than upside-down.
   const orientationSmoothRef = useRef<{ beta: number; gamma: number } | null>(null)
   const enableOrientationTracking = useCallback(() => {
     if (orientationTrackingRef.current || typeof window === 'undefined') return
@@ -639,28 +640,20 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       const gamma = prevSmoothed ? prevSmoothed.gamma + (rawGamma - prevSmoothed.gamma) * 0.25 : rawGamma
       orientationSmoothRef.current = { beta, gamma }
 
-      // Deadzone: while the device sits close to flat with little roll, freeze the decision
-      // entirely so table-top jitter never nudges the UI. Expanded to 55 degrees to beat the
-      // 45-degree orientation snap.
-      const isDeviceFlat = (Math.abs(beta) < 55 || Math.abs(beta) > 125) && Math.abs(gamma) < 55
-      if (isDeviceFlat) return
-
       setUiRotation((prev): 0 | 90 | -90 | 180 => {
-        const inLandscape = prev === 90 || prev === -90
-        const nearFlatPole = Math.abs(beta) < 35 || Math.abs(beta) > 145
-
-        // Bar to accept/keep a landscape rotation: lowest once already landscape (hysteresis),
-        // highest near the flat pole (pole lock), otherwise the standard "deliberate turn" bar.
-        const gammaEnter = nearFlatPole ? 70 : (inLandscape ? 30 : 45)
-        if (Math.abs(gamma) > gammaEnter) {
+        // Deliberate landscape turn — strict, symmetric enter/exit bar, independent of pitch.
+        if (Math.abs(gamma) > 45) {
           return gamma > 0 ? -90 : 90
         }
-        // Only reconsider the 0°/180° split once roll has cleared well below the landscape
-        // band — this gap is what stops boundary flicker between the two decisions.
-        if (Math.abs(gamma) < 25) {
-          const betaEnter = prev === 180 ? 115 : 135
-          return Math.abs(beta) > betaEnter ? 180 : 0
+        // Pole lock: comfortably-upright grip range, no real roll — always Portrait.
+        if (Math.abs(beta) > 45 && Math.abs(beta) < 135) {
+          return 0
         }
+        // Roll has dropped back near zero — snap out of landscape.
+        if (Math.abs(gamma) < 35) {
+          return Math.abs(beta) > 150 ? 180 : 0
+        }
+        // 35°–45° gamma dead zone: hold the previous rotation (hysteresis gap).
         return prev
       })
     }
@@ -801,14 +794,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setLevelBeta(beta)
       setLevelGamma(e.gamma ?? 20)
 
-      // Plane detection: how far beta sits from the nearest flat pole (0° or 180°) is the pitch
-      // above the table. Past 45° from flat, the device reads as held up against a wall/easel.
-      // Hysteresis (lower bar to *stay* upright than to *enter* it) stops flicker right at 45°.
-      setCapturePlane(prev => {
-        const distFromFlat = Math.min(Math.abs(beta), Math.abs(180 - Math.abs(beta)))
-        const uprightEnter = prev === 'upright' ? 35 : 45
-        return distFromFlat > uprightEnter ? 'upright' : 'flat'
-      })
+      // Plane detection depends on pitch alone: 'upright' is strictly 45° < beta < 135° (the
+      // wall/easel grip range), everything else is 'flat'. Gamma is never consulted here — the
+      // alpha/beta/gamma decomposition sits right at its gimbal-lock singularity as beta crosses
+      // 90°, so gamma readings are unreliable exactly where this check matters most.
+      setCapturePlane(beta > 45 && beta < 135 ? 'upright' : 'flat')
     }
     if (typeof window !== 'undefined') {
       const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
@@ -836,7 +826,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       }
     }
     return () => cleanup?.()
-  }, [is2D])
+  }, [is2D, isDocument])
 
   // Micro-vibration "snap" the instant the bubble crosses into level — fires only on the
   // false→true transition (tracked via prevIsLevelRef), never while it remains level and
@@ -1997,33 +1987,62 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
                     }`}>
-                      <div className="absolute inset-0 flex items-center pointer-events-none">
-                        {/* Upright plane: this line doubles as a picture-hanging-level horizon,
-                            rotating with roll (gamma) instead of the dot translating sideways. */}
-                        <div
-                          className="w-full h-px bg-white/25"
-                          style={{
-                            transform: `rotate(${bubbleRotationDeg}deg)`,
-                            transition: 'transform 150ms ease-out',
-                          }}
-                        />
-                      </div>
-                      <div className="absolute inset-0 flex justify-center pointer-events-none">
-                        <div className="h-full w-px bg-white/25" />
-                      </div>
-                      <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
-                        isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
-                      }`} />
-                      <div
-                        className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
-                          isLevel ? 'bg-emerald-400' : 'bg-red-400'
-                        }`}
-                        style={{
-                          top: '50%', left: '50%',
-                          transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleY}px))`,
-                          transition: 'transform 150ms ease-out, background-color 300ms',
-                        }}
-                      />
+                      {capturePlane === 'flat' ? (
+                        <>
+                          {/* Flat plane (tabletop, looking down): bullseye — gamma drives the
+                              dot's X, beta drives its Y, free on both axes. */}
+                          <div className="absolute inset-0 flex items-center pointer-events-none">
+                            <div className="w-full h-px bg-white/25" />
+                          </div>
+                          <div className="absolute inset-0 flex justify-center pointer-events-none">
+                            <div className="h-full w-px bg-white/25" />
+                          </div>
+                          <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
+                            isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
+                          }`} />
+                          <div
+                            className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
+                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                            }`}
+                            style={{
+                              top: '50%', left: '50%',
+                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleY}px))`,
+                              transition: 'transform 150ms ease-out, background-color 300ms',
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {/* Upright plane (wall/easel, looking forward): picture-hanging level —
+                              roll (gamma) rotates the horizon bar instead of translating a dot on
+                              X, pitch (beta) still slides the whole assembly up/down. */}
+                          <div className="absolute inset-0 flex justify-center pointer-events-none">
+                            <div className="h-full w-px bg-white/15" />
+                          </div>
+                          <div
+                            className="absolute left-1/2 top-1/2 pointer-events-none"
+                            style={{
+                              width: '85%',
+                              transform: `translate(-50%, calc(-50% + ${bubbleY}px)) rotate(${bubbleRotationDeg}deg)`,
+                              transition: 'transform 150ms ease-out',
+                            }}
+                          >
+                            <div className={`h-0.5 w-full rounded-full transition-colors duration-300 ${
+                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                            }`} />
+                          </div>
+                          <div
+                            className={`absolute w-2.5 h-2.5 rounded-full shadow-md transition-colors duration-300 ${
+                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                            }`}
+                            style={{
+                              top: '50%', left: '50%',
+                              transform: `translate(-50%, calc(-50% + ${bubbleY}px))`,
+                              transition: 'transform 150ms ease-out, background-color 300ms',
+                            }}
+                          />
+                        </>
+                      )}
                     </div>
                     <span className={`text-[9px] font-mono tracking-wider transition-colors duration-300 ${
                       isLevel ? 'text-emerald-400' : 'text-red-400/80'
