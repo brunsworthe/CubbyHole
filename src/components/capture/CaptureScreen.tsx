@@ -13,6 +13,27 @@ const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ class
 
 type CameraStatus = 'requesting' | 'active' | 'denied' | 'unavailable' | 'error'
 
+// Standard tilt-only gravity vector reconstruction from device orientation angles (no yaw/
+// compass component — this is exactly what a real accelerometer measures). Earlier fixes tried
+// to patch beta/gamma's angle-space quirks directly (wrapping a singularity, relabeling which
+// raw axis was "pitch" vs "roll" based on the previous UI state); the last of those created a
+// feedback loop where entering Landscape immediately swapped the variable used to decide whether
+// to exit it, which could flip back within the same frame — an infinite hysteresis loop that
+// showed up as the CSS rotation transition never settling ("wobble").
+//
+// Projecting onto a 3D gravity vector sidesteps all of it. At beta ≈ 90° (device held vertical)
+// cos(beta) → 0, which multiplies gamma's erratic contribution to gx/gz by exactly zero — the
+// Android singularity is neutralized by the math itself, not by special-casing it. gx/gy/gz are
+// also orientation-agnostic: nothing about them depends on whether uiRotation is currently
+// Portrait or Landscape, so there's no axis relabeling left to feed a feedback loop.
+function computeGravityVector(beta: number, gamma: number): { gx: number; gy: number; gz: number } {
+  const rad = Math.PI / 180
+  const gy = Math.sin(beta * rad)
+  const gx = Math.cos(beta * rad) * Math.sin(gamma * rad)
+  const gz = Math.cos(beta * rad) * Math.cos(gamma * rad)
+  return { gx, gy, gz }
+}
+
 // Hardware zoom isn't in the standard MediaTrackCapabilities/Settings TS lib types yet
 // (same non-standard-field pattern already used for `torch` elsewhere in this file).
 type ZoomCapabilities = MediaTrackCapabilities & { zoom?: { min: number; max: number; step: number } }
@@ -405,8 +426,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const [baseSilhouetteUrl, setBaseSilhouetteUrl] = useState<string | null>(null)
 
   // ── Level indicator for 2D mode ───────────────────────────────────────────
-  const [levelBeta, setLevelBeta] = useState(30)
-  const [levelGamma, setLevelGamma] = useState(20)
+  // Gravity vector components (device coordinate frame) driving the level bubble, seeded with
+  // a plausible "held at a slight angle" default so the bubble doesn't start dead-center.
+  const [levelGx, setLevelGx] = useState(() => computeGravityVector(30, 20).gx)
+  const [levelGy, setLevelGy] = useState(() => computeGravityVector(30, 20).gy)
+  const [levelGz, setLevelGz] = useState(() => computeGravityVector(30, 20).gz)
   // Which surface the user is capturing against — a tabletop viewed from above ('flat') or a
   // wall/easel viewed head-on ('upright'). Drives which axes the level bubble maps to.
   const [capturePlane, setCapturePlane] = useState<'flat' | 'upright'>('flat')
@@ -448,27 +472,40 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const allFramesCaptured  = isScan3d  && currentStep >= 8
   const allReliefCaptured  = isRelief  && reliefStep  >= 6
 
-  // Bubble level axis swap: levelBeta/levelGamma are always the phone's raw, unfrozen front-back /
-  // left-right tilt — independent of uiRotation's flat-lock. When the UI is visually rotated 90°,
-  // "pitch" and "roll" trade places on screen, so the tilt vector is rotated by the same snapped
-  // angle to keep the bubble moving the direction the user actually tilts.
-  const { effBeta, effGamma } = (() => {
-    switch (uiRotation) {
-      case 90:   return { effBeta: -levelGamma, effGamma: levelBeta }
-      case -90:  return { effBeta: levelGamma,  effGamma: -levelBeta }
-      case 180:  return { effBeta: -levelBeta,  effGamma: -levelGamma }
-      default:   return { effBeta: levelBeta,   effGamma: levelGamma }
-    }
+  // Flat-plane tabletop bullseye: gravity's device-frame X/Y components map straight to the
+  // dot's X/Y offset, no orientation-dependent axis swap needed — when actually flat (gz
+  // dominant), gx/gy are both naturally small, so any residual Portrait/Landscape discrepancy
+  // is negligible in practice. Clamped by vector magnitude (not per-axis) so a diagonal tilt
+  // can't push the dot's combined offset past the ring's edge.
+  const rawFlatX = levelGx * 40
+  const rawFlatY = levelGy * 40
+  const flatMag = Math.hypot(rawFlatX, rawFlatY)
+  const flatScale = flatMag > 11 ? 11 / flatMag : 1
+  const bubbleX = rawFlatX * flatScale
+  const bubbleFlatY = rawFlatY * flatScale
+
+  // Picture-hanging level (upright plane): which gravity component drives the horizon-line
+  // rotation (roll) vs the dot's vertical offset (pitch) swaps between Portrait and Landscape —
+  // gx and gy trade roles exactly the way the physical beta/gamma axes do once the device is
+  // held sideways. Signs are flipped per direction so the line/dot always move the way the user
+  // visually expects.
+  const { uprightRotationSource, uprightVerticalSource } = (() => {
+    if (uiRotation === 90)  return { uprightRotationSource: levelGy,  uprightVerticalSource: -levelGx }
+    if (uiRotation === -90) return { uprightRotationSource: -levelGy, uprightVerticalSource: levelGx }
+    return { uprightRotationSource: levelGx, uprightVerticalSource: levelGy }
   })()
-  const isLevel = (is2D || isDocument) && Math.abs(effBeta) < 8 && Math.abs(effGamma) < 8
-  // Pitch (beta) always drives the vertical offset — a tabletop bullseye and a picture-hanging
-  // level both read "tilted toward/away from me" the same way.
-  const bubbleY = Math.max(-11, Math.min(11, (effBeta / 30) * 11))
-  // Flat-plane-only: tabletop bullseye, where gamma drives the dot's X position directly.
-  const bubbleX = Math.max(-11, Math.min(11, (effGamma / 30) * 11))
-  // Upright-plane-only: roll instead reads as a horizon-line rotation, the way a
-  // picture-hanging level works, rather than the dot drifting sideways.
-  const bubbleRotationDeg = Math.max(-25, Math.min(25, effGamma))
+  // Dead-level-upright sits at |source| ≈ 1 (gravity runs almost entirely along whichever axis
+  // currently reads as pitch), so center on that reference before scaling — otherwise the dot
+  // would permanently read near its max deflection.
+  const uprightVerticalCentered = uprightVerticalSource - (Math.sign(uprightVerticalSource) || 1)
+  const bubbleY = Math.max(-11, Math.min(11, uprightVerticalCentered * 30))
+  const bubbleRotationDeg = Math.max(-25, Math.min(25, uprightRotationSource * 60))
+
+  const isLevel = (is2D || isDocument) && (
+    capturePlane === 'flat'
+      ? Math.abs(levelGx) < 0.05 && Math.abs(levelGy) < 0.05
+      : Math.abs(uprightRotationSource) < 0.05 && Math.abs(uprightVerticalCentered) < 0.05
+  )
 
   // ── Camera init ───────────────────────────────────────────────────────────
   const initCamera = useCallback(() => {
@@ -610,51 +647,35 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // Native-rotation illusion: mirror physical device orientation onto UI content via CSS transform,
   // while the outer layout stays rigidly portrait-locked. Snapped to 90° increments.
   //
-  // Android/Chrome convention: beta = 0 flat face-up, 90 held perfectly vertical, >90 tilting
-  // backward toward the user. A Pixel 9 Pro test surfaced two concrete failures in an earlier
-  // version of this logic:
-  //   1. Tilting backward past vertical (beta 90°–135°) was being read as approaching upside-down
-  //      and instantly flipped the UI to 180°.
-  //   2. A small left/right tilt past vertical was instantly snapping into landscape.
-  // Fixed with a strict, ordered decision tree (still EMA-smoothed to cut frame-to-frame jitter):
-  //   - Landscape only ever engages past a hard 45° roll, and drops back out below 35° — that
-  //     10° gap is the hysteresis band that stops boundary flicker.
-  //   - Any beta in (45°, 135°) — the entire comfortably-upright "camera grip" range, including
-  //     tilting back toward the user — is pole-locked to Portrait whenever roll is under 45°,
-  //     unconditionally overriding whatever the rotation previously was. This is the direct fix
-  //     for failure #1.
-  //   - 180° is reserved for the case that's mathematically undeniable: pitched almost fully
-  //     over (beta past 150°) with roll settled near zero. Every other pitch — including the
-  //     entire flat-on-a-table range — defaults to Portrait rather than upside-down.
-  const orientationSmoothRef = useRef<{ beta: number; gamma: number } | null>(null)
+  // Decided entirely off the gravity vector (gx, gy) rather than raw beta/gamma — see
+  // computeGravityVector's comment for why that also neutralizes the Android gamma-jump
+  // singularity for free. The decision itself only ever looks at the *current* uiRotation to
+  // pick which axis to check (never re-derives "which axis is which" from the tilt itself), so
+  // there's no relabeling feedback loop left to cause flapping: Portrait watches gx to decide
+  // whether to enter Landscape; Landscape watches gy to decide whether to leave. A backward lean
+  // while already in Landscape moves gx, which this branch never looks at, so it can't be misread
+  // as a twist back to Portrait. 180° stays retired (clamped to 0/90/-90 only).
+  const orientationSmoothRef = useRef<{ gx: number; gy: number; gz: number } | null>(null)
   const enableOrientationTracking = useCallback(() => {
     if (orientationTrackingRef.current || typeof window === 'undefined') return
     orientationTrackingRef.current = true
     const handler = (e: DeviceOrientationEvent) => {
-      const rawBeta = e.beta
-      const rawGamma = e.gamma
-      if (rawBeta === null || rawGamma === null) return
+      const beta = e.beta
+      const gamma = e.gamma
+      if (beta === null || gamma === null) return
+      const raw = computeGravityVector(beta, gamma)
 
       const prevSmoothed = orientationSmoothRef.current
-      const beta  = prevSmoothed ? prevSmoothed.beta  + (rawBeta  - prevSmoothed.beta)  * 0.25 : rawBeta
-      const gamma = prevSmoothed ? prevSmoothed.gamma + (rawGamma - prevSmoothed.gamma) * 0.25 : rawGamma
-      orientationSmoothRef.current = { beta, gamma }
+      const gx = prevSmoothed ? prevSmoothed.gx + (raw.gx - prevSmoothed.gx) * 0.25 : raw.gx
+      const gy = prevSmoothed ? prevSmoothed.gy + (raw.gy - prevSmoothed.gy) * 0.25 : raw.gy
+      const gz = prevSmoothed ? prevSmoothed.gz + (raw.gz - prevSmoothed.gz) * 0.25 : raw.gz
+      orientationSmoothRef.current = { gx, gy, gz }
 
       setUiRotation((prev): 0 | 90 | -90 | 180 => {
-        // Deliberate landscape turn — strict, symmetric enter/exit bar, independent of pitch.
-        if (Math.abs(gamma) > 45) {
-          return gamma > 0 ? -90 : 90
+        if (prev === 0) {
+          return Math.abs(gx) > 0.65 ? (gx > 0 ? -90 : 90) : 0
         }
-        // Pole lock: comfortably-upright grip range, no real roll — always Portrait.
-        if (Math.abs(beta) > 45 && Math.abs(beta) < 135) {
-          return 0
-        }
-        // Roll has dropped back near zero — snap out of landscape.
-        if (Math.abs(gamma) < 35) {
-          return Math.abs(beta) > 150 ? 180 : 0
-        }
-        // 35°–45° gamma dead zone: hold the previous rotation (hysteresis gap).
-        return prev
+        return Math.abs(gy) > 0.65 ? 0 : prev
       })
     }
     window.addEventListener('deviceorientation', handler)
@@ -787,18 +808,30 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // Device orientation for 2D level indicator
   useEffect(() => {
-    if (!is2D && !isDocument) { setLevelBeta(30); setLevelGamma(20); setCapturePlane('flat'); return }
+    if (!is2D && !isDocument) {
+      const g = computeGravityVector(30, 20)
+      setLevelGx(g.gx); setLevelGy(g.gy); setLevelGz(g.gz)
+      setCapturePlane('flat')
+      return
+    }
     let cleanup: (() => void) | undefined
     const handler = (e: DeviceOrientationEvent) => {
       const beta = e.beta ?? 30
-      setLevelBeta(beta)
-      setLevelGamma(e.gamma ?? 20)
+      const gamma = e.gamma ?? 20
+      const { gx, gy, gz } = computeGravityVector(beta, gamma)
+      setLevelGx(gx)
+      setLevelGy(gy)
+      setLevelGz(gz)
 
-      // Plane detection depends on pitch alone: 'upright' is strictly 45° < beta < 135° (the
-      // wall/easel grip range), everything else is 'flat'. Gamma is never consulted here — the
-      // alpha/beta/gamma decomposition sits right at its gimbal-lock singularity as beta crosses
-      // 90°, so gamma readings are unreliable exactly where this check matters most.
-      setCapturePlane(beta > 45 && beta < 135 ? 'upright' : 'flat')
+      // Flat on a table means gravity points mostly along the device's Z-axis; anything else is
+      // held up like a camera. Orientation-agnostic by construction — no beta/gamma range check
+      // or uiRotation lookup needed, so this works identically in Portrait and Landscape.
+      setCapturePlane(Math.abs(gz) > 0.7 ? 'flat' : 'upright')
+    }
+    const setFallbackLevel = () => {
+      const g = computeGravityVector(1.5, 0.8)
+      setLevelGx(g.gx); setLevelGy(g.gy); setLevelGz(g.gz)
+      setCapturePlane('flat')
     }
     if (typeof window !== 'undefined') {
       const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
@@ -809,19 +842,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               window.addEventListener('deviceorientation', handler)
               cleanup = () => window.removeEventListener('deviceorientation', handler)
             } else {
-              const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 1500)
+              const t = setTimeout(setFallbackLevel, 1500)
               cleanup = () => clearTimeout(t)
             }
           })
           .catch(() => {
-            const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 1500)
+            const t = setTimeout(setFallbackLevel, 1500)
             cleanup = () => clearTimeout(t)
           })
       } else if ('ondeviceorientation' in window) {
         window.addEventListener('deviceorientation', handler)
         cleanup = () => window.removeEventListener('deviceorientation', handler)
       } else {
-        const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 2000)
+        const t = setTimeout(setFallbackLevel, 2000)
         cleanup = () => clearTimeout(t)
       }
     }
@@ -2006,7 +2039,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                             }`}
                             style={{
                               top: '50%', left: '50%',
-                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleY}px))`,
+                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleFlatY}px))`,
                               transition: 'transform 150ms ease-out, background-color 300ms',
                             }}
                           />
