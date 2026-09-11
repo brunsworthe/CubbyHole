@@ -263,26 +263,46 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
 const BOX_DIM_MIN = 25
 const BOX_DIM_MAX = 95
 
-function BoxTrackpad({ width, height, onChange, disabled }: {
+function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   width: number
   height: number
   onChange: (w: number, h: number) => void
   disabled?: boolean
+  uiRotation: 0 | 90 | -90 | 180
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
 
+  // Pointer coordinates arrive in screen space, but the pad's parent wrapper is visually
+  // spun by uiRotation (same rotate() transform as the rest of the HUD) so it stays upright
+  // for the user. getBoundingClientRect() still reports the unrotated box (rotating a square
+  // about its center leaves its axis-aligned bounding box unchanged), so a raw screen-space
+  // fraction lands on the wrong edge once rotated — e.g. dragging to the visual top-right in
+  // landscape (uiRotation ±90) would otherwise read as a screen-space corner that isn't the
+  // top-right of the rotated pad at all. Counter-rotate the point by -uiRotation (inverse of
+  // the CSS transform) around the pad's center before mapping it to width/height, so "visual
+  // top-right" always resolves to logical top-right regardless of orientation.
   const updateFromPoint = useCallback((clientX: number, clientY: number) => {
     const el = containerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const xPct = Math.max(0, Math.min(1, (clientX - r.left) / r.width))
-    const yPct = Math.max(0, Math.min(1, (clientY - r.top) / r.height))
+    // Screen-space fraction, centered on the pad (can exceed [0,1] mid-drag; clamped after rotation).
+    const sx = (clientX - r.left) / r.width - 0.5
+    const sy = (clientY - r.top) / r.height - 0.5
+    let lx: number, ly: number
+    switch (uiRotation) {
+      case 90:  lx = sy;  ly = -sx; break  // visual top-right (sx>0, sy<0) -> logical (lx>0, ly>0) = right/top
+      case -90: lx = -sy; ly = sx;  break
+      case 180: lx = -sx; ly = -sy; break
+      default:  lx = sx;  ly = sy
+    }
+    const xPct = Math.max(0, Math.min(1, lx + 0.5))
+    const yPct = Math.max(0, Math.min(1, ly + 0.5))
     const range = BOX_DIM_MAX - BOX_DIM_MIN
     const w = BOX_DIM_MIN + xPct * range
-    const h = BOX_DIM_MAX - yPct * range // screen top = max height, screen bottom = min height
+    const h = BOX_DIM_MAX - yPct * range // logical top = max height, logical bottom = min height
     onChange(Math.round(w), Math.round(h))
-  }, [onChange])
+  }, [onChange, uiRotation])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
@@ -1660,6 +1680,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={currentStep !== 0}
+                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
@@ -1777,6 +1798,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={reliefStep !== 0}
+                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
