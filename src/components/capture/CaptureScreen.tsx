@@ -407,6 +407,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Level indicator for 2D mode ───────────────────────────────────────────
   const [levelBeta, setLevelBeta] = useState(30)
   const [levelGamma, setLevelGamma] = useState(20)
+  // Which surface the user is capturing against — a tabletop viewed from above ('flat') or a
+  // wall/easel viewed head-on ('upright'). Drives which axes the level bubble maps to.
+  const [capturePlane, setCapturePlane] = useState<'flat' | 'upright'>('flat')
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -458,8 +461,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     }
   })()
   const isLevel = (is2D || isDocument) && Math.abs(effBeta) < 8 && Math.abs(effGamma) < 8
-  const bubbleX = Math.max(-11, Math.min(11, (effGamma / 30) * 11))
-  const bubbleY = Math.max(-11, Math.min(11, (effBeta  / 30) * 11))
+  // Pitch (beta) always drives the vertical offset — a tabletop bullseye and a picture-hanging
+  // level both read "tilted toward/away from me" the same way.
+  const bubbleY = Math.max(-11, Math.min(11, (effBeta / 30) * 11))
+  // Flat (tabletop, looking down): roll shows as a second translation axis, same as pitch —
+  // a bullseye where gamma drives X and beta drives Y.
+  // Upright (wall/easel, looking forward): roll instead reads as a horizon-line rotation, the
+  // way a picture-hanging level works, so the dot itself doesn't drift sideways on roll alone.
+  const bubbleX = capturePlane === 'flat'
+    ? Math.max(-11, Math.min(11, (effGamma / 30) * 11))
+    : 0
+  const bubbleRotationDeg = capturePlane === 'upright'
+    ? Math.max(-25, Math.min(25, effGamma))
+    : 0
 
   // ── Camera init ───────────────────────────────────────────────────────────
   const initCamera = useCallback(() => {
@@ -600,26 +614,55 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // Native-rotation illusion: mirror physical device orientation onto UI content via CSS transform,
   // while the outer layout stays rigidly portrait-locked. Snapped to 90° increments.
+  //
+  // Raw beta/gamma are noisy, and near the flat/tabletop pitch (beta ≈ 0° or ±180°) the
+  // alpha/beta/gamma decomposition approaches a singularity: a fraction of a degree of real
+  // tilt can read back as a large, sign-flipping swing in gamma. Two defenses, both keyed off
+  // the *previous* rotation so the decision is sticky rather than re-derived from scratch on
+  // every event:
+  //   1. A light EMA smooths frame-to-frame jitter before any threshold check runs.
+  //   2. Hysteresis — the gamma bar to *enter* a landscape rotation is higher than the bar to
+  //      *stay* in one, and a "pole lock" raises that enter-bar steeply whenever beta sits close
+  //      to the flat pitch, biasing hard toward staying put (or portrait) unless the roll is
+  //      large enough to be an unmistakably deliberate landscape turn.
+  const orientationSmoothRef = useRef<{ beta: number; gamma: number } | null>(null)
   const enableOrientationTracking = useCallback(() => {
     if (orientationTrackingRef.current || typeof window === 'undefined') return
     orientationTrackingRef.current = true
     const handler = (e: DeviceOrientationEvent) => {
-      const beta = e.beta
-      const gamma = e.gamma
-      if (beta === null || gamma === null) return
+      const rawBeta = e.beta
+      const rawGamma = e.gamma
+      if (rawBeta === null || rawGamma === null) return
 
-      // Renamed to avoid collision with the flat-mode flag.
-      // Expanded deadzone to 55 degrees to beat the 45-degree orientation snap.
+      const prevSmoothed = orientationSmoothRef.current
+      const beta  = prevSmoothed ? prevSmoothed.beta  + (rawBeta  - prevSmoothed.beta)  * 0.25 : rawBeta
+      const gamma = prevSmoothed ? prevSmoothed.gamma + (rawGamma - prevSmoothed.gamma) * 0.25 : rawGamma
+      orientationSmoothRef.current = { beta, gamma }
+
+      // Deadzone: while the device sits close to flat with little roll, freeze the decision
+      // entirely so table-top jitter never nudges the UI. Expanded to 55 degrees to beat the
+      // 45-degree orientation snap.
       const isDeviceFlat = (Math.abs(beta) < 55 || Math.abs(beta) > 125) && Math.abs(gamma) < 55
       if (isDeviceFlat) return
 
-      let angle: 0 | 90 | -90 | 180 = 0
-      if (Math.abs(gamma) > 45) {
-        angle = gamma > 0 ? -90 : 90
-      } else if (Math.abs(beta) > 135) {
-        angle = 180
-      }
-      setUiRotation(prev => (prev === angle ? prev : angle))
+      setUiRotation((prev): 0 | 90 | -90 | 180 => {
+        const inLandscape = prev === 90 || prev === -90
+        const nearFlatPole = Math.abs(beta) < 35 || Math.abs(beta) > 145
+
+        // Bar to accept/keep a landscape rotation: lowest once already landscape (hysteresis),
+        // highest near the flat pole (pole lock), otherwise the standard "deliberate turn" bar.
+        const gammaEnter = nearFlatPole ? 70 : (inLandscape ? 30 : 45)
+        if (Math.abs(gamma) > gammaEnter) {
+          return gamma > 0 ? -90 : 90
+        }
+        // Only reconsider the 0°/180° split once roll has cleared well below the landscape
+        // band — this gap is what stops boundary flicker between the two decisions.
+        if (Math.abs(gamma) < 25) {
+          const betaEnter = prev === 180 ? 115 : 135
+          return Math.abs(beta) > betaEnter ? 180 : 0
+        }
+        return prev
+      })
     }
     window.addEventListener('deviceorientation', handler)
   }, [])
@@ -751,11 +794,21 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
   // Device orientation for 2D level indicator
   useEffect(() => {
-    if (!is2D && !isDocument) { setLevelBeta(30); setLevelGamma(20); return }
+    if (!is2D && !isDocument) { setLevelBeta(30); setLevelGamma(20); setCapturePlane('flat'); return }
     let cleanup: (() => void) | undefined
     const handler = (e: DeviceOrientationEvent) => {
-      setLevelBeta(e.beta  ?? 30)
+      const beta = e.beta ?? 30
+      setLevelBeta(beta)
       setLevelGamma(e.gamma ?? 20)
+
+      // Plane detection: how far beta sits from the nearest flat pole (0° or 180°) is the pitch
+      // above the table. Past 45° from flat, the device reads as held up against a wall/easel.
+      // Hysteresis (lower bar to *stay* upright than to *enter* it) stops flicker right at 45°.
+      setCapturePlane(prev => {
+        const distFromFlat = Math.min(Math.abs(beta), Math.abs(180 - Math.abs(beta)))
+        const uprightEnter = prev === 'upright' ? 35 : 45
+        return distFromFlat > uprightEnter ? 'upright' : 'flat'
+      })
     }
     if (typeof window !== 'undefined') {
       const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }
@@ -766,19 +819,19 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               window.addEventListener('deviceorientation', handler)
               cleanup = () => window.removeEventListener('deviceorientation', handler)
             } else {
-              const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8) }, 1500)
+              const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 1500)
               cleanup = () => clearTimeout(t)
             }
           })
           .catch(() => {
-            const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8) }, 1500)
+            const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 1500)
             cleanup = () => clearTimeout(t)
           })
       } else if ('ondeviceorientation' in window) {
         window.addEventListener('deviceorientation', handler)
         cleanup = () => window.removeEventListener('deviceorientation', handler)
       } else {
-        const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8) }, 2000)
+        const t = setTimeout(() => { setLevelBeta(1.5); setLevelGamma(0.8); setCapturePlane('flat') }, 2000)
         cleanup = () => clearTimeout(t)
       }
     }
@@ -1945,7 +1998,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
                     }`}>
                       <div className="absolute inset-0 flex items-center pointer-events-none">
-                        <div className="w-full h-px bg-white/25" />
+                        {/* Upright plane: this line doubles as a picture-hanging-level horizon,
+                            rotating with roll (gamma) instead of the dot translating sideways. */}
+                        <div
+                          className="w-full h-px bg-white/25"
+                          style={{
+                            transform: `rotate(${bubbleRotationDeg}deg)`,
+                            transition: 'transform 150ms ease-out',
+                          }}
+                        />
                       </div>
                       <div className="absolute inset-0 flex justify-center pointer-events-none">
                         <div className="h-full w-px bg-white/25" />
