@@ -472,13 +472,23 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const allFramesCaptured  = isScan3d  && currentStep >= 8
   const allReliefCaptured  = isRelief  && reliefStep  >= 6
 
-  // Flat-plane tabletop bullseye: gravity's device-frame X/Y components map straight to the
-  // dot's X/Y offset, no orientation-dependent axis swap needed — when actually flat (gz
-  // dominant), gx/gy are both naturally small, so any residual Portrait/Landscape discrepancy
-  // is negligible in practice. Clamped by vector magnitude (not per-axis) so a diagonal tilt
-  // can't push the dot's combined offset past the ring's edge.
-  const rawFlatX = levelGx * 40
-  const rawFlatY = levelGy * 40
+  // Flat-plane tabletop bullseye: the dot's wrapping HUD div is CSS-rotated by uiRotation
+  // (uiSpinStyle) to keep the ring upright for the user, but gx/gy are fixed to the device's
+  // hardware portrait axes and never rotate with it — so a raw gx/gy offset lands in the
+  // wrapper's pre-rotation local space and ends up spun the wrong way once the CSS transform
+  // applies, e.g. a physical tilt "left" in landscape visually reads as the dot moving "up".
+  // Counter-rotate (gx, gy) by -uiRotation first — the exact same 2D rotation matrix BoxTrackpad
+  // uses on pointer coordinates for the same reason — so the CSS rotation lands the dot back in
+  // line with the physical tilt direction the user actually feels. Clamped by vector magnitude
+  // (not per-axis) so a diagonal tilt can't push the dot's combined offset past the ring's edge.
+  const { flatLogicalGx, flatLogicalGy } = (() => {
+    if (uiRotation === 90)  return { flatLogicalGx: levelGy,  flatLogicalGy: -levelGx }
+    if (uiRotation === -90) return { flatLogicalGx: -levelGy, flatLogicalGy: levelGx }
+    if (uiRotation === 180) return { flatLogicalGx: -levelGx, flatLogicalGy: -levelGy }
+    return { flatLogicalGx: levelGx, flatLogicalGy: levelGy }
+  })()
+  const rawFlatX = flatLogicalGx * 40
+  const rawFlatY = flatLogicalGy * 40
   const flatMag = Math.hypot(rawFlatX, rawFlatY)
   const flatScale = flatMag > 11 ? 11 / flatMag : 1
   const bubbleX = rawFlatX * flatScale
@@ -2017,7 +2027,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 </button>
                 {(is2D || isDocument) && cameraReady ? (
                   <div style={uiSpinStyle} className="flex flex-col items-center gap-1">
-                    <div className={`relative w-11 h-11 rounded-full border-2 transition-all duration-300 ${
+                    <div className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
                     }`}>
                       {capturePlane === 'flat' ? (
@@ -2045,36 +2055,29 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                           />
                         </>
                       ) : (
-                        <>
-                          {/* Upright plane (wall/easel, looking forward): picture-hanging level —
-                              roll (gamma) rotates the horizon bar instead of translating a dot on
-                              X, pitch (beta) still slides the whole assembly up/down. */}
-                          <div className="absolute inset-0 flex justify-center pointer-events-none">
-                            <div className="h-full w-px bg-white/15" />
-                          </div>
+                        <div
+                          className="absolute top-1/2 left-1/2 origin-center pointer-events-none"
+                          style={{
+                            width: '192px',
+                            height: '4px',
+                            backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                            zIndex: 50,
+                            transform: `translate(-50%, calc(-50% + ${bubbleY || 0}px)) rotate(${bubbleRotationDeg || 0}deg)`,
+                          }}
+                        >
+                          {/* Center dot on the horizon line */}
                           <div
-                            className="absolute left-1/2 top-1/2 pointer-events-none"
+                            className="absolute top-1/2 left-1/2 pointer-events-none"
                             style={{
-                              width: '85%',
-                              transform: `translate(-50%, calc(-50% + ${bubbleY}px)) rotate(${bubbleRotationDeg}deg)`,
-                              transition: 'transform 150ms ease-out',
-                            }}
-                          >
-                            <div className={`h-0.5 w-full rounded-full transition-colors duration-300 ${
-                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
-                            }`} />
-                          </div>
-                          <div
-                            className={`absolute w-2.5 h-2.5 rounded-full shadow-md transition-colors duration-300 ${
-                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
-                            }`}
-                            style={{
-                              top: '50%', left: '50%',
-                              transform: `translate(-50%, calc(-50% + ${bubbleY}px))`,
-                              transition: 'transform 150ms ease-out, background-color 300ms',
+                              width: '16px',
+                              height: '16px',
+                              backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                              borderRadius: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 51,
                             }}
                           />
-                        </>
+                        </div>
                       )}
                     </div>
                     <span className={`text-[9px] font-mono tracking-wider transition-colors duration-300 ${
