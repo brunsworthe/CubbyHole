@@ -1843,7 +1843,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center${currentStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle}>
+                  <div style={uiSpinStyle} className="transform scale-[0.75] origin-center">
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
@@ -1854,7 +1854,43 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </div>
                 </div>
 
-                <div className="w-10 flex-shrink-0" aria-hidden="true" />
+                {/* Left spacer replaced by the Rotate/Orbit toggle pill — same w-10 flex-shrink-0
+                     footprint as the spacer it replaces, mirroring the Timer's placement on the
+                     right. The pill visually overflows this 40px slot without affecting the flex
+                     symmetry, since flex-shrink-0 keeps its basis fixed regardless of content. */}
+                <div className="w-10 flex-shrink-0 flex items-center justify-center">
+                  <div className="transform scale-[0.80] origin-center flex flex-col gap-2 items-center">
+                    <button
+                      onClick={() => handleOrbitToggle(false)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                        !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
+                      }`}
+                      aria-label="Rotate mode"
+                    >
+                      <div style={uiSpinStyle} className="relative flex items-center justify-center">
+                        <RefreshCw className="w-5 h-5" />
+                        {/* Central object the arrows spin around */}
+                        <div className="absolute w-1.5 h-1.5 bg-white rounded-sm" />
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleOrbitToggle(true)}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                        isOrbitMode
+                          ? 'bg-slate-500 text-white shadow-sm shadow-slate-500/30'
+                          : 'text-white/35 hover:text-white/60'
+                      }`}
+                      aria-label="Orbit mode"
+                    >
+                      <div style={uiSpinStyle} className="flex items-center justify-center">
+                        <svg viewBox="0 0 12 12" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                          <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                          <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </div>
 
                 {/* Shutter button, wrapped in a progress ring showing frames captured / 8 */}
                 <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
@@ -1900,40 +1936,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </button>
                 </div>
 
-                {/* Right zone: fixed equal width, 3D Mode label + stacked Rotate / Orbit buttons. */}
-                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
-                  <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
-                    <div className="flex items-center gap-1">
-                      <Box className={`w-3 h-3 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
-                      <span className="text-white/50 text-[9px] font-medium">3D Mode</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5 bg-white/8 rounded-xl p-0.5">
-                      <button
-                        onClick={() => handleOrbitToggle(false)}
-                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-                          !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
-                        }`}
-                      >
-                        <RefreshCw className="w-2.5 h-2.5" />
-                        Rotate
-                      </button>
-                      <button
-                        onClick={() => handleOrbitToggle(true)}
-                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-                          isOrbitMode
-                            ? 'bg-slate-500 text-white shadow-sm shadow-slate-500/30'
-                            : 'text-white/35 hover:text-white/60'
-                        }`}
-                      >
-                        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-                          <circle cx="6" cy="6" r="1.5" fill="currentColor" stroke="none" />
-                          <circle cx="6" cy="6" r="4.5" strokeDasharray="2 1.5" />
-                        </svg>
-                        Orbit
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                {/* Right zone: fixed equal width, kept empty (Rotate/Orbit moved to the left
+                     gap) so the shutter's centering math is preserved. */}
+                <div className="w-28 flex items-center justify-center" />
               </div>
             </div>
           )}
@@ -1966,7 +1971,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center${reliefStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle}>
+                  <div style={uiSpinStyle} className="transform scale-[0.75] origin-center">
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
