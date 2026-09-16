@@ -1374,30 +1374,32 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
         {/* Hardware zoom HUD — bottom-right of video content area. Only renders when the
              active track's capabilities report zoom support (never on iOS Safari). Outer
-             layers stay pointer-events-none so the pill doesn't swallow pinch touches
-             elsewhere on the viewfinder; only the pill itself (and its buttons) opts back in. */}
+             layers stay pointer-events-none so the deconstructed controls don't swallow pinch
+             touches elsewhere on the viewfinder; only the buttons themselves opt back in. The
+             glass background now lives on each circular button individually rather than a
+             single pill wrapper, so the layout container below is purely structural. */}
         {supportsZoom && zoomLimits && cameraReady && videoAR != null && containerSize != null && !cropState && !(isFlat && docOverlay) && (
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
             <div className="relative" style={videoContentStyle}>
-              <div className="absolute bottom-4 right-4 pointer-events-auto flex flex-col items-center gap-2 bg-black/30 backdrop-blur-md border border-white/20 rounded-full p-2">
+              <div className="absolute bottom-4 right-4 pointer-events-auto flex flex-col items-center gap-1.5">
                 <button
                   onClick={() => handleZoomChange(zoom + zoomLimits.step)}
                   disabled={zoom >= zoomLimits.max}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-white/20 disabled:opacity-30 transition-colors"
                   aria-label="Zoom in"
                 >
-                  <Plus className="w-3.5 h-3.5" style={uiSpinStyle} />
+                  <Plus className="w-3 h-3" style={uiSpinStyle} />
                 </button>
-                <span className="text-white text-[10px] font-mono font-semibold tabular-nums [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]" style={uiSpinStyle}>
+                <span className="text-white text-[9px] font-mono font-semibold tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={uiSpinStyle}>
                   {zoom.toFixed(1)}x
                 </span>
                 <button
                   onClick={() => handleZoomChange(zoom - zoomLimits.step)}
                   disabled={zoom <= zoomLimits.min}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 transition-colors"
+                  className="w-6 h-6 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-white/20 disabled:opacity-30 transition-colors"
                   aria-label="Zoom out"
                 >
-                  <Minus className="w-3.5 h-3.5" style={uiSpinStyle} />
+                  <Minus className="w-3 h-3" style={uiSpinStyle} />
                 </button>
               </div>
             </div>
@@ -1880,10 +1882,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </button>
                 </div>
 
-                <div className="w-10 flex-shrink-0" aria-hidden="true" />
-
-                {/* Right zone: fixed equal width, timer toggle + 3D Mode label + stacked Rotate / Orbit buttons */}
-                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                {/* Right spacer replaced by the timer toggle — same w-10 flex-shrink-0 footprint
+                     as the left spacer, so the shutter's centering is untouched, just with the
+                     timer button laid out in normal flex flow instead of an empty gap. */}
+                <div className="w-10 flex-shrink-0 flex items-center justify-center">
                   <button
                     onClick={() => setTimerOn(v => !v)}
                     className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
@@ -1896,6 +1898,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   >
                     <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
                   </button>
+                </div>
+
+                {/* Right zone: fixed equal width, 3D Mode label + stacked Rotate / Orbit buttons. */}
+                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
                   <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-1">
                       <Box className={`w-3 h-3 flex-shrink-0 transition-colors ${!isOrbitMode ? 'text-slate-400' : 'text-white/30'}`} />
@@ -1998,12 +2004,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </button>
                 </div>
 
-                <div className="w-10 flex-shrink-0" aria-hidden="true" />
-
-                {/* Right zone: fixed equal width, matches the left zone's footprint so the
-                     shutter stays centered. Lighting now lives solely in the global flashMode
-                     toggle on the viewfinder, so this zone is just the timer toggle. */}
-                <div className="w-28 flex items-center justify-center">
+                {/* Right spacer replaced by the timer toggle — same w-10 flex-shrink-0 footprint
+                     as the left spacer, so the shutter's centering is untouched, just with the
+                     timer button laid out in normal flex flow instead of an empty gap. */}
+                <div className="w-10 flex-shrink-0 flex items-center justify-center">
                   <button
                     onClick={() => setTimerOn(v => !v)}
                     className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
@@ -2017,6 +2021,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
                   </button>
                 </div>
+
+                {/* Right zone: fixed equal width, matches the left zone's footprint so the
+                     shutter stays centered. Lighting lives solely in the global flashMode
+                     toggle on the viewfinder, so this zone is intentionally empty. */}
+                <div className="w-28 flex items-center justify-center" />
               </div>
             </div>
           )}
@@ -2060,10 +2069,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 )}
               </button>
 
-              <div className="w-10 flex-shrink-0" aria-hidden="true" />
-
-              {/* Right zone: timer toggle + level indicator (2D Artwork) or spacer (Document) */}
-              <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+              {/* Right spacer replaced by the timer toggle — same w-10 flex-shrink-0 footprint
+                   as the left spacer, so the shutter's centering is untouched, just with the
+                   timer button laid out in normal flex flow instead of an empty gap. */}
+              <div className="w-10 flex-shrink-0 flex items-center justify-center">
                 <button
                   onClick={() => setTimerOn(v => !v)}
                   className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
@@ -2076,6 +2085,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 >
                   <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
                 </button>
+              </div>
+
+              {/* Right zone: level indicator (2D Artwork) or spacer (Document). */}
+              <div className="w-28 flex flex-col items-center justify-center gap-1.5">
                 {(is2D || isDocument) && cameraReady ? (
                   <div style={uiSpinStyle} className="flex flex-col items-center gap-1">
                     <div className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
