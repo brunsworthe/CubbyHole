@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, ZapOff, Sun, Maximize, Minimize, Plus, Minus, Timer, Trash2 } from 'lucide-react'
+import { X, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, ZapOff, Sun, Maximize, Minimize, Plus, Minus, Timer, Trash2, RefreshCw } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -1910,10 +1910,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                     <div className="flex flex-col gap-0.5 bg-white/8 rounded-xl p-0.5">
                       <button
                         onClick={() => handleOrbitToggle(false)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
                           !isOrbitMode ? 'bg-white/20 text-white shadow-sm' : 'text-white/35 hover:text-white/60'
                         }`}
                       >
+                        <RefreshCw className="w-2.5 h-2.5" />
                         Rotate
                       </button>
                       <button
