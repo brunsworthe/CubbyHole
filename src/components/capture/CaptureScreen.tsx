@@ -2090,65 +2090,58 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               {/* Right zone: level indicator (2D Artwork) or spacer (Document). */}
               <div className="w-28 flex flex-col items-center justify-center gap-1.5">
                 {(is2D || isDocument) && cameraReady ? (
-                  <div style={uiSpinStyle} className="flex flex-col items-center gap-1">
-                    <div className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
-                      isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
-                    }`}>
-                      {capturePlane === 'flat' ? (
-                        <>
-                          {/* Flat plane (tabletop, looking down): bullseye — gamma drives the
-                              dot's X, beta drives its Y, free on both axes. */}
-                          <div className="absolute inset-0 flex items-center pointer-events-none">
-                            <div className="w-full h-px bg-white/25" />
-                          </div>
-                          <div className="absolute inset-0 flex justify-center pointer-events-none">
-                            <div className="h-full w-px bg-white/25" />
-                          </div>
-                          <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
-                            isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
-                          }`} />
-                          <div
-                            className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
-                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
-                            }`}
-                            style={{
-                              top: '50%', left: '50%',
-                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleFlatY}px))`,
-                              transition: 'transform 150ms ease-out, background-color 300ms',
-                            }}
-                          />
-                        </>
-                      ) : (
-                        <div
-                          className="absolute top-1/2 left-1/2 origin-center pointer-events-none"
-                          style={{
-                            width: '192px',
-                            height: '4px',
-                            backgroundColor: isLevel ? '#10b981' : '#ef4444',
-                            zIndex: 50,
-                            transform: `translate(-50%, calc(-50% + ${bubbleY || 0}px)) rotate(${bubbleRotationDeg || 0}deg)`,
-                          }}
-                        >
-                          {/* Center dot on the horizon line */}
-                          <div
-                            className="absolute top-1/2 left-1/2 pointer-events-none"
-                            style={{
-                              width: '16px',
-                              height: '16px',
-                              backgroundColor: isLevel ? '#10b981' : '#ef4444',
-                              borderRadius: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              zIndex: 51,
-                            }}
-                          />
+                  <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
+                    isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
+                  }`}>
+                    {capturePlane === 'flat' ? (
+                      <>
+                        {/* Flat plane (tabletop, looking down): bullseye — gamma drives the
+                            dot's X, beta drives its Y, free on both axes. */}
+                        <div className="absolute inset-0 flex items-center pointer-events-none">
+                          <div className="w-full h-px bg-white/25" />
                         </div>
-                      )}
-                    </div>
-                    <span className={`text-[9px] font-mono tracking-wider transition-colors duration-300 ${
-                      isLevel ? 'text-emerald-400' : 'text-red-400/80'
-                    }`}>
-                      {isLevel ? 'LEVEL' : 'TILT'}
-                    </span>
+                        <div className="absolute inset-0 flex justify-center pointer-events-none">
+                          <div className="h-full w-px bg-white/25" />
+                        </div>
+                        <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
+                          isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
+                        }`} />
+                        <div
+                          className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
+                            isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                          }`}
+                          style={{
+                            top: '50%', left: '50%',
+                            transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleFlatY}px))`,
+                            transition: 'transform 150ms ease-out, background-color 300ms',
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div
+                        className="absolute top-1/2 left-1/2 origin-center pointer-events-none"
+                        style={{
+                          width: '192px',
+                          height: '4px',
+                          backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                          zIndex: 50,
+                          transform: `translate(-50%, calc(-50% + ${bubbleY || 0}px)) rotate(${bubbleRotationDeg || 0}deg)`,
+                        }}
+                      >
+                        {/* Center dot on the horizon line */}
+                        <div
+                          className="absolute top-1/2 left-1/2 pointer-events-none"
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                            borderRadius: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            zIndex: 51,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
