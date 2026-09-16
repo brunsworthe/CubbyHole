@@ -313,6 +313,18 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
 
+  // The glass is rendered as a circle (rounded-full), but getBoundingClientRect() still
+  // reports its square DOM box — its corners sit outside the visible glass. This checks a
+  // point against the circle's actual radius (half the box width) rather than that square box.
+  const isWithinRadius = (clientX: number, clientY: number): boolean => {
+    const el = containerRef.current
+    if (!el) return false
+    const r = el.getBoundingClientRect()
+    const dx = clientX - (r.left + r.width / 2)
+    const dy = clientY - (r.top + r.height / 2)
+    return Math.sqrt(dx * dx + dy * dy) <= r.width / 2
+  }
+
   // Pointer coordinates arrive in screen space, but the pad's parent wrapper is visually
   // spun by uiRotation (same rotate() transform as the rest of the HUD) so it stays upright
   // for the user. getBoundingClientRect() still reports the unrotated box (rotating a shape
@@ -326,9 +338,23 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
     const el = containerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    // Screen-space fraction, centered on the pad (can exceed [0,1] mid-drag; clamped after rotation).
-    const sx = (clientX - r.left) / r.width - 0.5
-    const sy = (clientY - r.top) / r.height - 0.5
+    const centerX = r.left + r.width / 2
+    const centerY = r.top + r.height / 2
+    const radius = r.width / 2
+    // Clamp the raw point to the circle's edge first, so a drag that wanders past the glass
+    // (into what would be the square box's now-invisible corners) tracks the puck right up to
+    // the boundary instead of jumping to wherever the finger actually is off-glass.
+    let dx = clientX - centerX
+    let dy = clientY - centerY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    if (distance > radius) {
+      const scale = radius / distance
+      dx *= scale
+      dy *= scale
+    }
+    // Screen-space fraction, centered on the pad (now bounded to [-0.5, 0.5] by the clamp above).
+    const sx = dx / r.width
+    const sy = dy / r.height
     let lx: number, ly: number
     switch (uiRotation) {
       case 90:  lx = sy;  ly = -sx; break  // visual top-right (sx>0, sy<0) -> logical (lx>0, ly>0) = right/top
@@ -346,6 +372,8 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
+    // Reject touches that land in the square hit-box's corners, outside the visible glass circle.
+    if (!isWithinRadius(e.clientX, e.clientY)) return
     draggingRef.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     updateFromPoint(e.clientX, e.clientY)
