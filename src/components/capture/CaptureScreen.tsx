@@ -531,7 +531,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   const bubbleY = Math.max(-11, Math.min(11, uprightVerticalCentered * 30))
   const bubbleRotationDeg = Math.max(-25, Math.min(25, uprightRotationSource * 60))
 
-  const isLevel = (is2D || isDocument) && (
+  const isLevel = (is2D || isDocument || isScan3d || isRelief) && (
     capturePlane === 'flat'
       ? Math.abs(levelGx) < 0.05 && Math.abs(levelGy) < 0.05
       : Math.abs(uprightRotationSource) < 0.05 && Math.abs(uprightVerticalCentered) < 0.05
@@ -852,9 +852,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     })
   }, [])
 
-  // Device orientation for 2D level indicator
+  // Device orientation for the tilt/level indicator (artwork2d, document, scan3d, relief180)
   useEffect(() => {
-    if (!is2D && !isDocument) {
+    if (!is2D && !isDocument && !isScan3d && !isRelief) {
       const g = computeGravityVector(30, 20)
       setLevelGx(g.gx); setLevelGy(g.gy); setLevelGz(g.gz)
       setCapturePlane('flat')
@@ -905,7 +905,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       }
     }
     return () => cleanup?.()
-  }, [is2D, isDocument])
+  }, [is2D, isDocument, isScan3d, isRelief])
 
   // Micro-vibration "snap" the instant the bubble crosses into level — fires only on the
   // false→true transition (tracked via prevIsLevelRef), never while it remains level and
@@ -1939,9 +1939,68 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </button>
                 </div>
 
-                {/* Right zone: fixed equal width, kept empty (Rotate/Orbit moved to the left
-                     gap) so the shutter's centering math is preserved. */}
-                <div className="w-28 flex items-center justify-center" />
+                {/* Right zone: fixed equal width, tilt/level indicator (Rotate/Orbit moved to
+                     the left gap, so this zone was free for feature parity with artwork2d/
+                     document). */}
+                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                  {cameraReady ? (
+                    <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
+                      isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
+                    }`}>
+                      {capturePlane === 'flat' ? (
+                        <>
+                          {/* Flat plane (tabletop, looking down): bullseye — gamma drives the
+                              dot's X, beta drives its Y, free on both axes. */}
+                          <div className="absolute inset-0 flex items-center pointer-events-none">
+                            <div className="w-full h-px bg-white/25" />
+                          </div>
+                          <div className="absolute inset-0 flex justify-center pointer-events-none">
+                            <div className="h-full w-px bg-white/25" />
+                          </div>
+                          <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
+                            isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
+                          }`} />
+                          <div
+                            className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
+                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                            }`}
+                            style={{
+                              top: '50%', left: '50%',
+                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleFlatY}px))`,
+                              transition: 'transform 150ms ease-out, background-color 300ms',
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <div
+                          className="absolute top-1/2 left-1/2 origin-center pointer-events-none"
+                          style={{
+                            width: '192px',
+                            height: '4px',
+                            backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                            zIndex: 50,
+                            transform: `translate(-50%, calc(-50% + ${bubbleY || 0}px)) rotate(${bubbleRotationDeg || 0}deg)`,
+                          }}
+                        >
+                          {/* Center dot on the horizon line */}
+                          <div
+                            className="absolute top-1/2 left-1/2 pointer-events-none"
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                              borderRadius: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 51,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2034,10 +2093,68 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   </button>
                 </div>
 
-                {/* Right zone: fixed equal width, matches the left zone's footprint so the
-                     shutter stays centered. Lighting lives solely in the global flashMode
-                     toggle on the viewfinder, so this zone is intentionally empty. */}
-                <div className="w-28 flex items-center justify-center" />
+                {/* Right zone: fixed equal width, tilt/level indicator (matches artwork2d/
+                     document for feature parity). Lighting lives solely in the global
+                     flashMode toggle on the viewfinder. */}
+                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                  {cameraReady ? (
+                    <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
+                      isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
+                    }`}>
+                      {capturePlane === 'flat' ? (
+                        <>
+                          {/* Flat plane (tabletop, looking down): bullseye — gamma drives the
+                              dot's X, beta drives its Y, free on both axes. */}
+                          <div className="absolute inset-0 flex items-center pointer-events-none">
+                            <div className="w-full h-px bg-white/25" />
+                          </div>
+                          <div className="absolute inset-0 flex justify-center pointer-events-none">
+                            <div className="h-full w-px bg-white/25" />
+                          </div>
+                          <div className={`absolute inset-2.5 rounded-full border transition-colors duration-300 ${
+                            isLevel ? 'border-emerald-400/45' : 'border-red-400/30'
+                          }`} />
+                          <div
+                            className={`absolute w-3.5 h-3.5 rounded-full shadow-md transition-colors duration-300 ${
+                              isLevel ? 'bg-emerald-400' : 'bg-red-400'
+                            }`}
+                            style={{
+                              top: '50%', left: '50%',
+                              transform: `translate(calc(-50% + ${bubbleX}px), calc(-50% + ${bubbleFlatY}px))`,
+                              transition: 'transform 150ms ease-out, background-color 300ms',
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <div
+                          className="absolute top-1/2 left-1/2 origin-center pointer-events-none"
+                          style={{
+                            width: '192px',
+                            height: '4px',
+                            backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                            zIndex: 50,
+                            transform: `translate(-50%, calc(-50% + ${bubbleY || 0}px)) rotate(${bubbleRotationDeg || 0}deg)`,
+                          }}
+                        >
+                          {/* Center dot on the horizon line */}
+                          <div
+                            className="absolute top-1/2 left-1/2 pointer-events-none"
+                            style={{
+                              width: '16px',
+                              height: '16px',
+                              backgroundColor: isLevel ? '#10b981' : '#ef4444',
+                              borderRadius: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              zIndex: 51,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-11 h-11 flex-shrink-0" aria-hidden="true" />
+                  )}
+                </div>
               </div>
             </div>
           )}
