@@ -302,6 +302,10 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
 // ── 2D trackpad for guide-box width/height, replacing the old dual-slider control ────────
 const BOX_DIM_MIN = 25
 const BOX_DIM_MAX = 95
+// Must match the pad's `w-20 h-20` and the puck's `w-6 h-6` Tailwind classes below — used to
+// inset the puck's radial clamp so its edge, not just its center, stays inside the circular pad.
+const PAD_DIAMETER_PX = 80
+const PUCK_DIAMETER_PX = 24
 
 function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   width: number
@@ -388,8 +392,27 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   }
 
   const range = BOX_DIM_MAX - BOX_DIM_MIN
-  const puckLeftPct = ((width - BOX_DIM_MIN) / range) * 100
-  const puckBottomPct = ((height - BOX_DIM_MIN) / range) * 100
+  // Recover the puck's center offset from the pad's own center, in the same [-0.5, 0.5]
+  // fractional coordinate space (of pad width/height) that updateFromPoint's lx/ly use — this
+  // is the exact inverse of the width/height <-> lx/ly mapping there (ly is negated vs. lx
+  // because height maps inversely: dragging toward the visual top raises height toward MAX).
+  const rawLx = (width - BOX_DIM_MIN) / range - 0.5
+  const rawLy = (BOX_DIM_MAX - height) / range - 0.5
+
+  // The pad renders as a circle, but a raw ±0.5 fraction reaches the *square* DOM box's edge —
+  // touching that on-axis (e.g. straight up) already lands the puck's center exactly on the
+  // circle's rim, so its top half pokes out past the glass; off-axis (diagonal) drags reach a
+  // magnitude up to ~0.71, well outside the circle entirely. Clamping the raw fraction's
+  // magnitude to a radius inset by the puck's own half-width — rather than clamping x/y
+  // independently — keeps the puck's edge (not just its center) inside the glass evenly at
+  // every angle, which is what was actually producing the top/bottom-only asymmetry: on-axis
+  // drags were the only ones clamped at all (via xPct/yPct being capped to [0,1] pre-rotation),
+  // while nothing accounted for the puck's own radius.
+  const maxCenterFrac = 0.5 - (PUCK_DIAMETER_PX / 2) / PAD_DIAMETER_PX
+  const mag = Math.hypot(rawLx, rawLy)
+  const clampScale = mag > maxCenterFrac ? maxCenterFrac / mag : 1
+  const puckLeftPct = (rawLx * clampScale + 0.5) * 100
+  const puckTopPct = (rawLy * clampScale + 0.5) * 100
 
   return (
     <div
@@ -404,8 +427,8 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
       aria-label="Guide box size — drag to adjust width and height"
     >
       <div
-        className="w-6 h-6 rounded-full bg-white shadow-lg absolute -translate-x-1/2 translate-y-1/2 pointer-events-none"
-        style={{ left: `${puckLeftPct}%`, bottom: `${puckBottomPct}%` }}
+        className="w-6 h-6 rounded-full bg-white shadow-lg absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ left: `${puckLeftPct}%`, top: `${puckTopPct}%` }}
       />
     </div>
   )
