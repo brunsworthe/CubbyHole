@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Lightbulb, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, Maximize, Minimize, Plus, Minus, Timer, Trash2 } from 'lucide-react'
+import { X, Box, Palette, FileText, Mountain, VideoOff, Images, CheckCircle2, Zap, ZapOff, Sun, Maximize, Minimize, Plus, Minus, Timer, Trash2 } from 'lucide-react'
 import type { CaptureMode, CapturedMedia } from './CaptureFlow'
 
 const MODES: { id: CaptureMode; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -131,6 +131,25 @@ function CropOverlay({ corners, onCornersChange, accentColor }: {
 
 const triggerHaptic = (duration: number) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(duration)
+}
+
+// Brightness check for flashMode === 'auto': downsamples the live frame to 10x10 (100 pixels)
+// on an offscreen canvas — cheap enough to run synchronously right before a capture — and
+// averages per-pixel RGB luminance. Below ~100/255 reads as "dark enough to want the torch."
+function needsAutoFlash(videoElem: HTMLVideoElement): boolean {
+  const canvas = document.createElement('canvas')
+  canvas.width = 10
+  canvas.height = 10
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return false
+  ctx.drawImage(videoElem, 0, 0, 10, 10)
+  const { data } = ctx.getImageData(0, 0, 10, 10)
+  let totalLuminance = 0
+  const pixelCount = data.length / 4
+  for (let i = 0; i < data.length; i += 4) {
+    totalLuminance += (data[i] + data[i + 1] + data[i + 2]) / 3
+  }
+  return totalLuminance / pixelCount < 100
 }
 
 // ── Unified SVG directional-guide ring for scan3d / relief180 shutter buttons ──
@@ -389,6 +408,9 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Shutter flash state ───────────────────────────────────────────────────
   const [flashOpacity, setFlashOpacity] = useState(0)
 
+  // ── Flash mode toggle (UI only for now — 'flash'/'auto' don't affect the shutter yet) ────
+  const [flashMode, setFlashMode] = useState<'off' | 'torch' | 'flash' | 'auto'>('off')
+
   // ── Tap-to-focus reticle state (visual-only — no MediaStreamTrack focus constraints) ──
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null)
 
@@ -421,8 +443,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── relief180 6-frame state ───────────────────────────────────────────────
   const [reliefFrames, setReliefFrames] = useState<(Blob | null)[]>(() => Array(6).fill(null))
   const [reliefStep, setReliefStep] = useState(0)
-  const [lightingMode, setLightingMode] = useState<'natural' | 'torch'>('natural')
-  const [torchUnsupported, setTorchUnsupported] = useState(false)
   const [baseSilhouetteUrl, setBaseSilhouetteUrl] = useState<string | null>(null)
 
   // ── Level indicator for 2D mode ───────────────────────────────────────────
@@ -765,18 +785,12 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     if (ghostUrlRef.current) { URL.revokeObjectURL(ghostUrlRef.current); ghostUrlRef.current = null }
     setGhostUrl(null)
 
-    // Reset relief + disable torch (any lingering torch from the previous mode)
+    // Reset relief. Torch is no longer mode-scoped — flashMode is the single source of truth for
+    // the device light and persists across mode switches, so it's deliberately left untouched here.
     const freshRelief = Array(6).fill(null) as (Blob | null)[]
     reliefFramesRef.current = freshRelief
     setReliefFrames(freshRelief)
     setReliefStep(0)
-    setLightingMode('natural')
-    setTorchUnsupported(false)
-    // Always attempt torch-off on mode switch (safe no-op if not supported)
-    const track = streamRef.current?.getVideoTracks()[0]
-    if (track) {
-      track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
@@ -803,18 +817,40 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setGhostUrl(url)
   }, [isScan3d, currentStep])
 
-  // Apply / remove hardware torch when lighting mode changes (relief only)
-  useEffect(() => {
-    if (!isRelief || !cameraReady) return
+  // Applies/removes the hardware torch on the active video track, wrapped in try/catch so
+  // devices/lenses without torch support (or a synchronous throw from applyConstraints) are
+  // silently ignored rather than crashing the capture flow. Shared by the flashMode effect below
+  // and the synthetic-flash capture wrapper, which is why it returns the underlying promise —
+  // the latter needs to await the constraint landing before starting its 300ms settle timer.
+  const applyTorch = useCallback((enable: boolean): Promise<void> => {
     const track = streamRef.current?.getVideoTracks()[0]
-    if (!track) return
-    const enable = lightingMode === 'torch'
-    track
-      .applyConstraints({ advanced: [{ torch: enable } as unknown as MediaTrackConstraintSet] })
-      .catch(() => {
-        if (enable) setTorchUnsupported(true)
-      })
-  }, [lightingMode, isRelief, cameraReady])
+    if (!track) return Promise.resolve()
+    try {
+      return track
+        .applyConstraints({ advanced: [{ torch: enable } as unknown as MediaTrackConstraintSet] })
+        .catch(() => { /* device/lens doesn't support torch — silently ignore */ })
+    } catch {
+      return Promise.resolve()
+    }
+  }, [])
+
+  // flashMode is the single source of truth for the device light — relief180's old, separate
+  // lightingMode toggle has been retired in favor of this. 'flash' and 'auto' don't hold the
+  // torch on here; they're handled per-capture by the synthetic-flash wrapper below.
+  useEffect(() => {
+    if (!cameraReady) return
+    applyTorch(flashMode === 'torch')
+  }, [flashMode, cameraReady, applyTorch])
+
+  // Cycles strictly off -> torch -> flash -> auto -> off.
+  const toggleFlashMode = useCallback(() => {
+    setFlashMode(prev => {
+      if (prev === 'off') return 'torch'
+      if (prev === 'torch') return 'flash'
+      if (prev === 'flash') return 'auto'
+      return 'off'
+    })
+  }, [])
 
   // Device orientation for 2D level indicator
   useEffect(() => {
@@ -922,14 +958,33 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
     setTimeout(() => setFlashOpacity(0), 50)
   }, [])
 
+  // No native hardware flash exists here — frames are drawn off the <video> element via the
+  // Canvas API (drawRotatedFrame), not ImageCapture.takePhoto(), so there's no photo-flash API to
+  // call. This simulates one: force the torch on right before the shot, hold it for 300ms so the
+  // sensor's auto-exposure/white-balance has time to settle into the new lighting (an instant
+  // on/off would just brighten the *next* frame after the one we actually capture), then let the
+  // caller draw the frame. Returns a restore callback the caller runs immediately after drawing,
+  // which drops the torch back to whatever flashMode itself calls for (off for 'flash'/'auto' —
+  // 'torch' never reaches this path since it's already held on by the effect above).
+  const withSyntheticFlash = useCallback(async (video: HTMLVideoElement): Promise<() => void> => {
+    const useFlash = flashMode === 'flash' || (flashMode === 'auto' && needsAutoFlash(video))
+    if (useFlash) {
+      await applyTorch(true)
+      await new Promise(r => setTimeout(r, 300))
+    }
+    return () => { applyTorch(flashMode === 'torch') }
+  }, [flashMode, applyTorch])
+
   // ── Flat-page capture (artwork2d + document) → enters crop state ─────────
-  const captureDocPage = useCallback(() => {
+  const captureDocPage = useCallback(async () => {
     if (isCapturing || docOverlay || cropState) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
-    playShutterEffect()
     setIsCapturing(true)
+    const restoreFlash = await withSyntheticFlash(video)
+    playShutterEffect()
     const canvas = drawRotatedFrame(video)
+    restoreFlash()
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const objectUrl = URL.createObjectURL(blob)
@@ -958,7 +1013,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setCropState({ blob, objectUrl })
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize, playShutterEffect])
+  }, [isCapturing, docOverlay, cropState, drawRotatedFrame, containerSize, playShutterEffect, withSyntheticFlash])
 
   const finishDocument = useCallback(() => {
     const allPages = docPages
@@ -977,13 +1032,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   }, [])
 
   // ── scan3d: capture one still frame ──────────────────────────────────────
-  const captureFrame3D = useCallback(() => {
+  const captureFrame3D = useCallback(async () => {
     if (isCapturing || currentStep >= 8) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
-    playShutterEffect()
     setIsCapturing(true)
+    const restoreFlash = await withSyntheticFlash(video)
+    playShutterEffect()
     const canvas = drawRotatedFrame(video)
+    restoreFlash()
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const step = currentStep
@@ -996,7 +1053,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setCurrentStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, currentStep, drawRotatedFrame, playShutterEffect])
+  }, [isCapturing, currentStep, drawRotatedFrame, playShutterEffect, withSyntheticFlash])
 
   const compileScan3D = useCallback(() => {
     const frames = capturedFramesRef.current.filter((b): b is Blob => b !== null)
@@ -1024,13 +1081,15 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   }, [isOrbitMode, currentStep])
 
   // ── relief180: capture one still frame ───────────────────────────────────
-  const captureReliefFrame = useCallback(() => {
+  const captureReliefFrame = useCallback(async () => {
     if (isCapturing || reliefStep >= 6) return
     const video = videoRef.current
     if (!video || video.readyState < 2) return
-    playShutterEffect()
     setIsCapturing(true)
+    const restoreFlash = await withSyntheticFlash(video)
+    playShutterEffect()
     const canvas = drawRotatedFrame(video)
+    restoreFlash()
     canvas.toBlob(blob => {
       if (!blob) { setIsCapturing(false); return }
       const step = reliefStep
@@ -1043,15 +1102,11 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       setReliefStep(step + 1)
       setIsCapturing(false)
     }, 'image/jpeg', 0.92)
-  }, [isCapturing, reliefStep, drawRotatedFrame, playShutterEffect])
+  }, [isCapturing, reliefStep, drawRotatedFrame, playShutterEffect, withSyntheticFlash])
 
   const compileRelief = useCallback(() => {
     const frames = reliefFramesRef.current.filter((b): b is Blob => b !== null)
     if (frames.length < 6) return
-    const track = streamRef.current?.getVideoTracks()[0]
-    if (track) {
-      track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
-    }
     const primaryBlob = frames[3]  // center (Top-Down) frame as primary thumbnail (index 3 of 6)
     // Local preview only — no network round-trip. The real upload (to capsule-assets)
     // happens later in CaptureFlow once the user confirms naming/metadata.
@@ -1081,12 +1136,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
       reliefFramesRef.current = freshRelief
       setReliefFrames(freshRelief)
       setReliefStep(0)
-      setLightingMode('natural')
-      setTorchUnsupported(false)
-      const track = streamRef.current?.getVideoTracks()[0]
-      if (track) {
-        track.applyConstraints({ advanced: [{ torch: false } as unknown as MediaTrackConstraintSet] }).catch(() => {})
-      }
     } else if (isFlat) {
       setDocPages([])
       setDocOverlay(false)
@@ -1279,6 +1328,38 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         <div ref={cropContainerRef} className="relative overflow-hidden w-full h-full"
           onTouchStart={handlePinchStart} onTouchMove={handlePinchMove}
           onTouchEnd={handlePinchEnd} onTouchCancel={handlePinchEnd}>
+
+        {/* Flash mode toggle — anchored to the same relative videoContentStyle wrapper the zoom
+             HUD below uses, so it sits inside the *actual rendered video box* rather than the
+             letterboxed outer container in landscape. UI + torch wiring only for 'torch'; the
+             synthetic-flash wrapper below handles 'flash'/'auto' at the moment of capture. */}
+        {videoAR != null && containerSize != null && (
+          <div className="absolute inset-0 z-50 pointer-events-none flex items-center justify-center">
+            <div className="relative" style={videoContentStyle}>
+              <button
+                onClick={toggleFlashMode}
+                className="absolute top-4 right-4 pointer-events-auto bg-black/40 backdrop-blur-md rounded-full p-2.5 text-white transition-transform duration-300 active:scale-95"
+                style={{ transform: `rotate(${uiRotation}deg)` }}
+                aria-label={`Flash mode: ${flashMode}`}
+              >
+                {flashMode === 'off' && <ZapOff size={20} />}
+                {flashMode === 'torch' && <Sun size={20} className="text-amber-400" />}
+                {flashMode === 'flash' && <Zap size={20} className="text-amber-400" />}
+                {flashMode === 'auto' && (
+                  <div className="relative">
+                    <Zap size={20} />
+                    <div
+                      className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center text-[10px] font-bold border border-black/20"
+                      style={{ color: '#000' }}
+                    >
+                      A
+                    </div>
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Camera-active indicator dot — pinned to top-left of video content area */}
         {cameraReady && videoAR != null && containerSize != null && (
@@ -1919,8 +2000,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
                 <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-                {/* Right zone: fixed equal width, timer toggle + Lighting label + stacked Natural / Flashlight buttons */}
-                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                {/* Right zone: fixed equal width, matches the left zone's footprint so the
+                     shutter stays centered. Lighting now lives solely in the global flashMode
+                     toggle on the viewfinder, so this zone is just the timer toggle. */}
+                <div className="w-28 flex items-center justify-center">
                   <button
                     onClick={() => setTimerOn(v => !v)}
                     className="w-7 h-7 rounded-full flex items-center justify-center border transition-colors"
@@ -1933,38 +2016,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                   >
                     <Timer className="w-3.5 h-3.5" style={uiSpinStyle} />
                   </button>
-                  <div style={uiSpinStyle} className="flex flex-col items-start gap-1">
-                    <div className="flex items-center gap-1">
-                      <Lightbulb className={`w-3 h-3 flex-shrink-0 transition-colors ${lightingMode === 'torch' ? 'text-orange-400' : 'text-white/35'}`} />
-                      <span className="text-white/50 text-[9px] font-medium">Lighting</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5 bg-white/8 rounded-xl p-0.5">
-                      <button
-                        onClick={() => setLightingMode('natural')}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-                          lightingMode === 'natural'
-                            ? 'bg-white/20 text-white shadow-sm'
-                            : 'text-white/35 hover:text-white/60'
-                        }`}
-                      >
-                        Natural
-                      </button>
-                      <button
-                        onClick={() => setLightingMode('torch')}
-                        className={`flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-                          lightingMode === 'torch'
-                            ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30'
-                            : 'text-white/35 hover:text-white/60'
-                        }`}
-                      >
-                        <Zap className="w-2.5 h-2.5" />
-                        Flashlight
-                      </button>
-                      {torchUnsupported && (
-                        <span className="text-[9px] text-orange-400/65 text-center">n/a</span>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
