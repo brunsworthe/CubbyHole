@@ -315,7 +315,7 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
 
   // Pointer coordinates arrive in screen space, but the pad's parent wrapper is visually
   // spun by uiRotation (same rotate() transform as the rest of the HUD) so it stays upright
-  // for the user. getBoundingClientRect() still reports the unrotated box (rotating a square
+  // for the user. getBoundingClientRect() still reports the unrotated box (rotating a shape
   // about its center leaves its axis-aligned bounding box unchanged), so a raw screen-space
   // fraction lands on the wrong edge once rotated — e.g. dragging to the visual top-right in
   // landscape (uiRotation ±90) would otherwise read as a screen-space corner that isn't the
@@ -370,7 +370,7 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`relative w-20 h-20 rounded-xl bg-white/10 border border-white/30 touch-none ${
+      className={`relative w-20 h-20 rounded-full bg-white/10 border border-white/30 touch-none ${
         disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
       }`}
       aria-label="Guide box size — drag to adjust width and height"
@@ -1843,7 +1843,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center${currentStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle} className="transform scale-[0.75] origin-center">
+                  <div
+                    className="origin-center"
+                    style={{ transform: `rotate(${uiRotation}deg) scale(0.75)`, transition: 'transform 0.3s ease-out' }}
+                  >
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
@@ -1971,7 +1974,10 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
                 <div className={`w-28 flex items-center justify-center${reliefStep !== 0 ? ' invisible' : ''}`}>
-                  <div style={uiSpinStyle} className="transform scale-[0.75] origin-center">
+                  <div
+                    className="origin-center"
+                    style={{ transform: `rotate(${uiRotation}deg) scale(0.75)`, transition: 'transform 0.3s ease-out' }}
+                  >
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
