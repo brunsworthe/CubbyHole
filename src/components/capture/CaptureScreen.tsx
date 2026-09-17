@@ -301,7 +301,7 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
 
 // ── 2D trackpad for guide-box width/height, replacing the old dual-slider control ────────
 const BOX_DIM_MIN = 25
-const BOX_DIM_MAX = 95
+const BOX_DIM_MAX = 100
 // Rectangular glass — a 1:1 physical mini-map of the portrait viewfinder, not a dial. Must
 // match the glass's `w-16 h-20` and the puck's `w-6 h-6` Tailwind classes below — used to
 // inset the puck's clamp so its edge, not just its center, stays inside the rectangular pad.
@@ -309,30 +309,79 @@ const PAD_WIDTH_PX = 64
 const PAD_HEIGHT_PX = 80
 const PUCK_DIAMETER_PX = 24
 
-function BoxTrackpad({ width, height, onChange, disabled }: {
+function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   width: number
   height: number
   onChange: (w: number, h: number) => void
   disabled?: boolean
+  uiRotation: number
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
 
+  // Inset fraction per axis, so the puck's edge — not just its center — stays flush inside the
+  // rectangular glass on every side. Shared by the pointer-input normalization below and the
+  // puck's own rendered position further down. A rectangle has no single "radius" the way the
+  // old circular pad did, so X and Y are handled independently throughout this component
+  // instead of scaling a combined (Math.hypot) magnitude.
+  const insetXFrac = (PUCK_DIAMETER_PX / 2) / PAD_WIDTH_PX
+  const insetYFrac = (PUCK_DIAMETER_PX / 2) / PAD_HEIGHT_PX
+
+  // The puck's own rendered position, in RAW chassis-space fractions (pre-rotation, pre-
+  // normalization). Tracked as local state — separate from width/height — because those props
+  // are the *logical* (already rotation-remapped) output values the parent consumes; deriving
+  // the puck's DOM position from them would make it appear to rotate with uiRotation, when it
+  // must instead strictly track the thumb's actual physical position on the glass. Seeded once
+  // from the initial width/height using the same (unrotated) formula as a reasonable start.
+  const [puckFrac, setPuckFrac] = useState(() => {
+    const range = BOX_DIM_MAX - BOX_DIM_MIN
+    return {
+      x: Math.max(insetXFrac, Math.min(1 - insetXFrac, (width - BOX_DIM_MIN) / range)),
+      y: Math.max(insetYFrac, Math.min(1 - insetYFrac, (BOX_DIM_MAX - height) / range)),
+    }
+  })
+
   // The glass is a rectangle, so its DOM box IS its visible hit area — no circle/square
-  // mismatch to correct for. It also stays physically anchored to the device chassis (it does
+  // mismatch to correct for, and it stays physically anchored to the device chassis (it does
   // not spin with uiRotation like the rest of the HUD), so raw screen-space pointer
-  // coordinates map onto it directly with no counter-rotation needed.
+  // coordinates map onto it directly with no CSS-rotation to undo.
   const updateFromPoint = useCallback((clientX: number, clientY: number) => {
     const el = containerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const xPct = Math.max(0, Math.min(1, (clientX - r.left) / r.width))
-    const yPct = Math.max(0, Math.min(1, (clientY - r.top) / r.height))
+    const rawXPct = Math.max(0, Math.min(1, (clientX - r.left) / r.width))
+    const rawYPct = Math.max(0, Math.min(1, (clientY - r.top) / r.height))
+
+    // Clamp to the same inset zone the puck's rendered position is clamped to, then stretch
+    // that inner usable zone back out to a true [0, 1] range. Without this, the dead zone
+    // between the physical glass edge and the puck's visually-clamped stopping point would
+    // leave the last few percent of width/height permanently unreachable.
+    const clampedX = Math.max(insetXFrac, Math.min(1 - insetXFrac, rawXPct))
+    const clampedY = Math.max(insetYFrac, Math.min(1 - insetYFrac, rawYPct))
+    // The puck's DOM position tracks these raw, un-rotated fractions directly — uiRotation
+    // below only ever touches the logical values sent to onChange, never this local state.
+    setPuckFrac({ x: clampedX, y: clampedY })
+
+    const normalizedX = (clampedX - insetXFrac) / (1 - 2 * insetXFrac)
+    const normalizedY = (clampedY - insetYFrac) / (1 - 2 * insetYFrac)
+
+    // Chassis-space (normalizedX, normalizedY) still needs remapping into the logical,
+    // rotation-independent axis convention guideBoxWidth/Height are consumed in — the same
+    // swap/invert matrix the pad used pre-refactor (there operating on a CSS-rotated square's
+    // screen-space fraction), just expressed in [0, 1] instead of a [-0.5, 0.5] centered one.
+    let logicalX: number, logicalY: number
+    switch (uiRotation) {
+      case 90:  logicalX = normalizedY;     logicalY = 1 - normalizedX; break
+      case -90: logicalX = 1 - normalizedY; logicalY = normalizedX;     break
+      case 180: logicalX = 1 - normalizedX; logicalY = 1 - normalizedY; break
+      default:  logicalX = normalizedX;     logicalY = normalizedY
+    }
+
     const range = BOX_DIM_MAX - BOX_DIM_MIN
-    const w = BOX_DIM_MIN + xPct * range
-    const h = BOX_DIM_MAX - yPct * range // top of the glass = max height, bottom = min height
+    const w = BOX_DIM_MIN + logicalX * range
+    const h = BOX_DIM_MAX - logicalY * range // logical top = max height, logical bottom = min height
     onChange(Math.round(w), Math.round(h))
-  }, [onChange])
+  }, [onChange, uiRotation, insetXFrac, insetYFrac])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
@@ -349,21 +398,8 @@ function BoxTrackpad({ width, height, onChange, disabled }: {
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
   }
 
-  const range = BOX_DIM_MAX - BOX_DIM_MIN
-  // Puck center as a [0, 1] fraction of the glass's own width/height — the inverse of the
-  // width/height <-> xPct/yPct mapping in updateFromPoint (Y is inverted vs. X because height
-  // maps inversely: dragging toward the visual top raises height toward MAX).
-  const rawXFrac = (width - BOX_DIM_MIN) / range
-  const rawYFrac = (BOX_DIM_MAX - height) / range
-
-  // Independent per-axis clamp, inset by the puck's own half-width/half-height, so the puck's
-  // edge — not just its center — stays flush inside the rectangular glass on every side. A
-  // rectangle has no single "radius" the way the old circular pad did, so X and Y are clamped
-  // separately instead of scaling a combined (Math.hypot) magnitude.
-  const insetXFrac = (PUCK_DIAMETER_PX / 2) / PAD_WIDTH_PX
-  const insetYFrac = (PUCK_DIAMETER_PX / 2) / PAD_HEIGHT_PX
-  const puckLeftPct = Math.max(insetXFrac, Math.min(1 - insetXFrac, rawXFrac)) * 100
-  const puckTopPct = Math.max(insetYFrac, Math.min(1 - insetYFrac, rawYFrac)) * 100
+  const puckLeftPct = puckFrac.x * 100
+  const puckTopPct = puckFrac.y * 100
 
   return (
     <div className="relative w-20 h-20 flex items-center justify-center">
@@ -1855,6 +1891,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={currentStep !== 0}
+                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
@@ -2044,6 +2081,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={reliefStep !== 0}
+                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
