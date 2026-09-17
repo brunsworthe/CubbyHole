@@ -302,82 +302,40 @@ function CaptureProgressRing({ mode, currentStep, capturedFrames, reliefStep, re
 // ── 2D trackpad for guide-box width/height, replacing the old dual-slider control ────────
 const BOX_DIM_MIN = 25
 const BOX_DIM_MAX = 95
-// Must match the pad's `w-20 h-20` and the puck's `w-6 h-6` Tailwind classes below — used to
-// inset the puck's radial clamp so its edge, not just its center, stays inside the circular pad.
-const PAD_DIAMETER_PX = 80
+// Rectangular glass — a 1:1 physical mini-map of the portrait viewfinder, not a dial. Must
+// match the glass's `w-16 h-20` and the puck's `w-6 h-6` Tailwind classes below — used to
+// inset the puck's clamp so its edge, not just its center, stays inside the rectangular pad.
+const PAD_WIDTH_PX = 64
+const PAD_HEIGHT_PX = 80
 const PUCK_DIAMETER_PX = 24
 
-function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
+function BoxTrackpad({ width, height, onChange, disabled }: {
   width: number
   height: number
   onChange: (w: number, h: number) => void
   disabled?: boolean
-  uiRotation: 0 | 90 | -90 | 180
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
 
-  // The glass is rendered as a circle (rounded-full), but getBoundingClientRect() still
-  // reports its square DOM box — its corners sit outside the visible glass. This checks a
-  // point against the circle's actual radius (half the box width) rather than that square box.
-  const isWithinRadius = (clientX: number, clientY: number): boolean => {
-    const el = containerRef.current
-    if (!el) return false
-    const r = el.getBoundingClientRect()
-    const dx = clientX - (r.left + r.width / 2)
-    const dy = clientY - (r.top + r.height / 2)
-    return Math.sqrt(dx * dx + dy * dy) <= r.width / 2
-  }
-
-  // Pointer coordinates arrive in screen space, but the pad's parent wrapper is visually
-  // spun by uiRotation (same rotate() transform as the rest of the HUD) so it stays upright
-  // for the user. getBoundingClientRect() still reports the unrotated box (rotating a shape
-  // about its center leaves its axis-aligned bounding box unchanged), so a raw screen-space
-  // fraction lands on the wrong edge once rotated — e.g. dragging to the visual top-right in
-  // landscape (uiRotation ±90) would otherwise read as a screen-space corner that isn't the
-  // top-right of the rotated pad at all. Counter-rotate the point by -uiRotation (inverse of
-  // the CSS transform) around the pad's center before mapping it to width/height, so "visual
-  // top-right" always resolves to logical top-right regardless of orientation.
+  // The glass is a rectangle, so its DOM box IS its visible hit area — no circle/square
+  // mismatch to correct for. It also stays physically anchored to the device chassis (it does
+  // not spin with uiRotation like the rest of the HUD), so raw screen-space pointer
+  // coordinates map onto it directly with no counter-rotation needed.
   const updateFromPoint = useCallback((clientX: number, clientY: number) => {
     const el = containerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const centerX = r.left + r.width / 2
-    const centerY = r.top + r.height / 2
-    const radius = r.width / 2
-    // Clamp the raw point to the circle's edge first, so a drag that wanders past the glass
-    // (into what would be the square box's now-invisible corners) tracks the puck right up to
-    // the boundary instead of jumping to wherever the finger actually is off-glass.
-    let dx = clientX - centerX
-    let dy = clientY - centerY
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    if (distance > radius) {
-      const scale = radius / distance
-      dx *= scale
-      dy *= scale
-    }
-    // Screen-space fraction, centered on the pad (now bounded to [-0.5, 0.5] by the clamp above).
-    const sx = dx / r.width
-    const sy = dy / r.height
-    let lx: number, ly: number
-    switch (uiRotation) {
-      case 90:  lx = sy;  ly = -sx; break  // visual top-right (sx>0, sy<0) -> logical (lx>0, ly>0) = right/top
-      case -90: lx = -sy; ly = sx;  break
-      case 180: lx = -sx; ly = -sy; break
-      default:  lx = sx;  ly = sy
-    }
-    const xPct = Math.max(0, Math.min(1, lx + 0.5))
-    const yPct = Math.max(0, Math.min(1, ly + 0.5))
+    const xPct = Math.max(0, Math.min(1, (clientX - r.left) / r.width))
+    const yPct = Math.max(0, Math.min(1, (clientY - r.top) / r.height))
     const range = BOX_DIM_MAX - BOX_DIM_MIN
     const w = BOX_DIM_MIN + xPct * range
-    const h = BOX_DIM_MAX - yPct * range // logical top = max height, logical bottom = min height
+    const h = BOX_DIM_MAX - yPct * range // top of the glass = max height, bottom = min height
     onChange(Math.round(w), Math.round(h))
-  }, [onChange, uiRotation])
+  }, [onChange])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
-    // Reject touches that land in the square hit-box's corners, outside the visible glass circle.
-    if (!isWithinRadius(e.clientX, e.clientY)) return
     draggingRef.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     updateFromPoint(e.clientX, e.clientY)
@@ -392,44 +350,39 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   }
 
   const range = BOX_DIM_MAX - BOX_DIM_MIN
-  // Recover the puck's center offset from the pad's own center, in the same [-0.5, 0.5]
-  // fractional coordinate space (of pad width/height) that updateFromPoint's lx/ly use — this
-  // is the exact inverse of the width/height <-> lx/ly mapping there (ly is negated vs. lx
-  // because height maps inversely: dragging toward the visual top raises height toward MAX).
-  const rawLx = (width - BOX_DIM_MIN) / range - 0.5
-  const rawLy = (BOX_DIM_MAX - height) / range - 0.5
+  // Puck center as a [0, 1] fraction of the glass's own width/height — the inverse of the
+  // width/height <-> xPct/yPct mapping in updateFromPoint (Y is inverted vs. X because height
+  // maps inversely: dragging toward the visual top raises height toward MAX).
+  const rawXFrac = (width - BOX_DIM_MIN) / range
+  const rawYFrac = (BOX_DIM_MAX - height) / range
 
-  // The pad renders as a circle, but a raw ±0.5 fraction reaches the *square* DOM box's edge —
-  // touching that on-axis (e.g. straight up) already lands the puck's center exactly on the
-  // circle's rim, so its top half pokes out past the glass; off-axis (diagonal) drags reach a
-  // magnitude up to ~0.71, well outside the circle entirely. Clamping the raw fraction's
-  // magnitude to a radius inset by the puck's own half-width — rather than clamping x/y
-  // independently — keeps the puck's edge (not just its center) inside the glass evenly at
-  // every angle, which is what was actually producing the top/bottom-only asymmetry: on-axis
-  // drags were the only ones clamped at all (via xPct/yPct being capped to [0,1] pre-rotation),
-  // while nothing accounted for the puck's own radius.
-  const maxCenterFrac = 0.5 - (PUCK_DIAMETER_PX / 2) / PAD_DIAMETER_PX
-  const mag = Math.hypot(rawLx, rawLy)
-  const clampScale = mag > maxCenterFrac ? maxCenterFrac / mag : 1
-  const puckLeftPct = (rawLx * clampScale + 0.5) * 100
-  const puckTopPct = (rawLy * clampScale + 0.5) * 100
+  // Independent per-axis clamp, inset by the puck's own half-width/half-height, so the puck's
+  // edge — not just its center — stays flush inside the rectangular glass on every side. A
+  // rectangle has no single "radius" the way the old circular pad did, so X and Y are clamped
+  // separately instead of scaling a combined (Math.hypot) magnitude.
+  const insetXFrac = (PUCK_DIAMETER_PX / 2) / PAD_WIDTH_PX
+  const insetYFrac = (PUCK_DIAMETER_PX / 2) / PAD_HEIGHT_PX
+  const puckLeftPct = Math.max(insetXFrac, Math.min(1 - insetXFrac, rawXFrac)) * 100
+  const puckTopPct = Math.max(insetYFrac, Math.min(1 - insetYFrac, rawYFrac)) * 100
 
   return (
-    <div
-      ref={containerRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      className={`relative w-20 h-20 rounded-full bg-white/10 border border-white/30 touch-none ${
-        disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
-      }`}
-      aria-label="Guide box size — drag to adjust width and height"
-    >
+    <div className="relative w-20 h-20 flex items-center justify-center">
       <div
-        className="w-6 h-6 rounded-full bg-white shadow-lg absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-        style={{ left: `${puckLeftPct}%`, top: `${puckTopPct}%` }}
-      />
+        ref={containerRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className={`relative w-16 h-20 rounded-2xl backdrop-blur-md bg-white/10 border border-white/30 touch-none ${
+          disabled ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
+        }`}
+        aria-label="Guide box size — drag to adjust width and height"
+      >
+        <div
+          className="w-6 h-6 rounded-full bg-white shadow-lg absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ left: `${puckLeftPct}%`, top: `${puckTopPct}%` }}
+        />
+      </div>
     </div>
   )
 }
@@ -548,8 +501,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // hardware portrait axes and never rotate with it — so a raw gx/gy offset lands in the
   // wrapper's pre-rotation local space and ends up spun the wrong way once the CSS transform
   // applies, e.g. a physical tilt "left" in landscape visually reads as the dot moving "up".
-  // Counter-rotate (gx, gy) by -uiRotation first — the exact same 2D rotation matrix BoxTrackpad
-  // uses on pointer coordinates for the same reason — so the CSS rotation lands the dot back in
+  // Counter-rotate (gx, gy) by -uiRotation first, so the CSS rotation lands the dot back in
   // line with the physical tilt direction the user actually feels. Clamped by vector magnitude
   // (not per-axis) so a diagonal tilt can't push the dot's combined offset past the ring's edge.
   const { flatLogicalGx, flatLogicalGy } = (() => {
@@ -1869,7 +1821,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
         </div>
 
       ) : isScan3d ? (
-        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 pt-2" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
 
           {/* Compile CTA or shutter */}
           {allFramesCaptured ? (
@@ -1893,17 +1845,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <div className="w-full flex justify-center">
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
-                <div className={`w-28 flex items-center justify-center${currentStep !== 0 ? ' invisible' : ''}`}>
+                <div className={`w-28 flex-shrink-0 flex items-center justify-center${currentStep !== 0 ? ' invisible' : ''}`}>
                   <div
                     className="origin-center"
-                    style={{ transform: `rotate(${uiRotation}deg) scale(0.75)`, transition: 'transform 0.3s ease-out' }}
+                    style={{ transform: 'scale(0.9)', transition: 'transform 0.3s ease-out' }}
                   >
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={currentStep !== 0}
-                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
@@ -1993,7 +1944,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 {/* Right zone: fixed equal width, tilt/level indicator (Rotate/Orbit moved to
                      the left gap, so this zone was free for feature parity with artwork2d/
                      document). */}
-                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                <div className="w-28 flex-shrink-0 flex flex-col items-center justify-center gap-1.5">
                   {cameraReady ? (
                     <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
@@ -2059,7 +2010,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
       ) : isRelief ? (
         /* ── relief180: controls ── */
-        <div className="flex-shrink-0 flex flex-col items-center gap-2 px-5 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="flex-shrink-0 flex flex-col items-center gap-2 pt-2" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
 
           {/* Compile CTA or shutter */}
           {allReliefCaptured ? (
@@ -2083,17 +2034,16 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <div className="w-full flex justify-center">
               <div className="flex items-center">
                 {/* Left zone: fixed equal width, 2D trackpad for box width/height; invisible after step 0 */}
-                <div className={`w-28 flex items-center justify-center${reliefStep !== 0 ? ' invisible' : ''}`}>
+                <div className={`w-28 flex-shrink-0 flex items-center justify-center${reliefStep !== 0 ? ' invisible' : ''}`}>
                   <div
                     className="origin-center"
-                    style={{ transform: `rotate(${uiRotation}deg) scale(0.75)`, transition: 'transform 0.3s ease-out' }}
+                    style={{ transform: 'scale(0.9)', transition: 'transform 0.3s ease-out' }}
                   >
                     <BoxTrackpad
                       width={guideBoxWidth}
                       height={guideBoxHeight}
                       onChange={(w, h) => { setGuideBoxWidth(w); setGuideBoxHeight(h) }}
                       disabled={reliefStep !== 0}
-                      uiRotation={uiRotation}
                     />
                   </div>
                 </div>
@@ -2147,7 +2097,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
                 {/* Right zone: fixed equal width, tilt/level indicator (matches artwork2d/
                      document for feature parity). Lighting lives solely in the global
                      flashMode toggle on the viewfinder. */}
-                <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+                <div className="w-28 flex-shrink-0 flex flex-col items-center justify-center gap-1.5">
                   {cameraReady ? (
                     <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
                       isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
@@ -2218,7 +2168,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
             <div className="flex items-center">
 
               {/* Left zone: upload button */}
-              <div className="w-28 flex items-center justify-center">
+              <div className="w-28 flex-shrink-0 flex items-center justify-center">
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isCapturing || docOverlay}
@@ -2232,22 +2182,26 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
 
               <div className="w-10 flex-shrink-0" aria-hidden="true" />
 
-              {/* Shutter button */}
-              <button
-                onClick={handleShutterClick}
-                disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
-                className="relative flex-shrink-0 w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
-                aria-label={isFlat ? 'Capture page' : 'Take photo'}
-              >
-                <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
-                  isCapturing ? accentBtn.active : accentBtn.idle
-                }`} />
-                {isCapturing && (
-                  <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
-                    is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-slate-400'
+              {/* Shutter button, wrapped in the same w-24 h-24 zone as the 3D modes'
+                   progress-ring wrapper so the row's center column enforces an identical
+                   96px minimum height across all four capture modes. */}
+              <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+                <button
+                  onClick={handleShutterClick}
+                  disabled={!cameraReady || isCapturing || (isFlat && docOverlay)}
+                  className="relative w-20 h-20 rounded-full border-4 border-white/28 flex items-center justify-center transition-transform active:scale-95 disabled:opacity-40"
+                  aria-label={isFlat ? 'Capture page' : 'Take photo'}
+                >
+                  <div className={`w-14 h-14 rounded-full transition-colors duration-150 ${
+                    isCapturing ? accentBtn.active : accentBtn.idle
                   }`} />
-                )}
-              </button>
+                  {isCapturing && (
+                    <div className={`absolute inset-0 rounded-full border-4 animate-ping opacity-20 ${
+                      is2D ? 'border-violet-400' : isDocument ? 'border-sky-400' : 'border-slate-400'
+                    }`} />
+                  )}
+                </button>
+              </div>
 
               {/* Right spacer replaced by the timer toggle — same w-10 flex-shrink-0 footprint
                    as the left spacer, so the shutter's centering is untouched, just with the
@@ -2268,7 +2222,7 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
               </div>
 
               {/* Right zone: level indicator (2D Artwork) or spacer (Document). */}
-              <div className="w-28 flex flex-col items-center justify-center gap-1.5">
+              <div className="w-28 flex-shrink-0 flex flex-col items-center justify-center gap-1.5">
                 {(is2D || isDocument) && cameraReady ? (
                   <div style={uiSpinStyle} className={`relative w-11 h-11 rounded-full border-2 overflow-hidden transition-all duration-300 ${
                     isLevel ? 'border-emerald-400/80 bg-emerald-500/10' : 'border-red-400/60 bg-red-500/10'
