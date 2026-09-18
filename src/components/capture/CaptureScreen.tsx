@@ -327,14 +327,16 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   const insetXFrac = (PUCK_DIAMETER_PX / 2) / PAD_WIDTH_PX
   const insetYFrac = (PUCK_DIAMETER_PX / 2) / PAD_HEIGHT_PX
 
-  // On-device testing found the raw touch X axis runs backward relative to the user's thumb in
-  // landscape (uiRotation 90/-90) — dragging right shrank width instead of growing it. X stays
-  // mapped to X and Y to Y (pad and video share one unrotated chassis frame, so no transpose),
-  // just a per-axis polarity flip in landscape. Self-inverse, so the same helper works forward
+  // On-device testing found the raw touch axes run backward relative to the user's thumb in
+  // landscape — X stays mapped to X and Y to Y (pad and video share one unrotated chassis frame,
+  // so no transpose), just per-axis polarity flips, hand-calibrated independently per hold:
+  // -90 inverts X only; 90 inverts Y only. Self-inverse, so the same helper works forward
   // (touch -> logical, in updateFromPoint) and backward (logical props -> puck render position).
-  const applyLandscapePolarity = useCallback((x: number, y: number) => (
-    (uiRotation === 90 || uiRotation === -90) ? { x: 1 - x, y } : { x, y }
-  ), [uiRotation])
+  const applyLandscapePolarity = useCallback((x: number, y: number) => {
+    if (uiRotation === 90) return { x, y: 1 - y }
+    if (uiRotation === -90) return { x: 1 - x, y }
+    return { x, y }
+  }, [uiRotation])
 
   // The glass is a rectangle, so its DOM box IS its visible hit area — no circle/square
   // mismatch to correct for, and it stays physically anchored to the device chassis (it does
@@ -1317,14 +1319,6 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 h-[100dvh] z-50 bg-black flex flex-col select-none">
-
-      {/* TEMP DEBUG — remove once landscape polarity ground truth is confirmed */}
-      <div
-        className="fixed top-0 left-1/2 -translate-x-1/2 z-[999] px-4 py-1 rounded-b-lg bg-yellow-400 text-black font-mono font-bold text-2xl pointer-events-none"
-        style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
-      >
-        uiRotation: {uiRotation}
-      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 pb-2 flex-shrink-0" style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}>
