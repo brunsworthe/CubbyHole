@@ -327,19 +327,14 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
   const insetXFrac = (PUCK_DIAMETER_PX / 2) / PAD_WIDTH_PX
   const insetYFrac = (PUCK_DIAMETER_PX / 2) / PAD_HEIGHT_PX
 
-  // The puck's own rendered position, in RAW chassis-space fractions (pre-rotation, pre-
-  // normalization). Tracked as local state — separate from width/height — because those props
-  // are the *logical* (already rotation-remapped) output values the parent consumes; deriving
-  // the puck's DOM position from them would make it appear to rotate with uiRotation, when it
-  // must instead strictly track the thumb's actual physical position on the glass. Seeded once
-  // from the initial width/height using the same (unrotated) formula as a reasonable start.
-  const [puckFrac, setPuckFrac] = useState(() => {
-    const range = BOX_DIM_MAX - BOX_DIM_MIN
-    return {
-      x: Math.max(insetXFrac, Math.min(1 - insetXFrac, (width - BOX_DIM_MIN) / range)),
-      y: Math.max(insetYFrac, Math.min(1 - insetYFrac, (BOX_DIM_MAX - height) / range)),
-    }
-  })
+  // On-device testing found the raw touch X axis runs backward relative to the user's thumb in
+  // landscape (uiRotation 90/-90) — dragging right shrank width instead of growing it. X stays
+  // mapped to X and Y to Y (pad and video share one unrotated chassis frame, so no transpose),
+  // just a per-axis polarity flip in landscape. Self-inverse, so the same helper works forward
+  // (touch -> logical, in updateFromPoint) and backward (logical props -> puck render position).
+  const applyLandscapePolarity = useCallback((x: number, y: number) => (
+    (uiRotation === 90 || uiRotation === -90) ? { x: 1 - x, y } : { x, y }
+  ), [uiRotation])
 
   // The glass is a rectangle, so its DOM box IS its visible hit area — no circle/square
   // mismatch to correct for, and it stays physically anchored to the device chassis (it does
@@ -358,30 +353,16 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
     // leave the last few percent of width/height permanently unreachable.
     const clampedX = Math.max(insetXFrac, Math.min(1 - insetXFrac, rawXPct))
     const clampedY = Math.max(insetYFrac, Math.min(1 - insetYFrac, rawYPct))
-    // The puck's DOM position tracks these raw, un-rotated fractions directly — uiRotation
-    // below only ever touches the logical values sent to onChange, never this local state.
-    setPuckFrac({ x: clampedX, y: clampedY })
 
     const normalizedX = (clampedX - insetXFrac) / (1 - 2 * insetXFrac)
     const normalizedY = (clampedY - insetYFrac) / (1 - 2 * insetYFrac)
-
-    // Chassis-space (normalizedX, normalizedY) still needs remapping into the logical,
-    // rotation-independent axis convention guideBoxWidth/Height are consumed in — the same
-    // swap/invert matrix the pad used pre-refactor (there operating on a CSS-rotated square's
-    // screen-space fraction), just expressed in [0, 1] instead of a [-0.5, 0.5] centered one.
-    let logicalX: number, logicalY: number
-    switch (uiRotation) {
-      case 90:  logicalX = normalizedY;     logicalY = 1 - normalizedX; break
-      case -90: logicalX = 1 - normalizedY; logicalY = normalizedX;     break
-      case 180: logicalX = 1 - normalizedX; logicalY = 1 - normalizedY; break
-      default:  logicalX = normalizedX;     logicalY = normalizedY
-    }
+    const { x: logicalX, y: logicalY } = applyLandscapePolarity(normalizedX, normalizedY)
 
     const range = BOX_DIM_MAX - BOX_DIM_MIN
     const w = BOX_DIM_MIN + logicalX * range
-    const h = BOX_DIM_MAX - logicalY * range // logical top = max height, logical bottom = min height
+    const h = BOX_DIM_MAX - logicalY * range // top = max height, bottom = min height
     onChange(Math.round(w), Math.round(h))
-  }, [onChange, uiRotation, insetXFrac, insetYFrac])
+  }, [onChange, insetXFrac, insetYFrac, applyLandscapePolarity])
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (disabled) return
@@ -398,8 +379,17 @@ function BoxTrackpad({ width, height, onChange, disabled, uiRotation }: {
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* already released */ }
   }
 
-  const puckLeftPct = puckFrac.x * 100
-  const puckTopPct = puckFrac.y * 100
+  // Puck render position is derived from the persistent width/height props (not raw touch
+  // state), so it jumps to the correct corner on rotation and reflects the box's dimensions
+  // even when they change via something other than a drag (e.g. surviving a rotation). This is
+  // the exact inverse of the forward pipeline above: logical fraction -> un-flip polarity ->
+  // un-stretch/un-clamp back into the inset chassis fraction the puck is positioned in.
+  const range = BOX_DIM_MAX - BOX_DIM_MIN
+  const logicalX = Math.max(0, Math.min(1, (width - BOX_DIM_MIN) / range))
+  const logicalY = Math.max(0, Math.min(1, (BOX_DIM_MAX - height) / range))
+  const { x: normalizedX, y: normalizedY } = applyLandscapePolarity(logicalX, logicalY)
+  const puckLeftPct = (normalizedX * (1 - 2 * insetXFrac) + insetXFrac) * 100
+  const puckTopPct = (normalizedY * (1 - 2 * insetYFrac) + insetYFrac) * 100
 
   return (
     <div className="relative w-20 h-20 flex items-center justify-center">
@@ -1327,6 +1317,14 @@ export default function CaptureScreen({ mode, onModeChange, onCapture, onClose }
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 h-[100dvh] z-50 bg-black flex flex-col select-none">
+
+      {/* TEMP DEBUG — remove once landscape polarity ground truth is confirmed */}
+      <div
+        className="fixed top-0 left-1/2 -translate-x-1/2 z-[999] px-4 py-1 rounded-b-lg bg-yellow-400 text-black font-mono font-bold text-2xl pointer-events-none"
+        style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
+      >
+        uiRotation: {uiRotation}
+      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between px-5 pb-2 flex-shrink-0" style={{ paddingTop: 'max(2.5rem, env(safe-area-inset-top))' }}>
